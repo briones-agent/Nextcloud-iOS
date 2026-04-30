@@ -232,6 +232,19 @@ final class NCMediaViewerViewModel: ObservableObject {
         setMetadata(metadata, for: ocId)
         setState(.checkingLocalFile, for: ocId)
 
+        // Load the preview first so the page can display something immediately
+        // while the full media file is checked or downloaded.
+        let previewURL = await loader.previewURL(for: metadata)
+
+        guard !Task.isCancelled else {
+            return
+        }
+
+        // Show the preview state before checking/downloading the full media.
+        // If `previewURL` is nil, the UI will keep showing the loading/black state.
+        setState(.remoteOnly(previewURL: previewURL), for: ocId)
+
+        // Check whether the full media file is already available locally.
         if let localURL = await loader.localMediaURL(for: metadata) {
             guard !Task.isCancelled else {
                 return
@@ -244,14 +257,6 @@ final class NCMediaViewerViewModel: ObservableObject {
         guard !Task.isCancelled else {
             return
         }
-
-        let previewURL = await loader.previewURL(for: metadata)
-
-        guard !Task.isCancelled else {
-            return
-        }
-
-        setState(.remoteOnly(previewURL: previewURL), for: ocId)
 
         do {
             setState(.downloading(previewURL: previewURL, progress: nil), for: ocId)

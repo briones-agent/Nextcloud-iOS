@@ -5,6 +5,7 @@
 import UIKit
 import NextcloudKit
 import QuickLook
+import SwiftUI
 
 class NCViewer: NSObject {
     let utilityFileSystem = NCUtilityFileSystem()
@@ -41,18 +42,21 @@ class NCViewer: NSObject {
 
         // IMAGE AUDIO VIDEO
         else if metadata.isImage || metadata.isAudioOrVideo {
-            let viewerMediaPageContainer = UIStoryboard(name: "NCViewerMediaPage", bundle: nil).instantiateInitialViewController() as? NCViewerMediaPage
+            let mediaOcIds = ocIds ?? [metadata.ocId]
 
-            viewerMediaPageContainer?.delegateViewController = delegate
-            if let ocIds {
-                viewerMediaPageContainer?.currentIndex = ocIds.firstIndex(where: { $0 == metadata.ocId }) ?? 0
-                viewerMediaPageContainer?.ocIds = ocIds
-            } else {
-                viewerMediaPageContainer?.currentIndex = 0
-                viewerMediaPageContainer?.ocIds = [metadata.ocId]
-            }
+            let initialModel = NCMediaViewerInitialModel(
+                currentMetadata: metadata.detachedCopy(),
+                ocIds: mediaOcIds
+            )
 
-            return viewerMediaPageContainer
+            let viewModel = NCMediaViewerViewModel(
+                initialModel: initialModel,
+                loader: NCNextcloudMediaViewerLoader()
+            )
+
+            return UIHostingController(
+                rootView: NCMediaViewerView(viewModel: viewModel)
+            )
         }
 
         // DOCUMENTS
