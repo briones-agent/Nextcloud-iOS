@@ -5,7 +5,7 @@
 import Foundation
 import NextcloudKit
 
-// MARK: - Nextcloud Media Viewer Loader
+// MARK: - Media Viewer Loader
 
 /// Concrete media viewer loader for the Nextcloud app.
 ///
@@ -16,7 +16,7 @@ import NextcloudKit
 /// - downloading the full media file when needed
 ///
 /// It must always return detached `tableMetadata` objects.
-final class NCNextcloudMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
+final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
 
     // MARK: - Dependencies
 
@@ -218,4 +218,3 @@ protocol NCMediaViewerLoading: Sendable {
     /// - Returns: Local full media URL after completion.
     func downloadMedia(for metadata: tableMetadata) async throws -> URL
 }
-

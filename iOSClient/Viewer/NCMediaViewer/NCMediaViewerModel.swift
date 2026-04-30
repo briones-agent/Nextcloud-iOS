@@ -233,6 +233,31 @@ final class NCMediaViewerModel: ObservableObject {
         )
     }
 
+    /// Creates a media viewer model from the current metadata and ordered media identifiers.
+    ///
+    /// - Parameters:
+    ///   - currentMetadata: Detached metadata of the initially opened media.
+    ///   - ocIds: Ordered list of image/audio/video ocIds.
+    ///   - loader: Loader used to resolve metadata, local URLs, previews, and downloads.
+    ///   - windowRadius: Number of pages kept before and after the selected page.
+    convenience init(
+        currentMetadata: tableMetadata,
+        ocIds: [String],
+        loader: NCMediaViewerLoading,
+        windowRadius: Int = 1
+    ) {
+        let initialModel = NCMediaViewerInitialModel(
+            currentMetadata: currentMetadata,
+            ocIds: ocIds
+        )
+
+        self.init(
+            initialModel: initialModel,
+            loader: loader,
+            windowRadius: windowRadius
+        )
+    }
+
     deinit {
         loadingTasksByOcId.values.forEach { $0.cancel() }
         loadingTasksByOcId.removeAll()

@@ -43,19 +43,10 @@ class NCViewer: NSObject {
         // IMAGE AUDIO VIDEO
         else if metadata.isImage || metadata.isAudioOrVideo {
             let mediaOcIds = ocIds ?? [metadata.ocId]
-
-            let initialModel = NCMediaViewerInitialModel(
-                currentMetadata: metadata.detachedCopy(),
-                ocIds: mediaOcIds
-            )
-
-            let viewModel = NCMediaViewerModel(
-                initialModel: initialModel,
-                loader: NCNextcloudMediaViewerLoader()
-            )
+            let model = NCMediaViewerModel(currentMetadata: metadata, ocIds: mediaOcIds, loader: NCMediaViewerLoader())
 
             return UIHostingController(
-                rootView: NCMediaViewerView(viewModel: viewModel)
+                rootView: NCMediaViewerView(model: model)
             )
         }
 

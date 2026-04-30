@@ -14,15 +14,15 @@ struct NCMediaViewerView: View {
 
     // MARK: - State
 
-    @StateObject private var viewModel: NCMediaViewerModel
+    @StateObject private var model: NCMediaViewerModel
 
     // MARK: - Init
 
     /// Creates the media viewer view.
     ///
     /// - Parameter viewModel: View model that owns page state and loading logic.
-    init(viewModel: NCMediaViewerModel) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+    init(model: NCMediaViewerModel) {
+        _model = StateObject(wrappedValue: model)
     }
 
     // MARK: - Body
@@ -32,8 +32,8 @@ struct NCMediaViewerView: View {
             Color.black
                 .ignoresSafeArea()
 
-            TabView(selection: $viewModel.selectedIndex) {
-                ForEach(viewModel.visiblePages) { page in
+            TabView(selection: $model.selectedIndex) {
+                ForEach(model.visiblePages) { page in
                     NCMediaViewerPageView(page: page)
                         .tag(page.index)
                 }
@@ -43,11 +43,11 @@ struct NCMediaViewerView: View {
         }
         .statusBarHidden(true)
         .task {
-            await viewModel.loadSelectedPageIfNeeded()
+            await model.loadSelectedPageIfNeeded()
         }
-        .onChange(of: viewModel.selectedIndex) { _, newIndex in
+        .onChange(of: model.selectedIndex) { _, newIndex in
             Task {
-                await viewModel.handleSelectedIndexChanged(newIndex)
+                await model.handleSelectedIndexChanged(newIndex)
             }
         }
     }
