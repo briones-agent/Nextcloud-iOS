@@ -46,20 +46,18 @@ struct NCMediaViewerPageView: View {
                 metadataMissingView
 
             case .remoteOnly(let previewURL):
-                ZStack {
-                    previewView(previewURL: previewURL)
-                    remoteOnlyOverlay
-                }
+                previewOnlyView(previewURL: previewURL)
 
             case .downloading(let previewURL, let progress):
-                ZStack {
-                    previewView(previewURL: previewURL)
-                    downloadingOverlay(progress: progress)
-                }
+                downloadingView(previewURL: previewURL, progress: progress)
 
-            case .ready(let localURL):
+            case .ready(let localURL, let previewURL):
                 if let metadata = page.metadata {
-                    readyView(metadata: metadata, localURL: localURL)
+                    readyView(
+                        metadata: metadata,
+                        localURL: localURL,
+                        previewURL: previewURL
+                    )
                 } else {
                     metadataMissingView
                 }
@@ -118,18 +116,44 @@ struct NCMediaViewerPageView: View {
         .padding()
     }
 
-    private var remoteOnlyOverlay: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .tint(.white)
-
-            Text("Preparing media…")
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.85))
+    @ViewBuilder
+    private func previewOnlyView(previewURL: URL?) -> some View {
+        if let previewURL {
+            previewBackgroundView(previewURL: previewURL)
+            preparingBadge
+        } else {
+            loadingView("Preparing media")
         }
-        .padding(16)
-        .background(.black.opacity(0.45))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private func downloadingView(previewURL: URL?, progress: Double?) -> some View {
+        ZStack {
+            if let previewURL {
+                previewBackgroundView(previewURL: previewURL)
+                downloadBadge(progress: progress)
+            } else {
+                Color.black
+                    .ignoresSafeArea()
+
+                downloadingOverlay(progress: progress)
+            }
+        }
+    }
+
+    private var preparingBadge: some View {
+        VStack {
+            Spacer()
+
+            Text("Preparing…")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.85))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.black.opacity(0.35))
+                .clipShape(Capsule())
+                .padding(.bottom, 24)
+        }
     }
 
     private func downloadingOverlay(progress: Double?) -> some View {
@@ -152,11 +176,33 @@ struct NCMediaViewerPageView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    private func downloadBadge(progress: Double?) -> some View {
+        VStack {
+            Spacer()
+
+            Text(downloadText(progress))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.85))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.black.opacity(0.35))
+                .clipShape(Capsule())
+                .padding(.bottom, 24)
+        }
+    }
+
     @ViewBuilder
-    private func readyView(metadata: tableMetadata, localURL: URL) -> some View {
+    private func readyView(
+        metadata: tableMetadata,
+        localURL: URL,
+        previewURL: URL?
+    ) -> some View {
         switch mediaKind(for: metadata) {
         case .image:
-            NCImageViewerContentView(fileURL: localURL)
+            NCImageViewerContentView(
+                fileURL: localURL,
+                previewURL: previewURL
+            )
 
         case .video:
             NCVideoViewerPlaceholderView(
@@ -180,6 +226,15 @@ struct NCMediaViewerPageView: View {
             Color.black
                 .ignoresSafeArea()
         }
+    }
+
+    @ViewBuilder
+    private func previewBackgroundView(previewURL: URL) -> some View {
+        NCPreviewImageView(fileURL: previewURL)
+            .blur(radius: 18)
+            .opacity(0.45)
+            .ignoresSafeArea()
+            .overlay(Color.black.opacity(0.35))
     }
 
     private func failedOverlay(fileName: String?, message: String) -> some View {

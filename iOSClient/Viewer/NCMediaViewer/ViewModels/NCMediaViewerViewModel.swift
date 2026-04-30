@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
+import NextcloudKit
 
 // MARK: - Media Viewer View Model
 
@@ -19,6 +20,7 @@ import Foundation
 /// - check local media availability
 /// - request preview URLs
 /// - start full media downloads through the loader
+/// - prefetch previous and next pages
 /// - update page states
 ///
 /// It does not render UI and does not directly access Realm, FileManager,
@@ -108,7 +110,9 @@ final class NCMediaViewerViewModel: ObservableObject {
 
     // MARK: - Public API
 
-    /// Handles selection changes from the view.
+    /// Handles selection changes from code.
+    ///
+    /// Use this when selection has not already been applied by SwiftUI.
     ///
     /// - Parameter index: New selected absolute index.
     func selectIndex(_ index: Int) async {
@@ -118,18 +122,40 @@ final class NCMediaViewerViewModel: ObservableObject {
 
         guard selectedIndex != index else {
             await loadPageIfNeeded(index: index)
+            prefetchNeighborPages(around: index)
             return
         }
 
         selectedIndex = index
         rebuildVisiblePages()
         cancelTasksOutsideVisibleWindow()
+
         await loadPageIfNeeded(index: index)
+        prefetchNeighborPages(around: index)
+    }
+
+    /// Handles a selection change already applied by the SwiftUI TabView binding.
+    ///
+    /// This method must not force a new selection because `selectedIndex` has
+    /// already been updated by the `TabView`.
+    ///
+    /// - Parameter index: New selected absolute index.
+    func handleSelectedIndexChanged(_ index: Int) async {
+        guard ocIds.indices.contains(index) else {
+            return
+        }
+
+        rebuildVisiblePages()
+        cancelTasksOutsideVisibleWindow()
+
+        await loadPageIfNeeded(index: index)
+        prefetchNeighborPages(around: index)
     }
 
     /// Loads the currently selected page if needed.
     func loadSelectedPageIfNeeded() async {
         await loadPageIfNeeded(index: selectedIndex)
+        prefetchNeighborPages(around: selectedIndex)
     }
 
     /// Loads a page if it is still idle.
@@ -197,26 +223,12 @@ final class NCMediaViewerViewModel: ObservableObject {
         loadingTasksByOcId[ocId] = nil
     }
 
-    /// Handles a selection change already applied by the SwiftUI TabView binding.
-    ///
-    /// This method must not force a new selection because `selectedIndex` has
-    /// already been updated by the `TabView`.
-    ///
-    /// - Parameter index: New selected absolute index.
-    func handleSelectedIndexChanged(_ index: Int) async {
-        guard ocIds.indices.contains(index) else {
-            return
-        }
-
-        rebuildVisiblePages()
-        cancelTasksOutsideVisibleWindow()
-
-        await loadPageIfNeeded(index: index)
-    }
-
     // MARK: - Private Loading
 
-    /// Loads metadata and media content for a page.
+    /// Loads metadata and media content for the selected page.
+    ///
+    /// This method may download the full media regardless of media type because
+    /// the user explicitly selected this page.
     ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     private func loadPage(index: Int) async {
@@ -249,27 +261,29 @@ final class NCMediaViewerViewModel: ObservableObject {
         setMetadata(metadata, for: ocId)
         setState(.checkingLocalFile, for: ocId)
 
-        // Load the preview first so the page can display something immediately
-        // while the full media file is checked or downloaded.
+        // Load preview first so it can remain visible while the full media is checked or downloaded.
         let previewURL = await loader.previewURL(for: metadata)
 
         guard !Task.isCancelled else {
             return
         }
 
-        // Show the preview only if it actually exists.
-        // If there is no preview, keep the page in checking/loading state.
         if previewURL != nil {
             setState(.remoteOnly(previewURL: previewURL), for: ocId)
         }
 
-        // Check whether the full media file is already available locally.
         if let localURL = await loader.localMediaURL(for: metadata) {
             guard !Task.isCancelled else {
                 return
             }
 
-            setState(.ready(localURL: localURL), for: ocId)
+            setState(
+                .ready(
+                    localURL: localURL,
+                    previewURL: previewURL
+                ),
+                for: ocId
+            )
             return
         }
 
@@ -286,7 +300,169 @@ final class NCMediaViewerViewModel: ObservableObject {
                 return
             }
 
-            setState(.ready(localURL: downloadedURL), for: ocId)
+            setState(
+                .ready(
+                    localURL: downloadedURL,
+                    previewURL: previewURL
+                ),
+                for: ocId
+            )
+        } catch is CancellationError {
+            return
+        } catch {
+            setState(
+                .failed(
+                    previewURL: previewURL,
+                    message: error.localizedDescription
+                ),
+                for: ocId
+            )
+        }
+    }
+
+    /// Prefetches neighbor pages around the selected index.
+    ///
+    /// This reduces visible loading while swiping horizontally.
+    /// Images are allowed to download the full file.
+    /// Video and audio avoid automatic full download during prefetch.
+    ///
+    /// - Parameter index: Current selected absolute index.
+    private func prefetchNeighborPages(around index: Int) {
+        let neighborIndexes = [
+            index - 1,
+            index + 1
+        ]
+
+        for neighborIndex in neighborIndexes where ocIds.indices.contains(neighborIndex) {
+            Task { [weak self] in
+                guard let self else {
+                    return
+                }
+
+                await self.prefetchPageIfNeeded(index: neighborIndex)
+            }
+        }
+    }
+
+    /// Prefetches one page if it is still idle.
+    ///
+    /// - Parameter index: Absolute page index inside the full `ocIds` array.
+    private func prefetchPageIfNeeded(index: Int) async {
+        guard ocIds.indices.contains(index) else {
+            return
+        }
+
+        let ocId = ocIds[index]
+
+        guard pageState(for: ocId).isIdle else {
+            return
+        }
+
+        guard loadingTasksByOcId[ocId] == nil else {
+            return
+        }
+
+        let task = Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            await self.loadPageForPrefetch(index: index)
+        }
+
+        loadingTasksByOcId[ocId] = task
+        await task.value
+        loadingTasksByOcId[ocId] = nil
+    }
+
+    /// Loads a page for neighbor prefetch.
+    ///
+    /// For images, this can download the full file.
+    /// For video/audio, this resolves metadata, preview and local availability only,
+    /// avoiding automatic large downloads while swiping horizontally.
+    ///
+    /// - Parameter index: Absolute page index inside the full `ocIds` array.
+    private func loadPageForPrefetch(index: Int) async {
+        guard ocIds.indices.contains(index) else {
+            return
+        }
+
+        let ocId = ocIds[index]
+
+        setState(.loadingMetadata, for: ocId)
+
+        let existingMetadata = cachedPagesByOcId[ocId]?.metadata
+        let metadata: tableMetadata?
+
+        if let existingMetadata {
+            metadata = existingMetadata
+        } else {
+            metadata = await loader.metadata(for: ocId)
+        }
+
+        guard !Task.isCancelled else {
+            return
+        }
+
+        guard let metadata else {
+            setState(.metadataMissing, for: ocId)
+            return
+        }
+
+        setMetadata(metadata, for: ocId)
+        setState(.checkingLocalFile, for: ocId)
+
+        let previewURL = await loader.previewURL(for: metadata)
+
+        guard !Task.isCancelled else {
+            return
+        }
+
+        if previewURL != nil {
+            setState(.remoteOnly(previewURL: previewURL), for: ocId)
+        }
+
+        if let localURL = await loader.localMediaURL(for: metadata) {
+            guard !Task.isCancelled else {
+                return
+            }
+
+            setState(
+                .ready(
+                    localURL: localURL,
+                    previewURL: previewURL
+                ),
+                for: ocId
+            )
+            return
+        }
+
+        guard !Task.isCancelled else {
+            return
+        }
+
+        // Only images are prefetched as full media.
+        // Video and audio can be large, so they are downloaded only when selected.
+        guard isImage(metadata) else {
+            return
+        }
+
+        do {
+            setState(.downloading(previewURL: previewURL, progress: nil), for: ocId)
+
+            let downloadedURL = try await loader.downloadMedia(for: metadata)
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            setState(
+                .ready(
+                    localURL: downloadedURL,
+                    previewURL: previewURL
+                ),
+                for: ocId
+            )
         } catch is CancellationError {
             return
         } catch {
@@ -353,11 +529,20 @@ final class NCMediaViewerViewModel: ObservableObject {
         }
     }
 
-    /// Cancels loading tasks for pages outside the current visible window.
+    /// Cancels loading tasks for pages outside the current visible/prefetch window.
     private func cancelTasksOutsideVisibleWindow() {
-        let visibleOcIds = Set(visiblePages.map(\.ocId))
+        var allowedOcIds = Set(visiblePages.map(\.ocId))
 
-        for (ocId, task) in loadingTasksByOcId where !visibleOcIds.contains(ocId) {
+        let neighborIndexes = [
+            selectedIndex - 1,
+            selectedIndex + 1
+        ]
+
+        for index in neighborIndexes where ocIds.indices.contains(index) {
+            allowedOcIds.insert(ocIds[index])
+        }
+
+        for (ocId, task) in loadingTasksByOcId where !allowedOcIds.contains(ocId) {
             task.cancel()
             loadingTasksByOcId[ocId] = nil
         }
@@ -390,6 +575,8 @@ final class NCMediaViewerViewModel: ObservableObject {
     ///   - state: New page state.
     ///   - ocId: Page file identifier.
     private func setState(_ state: NCMediaViewerPageState, for ocId: String) {
+        print("NCMediaViewer state:", ocId, state.debugDescription)
+
         updatePage(ocId: ocId) { page in
             page.state = state
         }
@@ -419,6 +606,14 @@ final class NCMediaViewerViewModel: ObservableObject {
 
         cachedPagesByOcId[ocId] = page
         rebuildVisiblePages()
+    }
+
+    /// Returns whether the metadata represents an image.
+    ///
+    /// - Parameter metadata: Detached metadata.
+    /// - Returns: True when the media is an image.
+    private func isImage(_ metadata: tableMetadata) -> Bool {
+        metadata.classFile == NKTypeClassFile.image.rawValue
     }
 }
 
@@ -468,8 +663,8 @@ private extension NCMediaViewerPageState {
         case .downloading(let previewURL, let progress):
             return "downloading previewURL: \(previewURL?.path ?? "nil"), progress: \(progress?.description ?? "nil")"
 
-        case .ready(let localURL):
-            return "ready localURL: \(localURL.path)"
+        case .ready(let localURL, let previewURL):
+            return "ready localURL: \(localURL.path), previewURL: \(previewURL?.path ?? "nil")"
 
         case .failed(let previewURL, let message):
             return "failed previewURL: \(previewURL?.path ?? "nil"), message: \(message)"

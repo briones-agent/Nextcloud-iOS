@@ -7,18 +7,17 @@ import UIKit
 
 // MARK: - Image Viewer Content View
 
-/// Displays a local full-size image with zoom and pan support.
+/// Displays a local full-size image with optional preview fallback.
 ///
-/// Supported gestures:
-/// - pinch to zoom
-/// - drag while zoomed
-/// - double tap to toggle zoom
+/// The preview remains visible while the full image is decoded.
+/// This avoids flickering when transitioning from remote preview to full local image.
 struct NCImageViewerContentView: View {
 
     // MARK: - Load State
 
     private enum LoadState {
         case loading
+        case preview(UIImage)
         case ready(UIImage)
         case failed(String)
     }
@@ -26,6 +25,7 @@ struct NCImageViewerContentView: View {
     // MARK: - Properties
 
     let fileURL: URL
+    let previewURL: URL?
 
     // MARK: - State
 
@@ -51,7 +51,11 @@ struct NCImageViewerContentView: View {
 
                 switch loadState {
                 case .loading:
-                    loadingView
+                    Color.black
+                        .ignoresSafeArea()
+
+                case .preview(let image):
+                    imageView(image, proxy: proxy)
 
                 case .ready(let image):
                     imageView(image, proxy: proxy)
@@ -62,7 +66,7 @@ struct NCImageViewerContentView: View {
             }
         }
         .task(id: fileURL) {
-            await loadImage()
+            await loadImages()
         }
         .onChange(of: fileURL) {
             resetImageState()
@@ -70,25 +74,6 @@ struct NCImageViewerContentView: View {
     }
 
     // MARK: - Views
-
-    private var loadingView: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .tint(.white)
-
-            Text("Loading image")
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.7))
-
-            Text(fileURL.path)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.45))
-                .lineLimit(2)
-                .truncationMode(.middle)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-        }
-    }
 
     private func imageView(_ image: UIImage, proxy: GeometryProxy) -> some View {
         Image(uiImage: image)
@@ -184,49 +169,49 @@ struct NCImageViewerContentView: View {
 
     // MARK: - Loading
 
-    /// Loads the full image from disk.
-    ///
-    /// This version performs basic validation and reports visible errors instead
-    /// of leaving the view stuck on a spinner.
-    private func loadImage() async {
+    /// Loads the preview first, then replaces it with the full image when ready.
+    private func loadImages() async {
         loadState = .loading
 
-        let path = fileURL.path
+        if let previewURL,
+           let previewImage = await decodeImageIfPossible(url: previewURL) {
+            loadState = .preview(previewImage)
+        }
 
-        guard FileManager.default.fileExists(atPath: path) else {
-            loadState = .failed("The local image file does not exist.")
-            print("NCImageViewerContentView file missing:", path)
+        guard let fullImage = await decodeImageIfPossible(url: fileURL) else {
+            if case .preview = loadState {
+                return
+            }
+
+            loadState = .failed("UIImage could not decode this file.")
             return
         }
 
-        do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: path)
-            let fileSize = attributes[.size] as? Int64 ?? 0
+        loadState = .ready(fullImage)
+    }
 
-            guard fileSize > 0 else {
-                loadState = .failed("The local image file is empty.")
-                print("NCImageViewerContentView empty file:", path)
-                return
-            }
+    /// Decodes a local image file.
+    ///
+    /// - Parameter url: Local file URL.
+    /// - Returns: Decoded image if possible.
+    private func decodeImageIfPossible(url: URL) async -> UIImage? {
+        let path = url.path
 
-            let image = await Task.detached(priority: .userInitiated) {
-                autoreleasepool {
-                    UIImage(contentsOfFile: path)
-                }
-            }.value
-
-            guard let image else {
-                loadState = .failed("UIImage could not decode this file.")
-                print("NCImageViewerContentView decode failed:", path, "size:", fileSize)
-                return
-            }
-
-            print("NCImageViewerContentView loaded:", path, "size:", fileSize)
-            loadState = .ready(image)
-        } catch {
-            loadState = .failed(error.localizedDescription)
-            print("NCImageViewerContentView error:", error.localizedDescription, path)
+        guard FileManager.default.fileExists(atPath: path) else {
+            return nil
         }
+
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let fileSize = attributes[.size] as? Int64,
+              fileSize > 0 else {
+            return nil
+        }
+
+        return await Task.detached(priority: .userInitiated) {
+            autoreleasepool {
+                UIImage(contentsOfFile: path)
+            }
+        }.value
     }
 
     // MARK: - Private
