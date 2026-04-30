@@ -13,6 +13,14 @@ import NextcloudKit
 /// It does not load metadata, check local files, read Realm, or start downloads.
 struct NCMediaViewerPageView: View {
 
+    // MARK: - Rendered Kind
+
+    private enum NCMediaViewerRenderedKind {
+        case image
+        case video
+        case audio
+    }
+
     // MARK: - Properties
 
     let page: NCMediaViewerPageModel
@@ -120,10 +128,18 @@ struct NCMediaViewerPageView: View {
 
     @ViewBuilder
     private func readyView(metadata: tableMetadata, localURL: URL) -> some View {
-        if isImage(metadata) {
+        switch mediaKind(for: metadata) {
+        case .image:
             NCImageViewerContentView(fileURL: localURL)
-        } else {
+
+        case .video:
             NCVideoViewerPlaceholderView(
+                metadata: metadata,
+                localURL: localURL
+            )
+
+        case .audio:
+            NCAudioViewerPlaceholderView(
                 metadata: metadata,
                 localURL: localURL
             )
@@ -191,7 +207,19 @@ struct NCMediaViewerPageView: View {
         return metadata.fileName
     }
 
-    private func isImage(_ metadata: tableMetadata) -> Bool {
-        metadata.classFile == NKTypeClassFile.image.rawValue
+    private func mediaKind(for metadata: tableMetadata) -> NCMediaViewerRenderedKind {
+        switch metadata.classFile {
+        case NKTypeClassFile.image.rawValue:
+            return .image
+
+        case NKTypeClassFile.video.rawValue:
+            return .video
+
+        case NKTypeClassFile.audio.rawValue:
+            return .audio
+
+        default:
+            return .video
+        }
     }
 }

@@ -19,23 +19,10 @@ final class NCNextcloudMediaViewerLoader: NCMediaViewerLoading, @unchecked Senda
 
     // MARK: - Dependencies
 
-    private let database: NCManageDatabase
-    private let fileManager: FileManager
-
-    // MARK: - Init
-
-    /// Creates a Nextcloud media viewer loader.
-    ///
-    /// - Parameters:
-    ///   - database: Database manager used to resolve detached metadata.
-    ///   - fileManager: File manager used to check local file availability.
-    init(
-        database: NCManageDatabase = .shared,
-        fileManager: FileManager = .default
-    ) {
-        self.database = database
-        self.fileManager = fileManager
-    }
+    private let database = NCManageDatabase.shared
+    private let global = NCGlobal.shared
+    private let utilityFileSystem = NCUtilityFileSystem()
+    private let fileManager = FileManager.default
 
     // MARK: - NCMediaViewerLoading
 
@@ -71,7 +58,17 @@ final class NCNextcloudMediaViewerLoader: NCMediaViewerLoading, @unchecked Senda
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Local preview URL if available.
     func previewURL(for metadata: tableMetadata) async -> URL? {
-        nil
+        let localPath = utilityFileSystem.getDirectoryProviderStorageImageOcId(metadata.ocId,
+                                                                               etag: metadata.etag,
+                                                                               ext: global.previewExt1024,
+                                                                               userId: metadata.userId,
+                                                                               urlBase: metadata.urlBase)
+
+        guard !localPath.isEmpty else {
+            return nil
+        }
+
+        return URL(fileURLWithPath: localPath)
     }
 
     /// Downloads the full media file if needed.
@@ -104,11 +101,13 @@ final class NCNextcloudMediaViewerLoader: NCMediaViewerLoading, @unchecked Senda
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Expected local full media URL.
     private func fullLocalURL(for metadata: tableMetadata) -> URL? {
-        if !metadata.url.isEmpty {
-            return URL(fileURLWithPath: metadata.url)
+        let localPath = utilityFileSystem.getDirectoryProviderStorageOcId(metadata.ocId, fileName: metadata.fileNameView, userId: metadata.userId, urlBase: metadata.urlBase)
+
+        guard !localPath.isEmpty else {
+            return nil
         }
 
-        return nil
+        return URL(fileURLWithPath: localPath)
     }
 }
 

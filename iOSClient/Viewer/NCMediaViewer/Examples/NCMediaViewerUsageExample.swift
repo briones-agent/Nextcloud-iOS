@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import SwiftUI
+import UIKit
 
 // MARK: - Media Viewer Usage Example
 
@@ -12,6 +13,8 @@ import SwiftUI
 enum NCMediaViewerUsageExample {
 
     /// Creates a hosting controller for the media viewer.
+    ///
+    /// The provided `currentMetadata` must be detached/unmanaged.
     ///
     /// - Parameters:
     ///   - currentMetadata: Current detached metadata.
