@@ -33,10 +33,14 @@ struct NCMediaViewerPageView: View {
                 .ignoresSafeArea()
 
             switch page.state {
-            case .idle,
-                 .loadingMetadata,
-                 .checkingLocalFile:
-                loadingView
+            case .idle:
+                loadingView("Idle")
+
+            case .loadingMetadata:
+                loadingView("Loading metadata")
+
+            case .checkingLocalFile:
+                loadingView("Checking local file")
 
             case .metadataMissing:
                 metadataMissingView
@@ -74,9 +78,24 @@ struct NCMediaViewerPageView: View {
 
     // MARK: - State Views
 
-    private var loadingView: some View {
-        ProgressView()
-            .tint(.white)
+    private func loadingView(_ text: String) -> some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .tint(.white)
+
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.7))
+
+            if let fileName = displayFileName(from: page.metadata) {
+                Text(fileName)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.horizontal, 24)
+            }
+        }
     }
 
     private var metadataMissingView: some View {
@@ -86,6 +105,13 @@ struct NCMediaViewerPageView: View {
 
             Text("Media not available")
                 .font(.headline)
+
+            Text(page.ocId)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.45))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .padding(.horizontal, 24)
         }
         .foregroundStyle(.white.opacity(0.85))
         .multilineTextAlignment(.center)
@@ -168,12 +194,15 @@ struct NCMediaViewerPageView: View {
                 Text(fileName)
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
 
             if !message.isEmpty {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.55))
+                    .multilineTextAlignment(.center)
             }
         }
         .foregroundStyle(.white)
