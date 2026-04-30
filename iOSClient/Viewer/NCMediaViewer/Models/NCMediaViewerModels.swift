@@ -20,9 +20,6 @@ enum NCMediaViewerPageState {
     case loadingMetadata
 
     /// The metadata could not be found anymore.
-    ///
-    /// This can happen if the file was deleted, moved, or the database is no longer aligned
-    /// with the ordered `ocId` list.
     case metadataMissing
 
     /// Metadata exists and the viewer is checking if the full media file is already local.
@@ -49,13 +46,15 @@ enum NCMediaViewerPageState {
 
 /// Represents one page inside the media viewer.
 ///
-/// A page is identified by `ocId`.
-/// The current page usually starts with metadata already available.
-/// Previous and next pages can start only with `ocId` and resolve metadata lazily.
+/// The viewer must not create one page for every `ocId` when the source list is large.
+/// The ViewModel creates only a small visible window around the selected index.
 struct NCMediaViewerPageModel: Identifiable {
 
     /// Stable identifier used by SwiftUI.
     let id: String
+
+    /// Absolute index inside the full `ocIds` array.
+    let index: Int
 
     /// Nextcloud file identifier.
     let ocId: String
@@ -69,15 +68,18 @@ struct NCMediaViewerPageModel: Identifiable {
     /// Creates a page model.
     ///
     /// - Parameters:
+    ///   - index: Absolute index inside the full `ocIds` array.
     ///   - ocId: Nextcloud file identifier.
     ///   - metadata: Detached metadata if already available.
     ///   - state: Initial page state.
     init(
+        index: Int,
         ocId: String,
         metadata: tableMetadata? = nil,
         state: NCMediaViewerPageState = .idle
     ) {
         self.id = ocId
+        self.index = index
         self.ocId = ocId
         self.metadata = metadata
         self.state = state
@@ -125,25 +127,10 @@ struct NCMediaViewerInitialModel {
         }
     }
 
-    /// Creates the initial page models.
+    /// Returns the initial selected index.
     ///
-    /// The current page receives metadata immediately.
-    /// Other pages start with only `ocId`.
-    var initialPages: [NCMediaViewerPageModel] {
-        normalizedOcIds.map { ocId in
-            if ocId == currentMetadata.ocId {
-                return NCMediaViewerPageModel(
-                    ocId: ocId,
-                    metadata: currentMetadata,
-                    state: .idle
-                )
-            } else {
-                return NCMediaViewerPageModel(
-                    ocId: ocId,
-                    metadata: nil,
-                    state: .idle
-                )
-            }
-        }
+    /// If the current `ocId` is not found, the model starts from index zero.
+    var initialSelectedIndex: Int {
+        normalizedOcIds.firstIndex(of: currentMetadata.ocId) ?? 0
     }
 }

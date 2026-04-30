@@ -8,12 +8,8 @@ import SwiftUI
 
 /// Root SwiftUI media viewer.
 ///
-/// This view is responsible only for:
-/// - displaying horizontal pages
-/// - binding the selected page
-/// - requesting page loading from the view model
-///
-/// It does not resolve metadata, read Realm, check local files, or start downloads.
+/// This view displays only the small visible page window exposed by the ViewModel.
+/// It does not render all `ocId` values when the media list is large.
 struct NCMediaViewerView: View {
 
     // MARK: - State
@@ -36,18 +32,23 @@ struct NCMediaViewerView: View {
             Color.black
                 .ignoresSafeArea()
 
-            TabView(selection: $viewModel.selectedOcId) {
-                ForEach(viewModel.pages) { page in
+            TabView(selection: $viewModel.selectedIndex) {
+                ForEach(viewModel.visiblePages) { page in
                     NCMediaViewerPageView(page: page)
-                        .tag(page.ocId)
-                        .task(id: page.ocId) {
-                            await viewModel.loadPageIfNeeded(ocId: page.ocId)
-                        }
+                        .tag(page.index)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
         }
         .statusBarHidden(true)
+        .task {
+            await viewModel.loadSelectedPageIfNeeded()
+        }
+        .onChange(of: viewModel.selectedIndex) { _, newIndex in
+            Task {
+                await viewModel.selectIndex(newIndex)
+            }
+        }
     }
 }
