@@ -26,20 +26,16 @@ enum NCMediaViewerPageState {
     /// Metadata exists and the viewer is checking if the full media file is already local.
     case checkingLocalFile
 
-    /// Metadata exists, but the full media file is not local yet.
+    /// Image page state.
     ///
-    /// `previewURL` can point to a local thumbnail/preview file if available.
-    case remoteOnly(previewURL: URL?)
+    /// The same image view remains mounted while the page moves from preview
+    /// to full image. This avoids flickering caused by replacing SwiftUI view branches.
+    case image(previewURL: URL?, localURL: URL?, progress: Double?)
 
-    /// The full media file is being downloaded.
-    ///
-    /// `progress` is optional because the first implementation may not expose progress yet.
+    /// Generic downloading state for non-image media.
     case downloading(previewURL: URL?, progress: Double?)
 
-    /// The full media file is locally available and ready to be rendered.
-    ///
-    /// `previewURL` is preserved so the image view can show the preview first
-    /// and replace it with the full image only after decoding is complete.
+    /// Non-image media is locally available.
     case ready(localURL: URL, previewURL: URL?)
 
     /// The page failed while resolving metadata, checking local content, or downloading.
@@ -141,9 +137,9 @@ struct NCMediaViewerInitialModel {
 
 // MARK: - Media Viewer Model
 
-/// View model for the SwiftUI media viewer.
+/// Model for the SwiftUI media viewer.
 ///
-/// This ViewModel is optimized for very large media lists.
+/// This model is optimized for very large media lists.
 /// It stores the full ordered `ocIds` array, but exposes only a small visible page
 /// window around the selected index.
 ///
@@ -199,7 +195,7 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Init
 
-    /// Creates a media viewer view model.
+    /// Creates a media viewer model.
     ///
     /// - Parameters:
     ///   - initialModel: Initial viewer model containing current metadata and ordered ocIds.
@@ -382,7 +378,8 @@ final class NCMediaViewerModel: ObservableObject {
 
     /// Loads metadata and media content for the selected page.
     ///
-    /// The page always requests preview first, then checks or downloads the full media.
+    /// Image pages keep a stable `.image` state so the same image view can move
+    /// from preview to full image without being replaced by another SwiftUI branch.
     ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     private func loadPage(index: Int) async {
@@ -394,14 +391,7 @@ final class NCMediaViewerModel: ObservableObject {
 
         setState(.loadingMetadata, for: ocId)
 
-        let existingMetadata = cachedPagesByOcId[ocId]?.metadata
-        let metadata: tableMetadata?
-
-        if let existingMetadata {
-            metadata = existingMetadata
-        } else {
-            metadata = await loader.metadata(for: ocId)
-        }
+        let metadata = await resolvedMetadata(for: ocId)
 
         guard !Task.isCancelled else {
             return
@@ -420,20 +410,43 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        setState(.remoteOnly(previewURL: previewURL), for: ocId)
+        if isImage(metadata) {
+            setState(
+                .image(
+                    previewURL: previewURL,
+                    localURL: nil,
+                    progress: nil
+                ),
+                for: ocId
+            )
+        } else {
+            setState(.checkingLocalFile, for: ocId)
+        }
 
         if let localURL = await loader.localMediaURL(for: metadata) {
             guard !Task.isCancelled else {
                 return
             }
 
-            setState(
-                .ready(
-                    localURL: localURL,
-                    previewURL: previewURL
-                ),
-                for: ocId
-            )
+            if isImage(metadata) {
+                setState(
+                    .image(
+                        previewURL: previewURL,
+                        localURL: localURL,
+                        progress: nil
+                    ),
+                    for: ocId
+                )
+            } else {
+                setState(
+                    .ready(
+                        localURL: localURL,
+                        previewURL: previewURL
+                    ),
+                    for: ocId
+                )
+            }
+
             return
         }
 
@@ -442,7 +455,18 @@ final class NCMediaViewerModel: ObservableObject {
         }
 
         do {
-            setState(.downloading(previewURL: previewURL, progress: nil), for: ocId)
+            if isImage(metadata) {
+                setState(
+                    .image(
+                        previewURL: previewURL,
+                        localURL: nil,
+                        progress: nil
+                    ),
+                    for: ocId
+                )
+            } else {
+                setState(.downloading(previewURL: previewURL, progress: nil), for: ocId)
+            }
 
             let downloadedURL = try await loader.downloadMedia(for: metadata)
 
@@ -450,13 +474,24 @@ final class NCMediaViewerModel: ObservableObject {
                 return
             }
 
-            setState(
-                .ready(
-                    localURL: downloadedURL,
-                    previewURL: previewURL
-                ),
-                for: ocId
-            )
+            if isImage(metadata) {
+                setState(
+                    .image(
+                        previewURL: previewURL,
+                        localURL: downloadedURL,
+                        progress: nil
+                    ),
+                    for: ocId
+                )
+            } else {
+                setState(
+                    .ready(
+                        localURL: downloadedURL,
+                        previewURL: previewURL
+                    ),
+                    for: ocId
+                )
+            }
         } catch is CancellationError {
             return
         } catch {
@@ -541,14 +576,7 @@ final class NCMediaViewerModel: ObservableObject {
 
         setState(.loadingMetadata, for: ocId)
 
-        let existingMetadata = cachedPagesByOcId[ocId]?.metadata
-        let metadata: tableMetadata?
-
-        if let existingMetadata {
-            metadata = existingMetadata
-        } else {
-            metadata = await loader.metadata(for: ocId)
-        }
+        let metadata = await resolvedMetadata(for: ocId)
 
         guard !Task.isCancelled else {
             return
@@ -567,20 +595,43 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        setState(.remoteOnly(previewURL: previewURL), for: ocId)
+        if isImage(metadata) {
+            setState(
+                .image(
+                    previewURL: previewURL,
+                    localURL: nil,
+                    progress: nil
+                ),
+                for: ocId
+            )
+        } else {
+            setState(.checkingLocalFile, for: ocId)
+        }
 
         if let localURL = await loader.localMediaURL(for: metadata) {
             guard !Task.isCancelled else {
                 return
             }
 
-            setState(
-                .ready(
-                    localURL: localURL,
-                    previewURL: previewURL
-                ),
-                for: ocId
-            )
+            if isImage(metadata) {
+                setState(
+                    .image(
+                        previewURL: previewURL,
+                        localURL: localURL,
+                        progress: nil
+                    ),
+                    for: ocId
+                )
+            } else {
+                setState(
+                    .ready(
+                        localURL: localURL,
+                        previewURL: previewURL
+                    ),
+                    for: ocId
+                )
+            }
+
             return
         }
 
@@ -593,7 +644,14 @@ final class NCMediaViewerModel: ObservableObject {
         }
 
         do {
-            setState(.downloading(previewURL: previewURL, progress: nil), for: ocId)
+            setState(
+                .image(
+                    previewURL: previewURL,
+                    localURL: nil,
+                    progress: nil
+                ),
+                for: ocId
+            )
 
             let downloadedURL = try await loader.downloadMedia(for: metadata)
 
@@ -602,9 +660,10 @@ final class NCMediaViewerModel: ObservableObject {
             }
 
             setState(
-                .ready(
+                .image(
+                    previewURL: previewURL,
                     localURL: downloadedURL,
-                    previewURL: previewURL
+                    progress: nil
                 ),
                 for: ocId
             )
@@ -695,6 +754,18 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Page Updates
 
+    /// Resolves detached metadata for an `ocId`.
+    ///
+    /// - Parameter ocId: Nextcloud file identifier.
+    /// - Returns: Existing cached metadata or metadata loaded from the loader.
+    private func resolvedMetadata(for ocId: String) async -> tableMetadata? {
+        if let existingMetadata = cachedPagesByOcId[ocId]?.metadata {
+            return existingMetadata
+        }
+
+        return await loader.metadata(for: ocId)
+    }
+
     /// Returns the current state for an `ocId`.
     ///
     /// - Parameter ocId: Nextcloud file identifier.
@@ -773,7 +844,7 @@ private extension NCMediaViewerPageState {
         case .loadingMetadata,
              .metadataMissing,
              .checkingLocalFile,
-             .remoteOnly,
+             .image,
              .downloading,
              .ready,
              .failed:

@@ -7,29 +7,25 @@ import UIKit
 
 // MARK: - Image Viewer Content View
 
-/// Displays a local full-size image with optional preview fallback.
+/// Displays an image page using an optional preview and an optional full-size image.
 ///
-/// The preview remains visible while the full image is decoded.
-/// The full image replaces the preview only when it is ready.
+/// The preview is decoded first when available.
+/// The full image replaces the preview only after it has been decoded.
+/// The SwiftUI view remains mounted while moving from preview to full image.
 struct NCImageViewerContentView: View {
-
-    // MARK: - Load State
-
-    private enum LoadState {
-        case loading
-        case preview(UIImage)
-        case ready(UIImage)
-        case failed(String)
-    }
 
     // MARK: - Properties
 
-    let fileURL: URL
     let previewURL: URL?
+    let fullURL: URL?
 
     // MARK: - State
 
-    @State private var loadState: LoadState = .loading
+    @State private var currentImage: UIImage?
+    @State private var loadedPreviewURL: URL?
+    @State private var loadedFullURL: URL?
+    @State private var failedMessage: String?
+
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -49,29 +45,21 @@ struct NCImageViewerContentView: View {
                 Color.black
                     .ignoresSafeArea()
 
-                switch loadState {
-                case .loading:
-                    // ProgressView()
-                    //    .tint(.white)
+                if let currentImage {
+                    imageView(currentImage, proxy: proxy)
+                } else if let failedMessage {
+                    failedView(failedMessage)
+                } else {
                     Color.black
                         .ignoresSafeArea()
-
-                case .preview(let image):
-                    imageView(image, proxy: proxy)
-
-                case .ready(let image):
-                    imageView(image, proxy: proxy)
-
-                case .failed(let message):
-                    failedView(message)
                 }
             }
         }
-        .task(id: fileURL) {
-            await loadImages()
+        .task(id: previewURL) {
+            await loadPreviewIfNeeded()
         }
-        .onChange(of: fileURL) {
-            resetImageState()
+        .task(id: fullURL) {
+            await loadFullIfNeeded()
         }
     }
 
@@ -164,25 +152,57 @@ struct NCImageViewerContentView: View {
 
     // MARK: - Loading
 
-    /// Loads the preview first, then replaces it with the full image when ready.
-    private func loadImages() async {
-        if let previewURL,
-           let previewImage = await decodeImageIfPossible(url: previewURL) {
-            loadState = .preview(previewImage)
-        } else {
-            loadState = .loading
-        }
-
-        guard let fullImage = await decodeImageIfPossible(url: fileURL) else {
-            if case .preview = loadState {
-                return
-            }
-
-            loadState = .failed("UIImage could not decode this file.")
+    /// Loads the preview image only when no image is currently displayed.
+    ///
+    /// This prevents the preview from replacing a full image that has already been decoded.
+    private func loadPreviewIfNeeded() async {
+        guard currentImage == nil else {
             return
         }
 
-        loadState = .ready(fullImage)
+        guard let previewURL else {
+            return
+        }
+
+        guard loadedPreviewURL != previewURL else {
+            return
+        }
+
+        guard let image = await decodeImageIfPossible(url: previewURL) else {
+            return
+        }
+
+        loadedPreviewURL = previewURL
+        failedMessage = nil
+        currentImage = image
+    }
+
+    /// Loads the full image and replaces the currently displayed bitmap only after decoding.
+    ///
+    /// This keeps the preview visible until the full image is completely ready.
+    private func loadFullIfNeeded() async {
+        guard let fullURL else {
+            return
+        }
+
+        guard loadedFullURL != fullURL else {
+            return
+        }
+
+        guard let image = await decodeImageIfPossible(url: fullURL) else {
+            if currentImage == nil {
+                failedMessage = "UIImage could not decode this file."
+            }
+            return
+        }
+
+        loadedFullURL = fullURL
+        failedMessage = nil
+
+        // Important:
+        // Do not clear `currentImage` before this point.
+        // The preview remains visible until the full image is decoded.
+        currentImage = image
     }
 
     /// Decodes a local image file.
@@ -224,10 +244,5 @@ struct NCImageViewerContentView: View {
         scale = minimumScale
         lastScale = minimumScale
         resetOffset()
-    }
-
-    private func resetImageState() {
-        loadState = .loading
-        resetZoom()
     }
 }
