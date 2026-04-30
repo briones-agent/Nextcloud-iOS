@@ -37,13 +37,19 @@ final class NCNextcloudMediaViewerLoader: NCMediaViewerLoading, @unchecked Senda
     /// Returns the local full media URL if the file is already available.
     ///
     /// - Parameter metadata: Detached metadata for the media file.
-    /// - Returns: Local full media URL if available.
+    /// - Returns: Local full media URL if available and not empty.
     func localMediaURL(for metadata: tableMetadata) async -> URL? {
         guard let localURL = fullLocalURL(for: metadata) else {
             return nil
         }
 
         guard fileManager.fileExists(atPath: localURL.path) else {
+            return nil
+        }
+
+        guard let attributes = try? fileManager.attributesOfItem(atPath: localURL.path),
+              let fileSize = attributes[.size] as? Int64,
+              fileSize > 0 else {
             return nil
         }
 
@@ -80,15 +86,21 @@ final class NCNextcloudMediaViewerLoader: NCMediaViewerLoading, @unchecked Senda
             return localURL
         }
 
-        // Replace this with the real Nextcloud download pipeline.
-        //
-        // Expected behavior:
-        // 1. Start or attach to the download for `metadata`.
-        // 2. Wait until the full media file exists locally.
-        // 3. Return the final local file URL.
-        //
-        // This method intentionally throws for now so the integration point is explicit.
-        throw NCMediaViewerLoaderError.downloadNotImplemented
+        let results = await NCNetworking.shared.downloadFile(metadata: metadata)
+
+        if let afError = results.afError {
+            throw afError
+        }
+
+        if results.nkError != .success {
+            throw results.nkError
+        }
+
+        if let localURL = await localMediaURL(for: metadata) {
+            return localURL
+        }
+
+        throw NCMediaViewerLoaderError.localFileUnavailable
     }
 
     // MARK: - Private

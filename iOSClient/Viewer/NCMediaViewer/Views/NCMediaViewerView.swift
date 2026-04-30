@@ -47,7 +47,7 @@ struct NCMediaViewerView: View {
         }
         .onChange(of: viewModel.selectedIndex) { _, newIndex in
             Task {
-                await viewModel.selectIndex(newIndex)
+                await viewModel.handleSelectedIndexChanged(newIndex)
             }
         }
     }

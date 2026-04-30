@@ -15,13 +15,21 @@ import UIKit
 /// - double tap to toggle zoom
 struct NCImageViewerContentView: View {
 
+    // MARK: - Load State
+
+    private enum LoadState {
+        case loading
+        case ready(UIImage)
+        case failed(String)
+    }
+
     // MARK: - Properties
 
     let fileURL: URL
 
     // MARK: - State
 
-    @State private var image: UIImage?
+    @State private var loadState: LoadState = .loading
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -41,23 +49,15 @@ struct NCImageViewerContentView: View {
                 Color.black
                     .ignoresSafeArea()
 
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .scaleEffect(scale)
-                        .offset(offset)
-                        .frame(
-                            width: proxy.size.width,
-                            height: proxy.size.height
-                        )
-                        .contentShape(Rectangle())
-                        .gesture(magnifyGesture)
-                        .simultaneousGesture(dragGesture)
-                        .simultaneousGesture(doubleTapGesture)
-                } else {
-                    ProgressView()
-                        .tint(.white)
+                switch loadState {
+                case .loading:
+                    loadingView
+
+                case .ready(let image):
+                    imageView(image, proxy: proxy)
+
+                case .failed(let message):
+                    failedView(message)
                 }
             }
         }
@@ -67,6 +67,67 @@ struct NCImageViewerContentView: View {
         .onChange(of: fileURL) {
             resetImageState()
         }
+    }
+
+    // MARK: - Views
+
+    private var loadingView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .tint(.white)
+
+            Text("Loading image")
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.7))
+
+            Text(fileURL.path)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.45))
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+        }
+    }
+
+    private func imageView(_ image: UIImage, proxy: GeometryProxy) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFit()
+            .scaleEffect(scale)
+            .offset(offset)
+            .frame(
+                width: proxy.size.width,
+                height: proxy.size.height
+            )
+            .contentShape(Rectangle())
+            .gesture(magnifyGesture)
+            .simultaneousGesture(dragGesture)
+            .simultaneousGesture(doubleTapGesture)
+    }
+
+    private func failedView(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "photo.badge.exclamationmark")
+                .font(.system(size: 44, weight: .regular))
+
+            Text("Image load failed")
+                .font(.headline)
+
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.65))
+                .multilineTextAlignment(.center)
+
+            Text(fileURL.path)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.45))
+                .lineLimit(3)
+                .truncationMode(.middle)
+                .multilineTextAlignment(.center)
+        }
+        .foregroundStyle(.white)
+        .padding(24)
     }
 
     // MARK: - Gestures
@@ -121,19 +182,54 @@ struct NCImageViewerContentView: View {
             }
     }
 
-    // MARK: - Private
+    // MARK: - Loading
 
     /// Loads the full image from disk.
     ///
-    /// This first implementation is intentionally simple.
-    /// Later it should be replaced by downsampled decoding to reduce memory usage.
+    /// This version performs basic validation and reports visible errors instead
+    /// of leaving the view stuck on a spinner.
     private func loadImage() async {
-        guard image == nil else {
+        loadState = .loading
+
+        let path = fileURL.path
+
+        guard FileManager.default.fileExists(atPath: path) else {
+            loadState = .failed("The local image file does not exist.")
+            print("NCImageViewerContentView file missing:", path)
             return
         }
 
-        image = UIImage(contentsOfFile: fileURL.path)
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: path)
+            let fileSize = attributes[.size] as? Int64 ?? 0
+
+            guard fileSize > 0 else {
+                loadState = .failed("The local image file is empty.")
+                print("NCImageViewerContentView empty file:", path)
+                return
+            }
+
+            let image = await Task.detached(priority: .userInitiated) {
+                autoreleasepool {
+                    UIImage(contentsOfFile: path)
+                }
+            }.value
+
+            guard let image else {
+                loadState = .failed("UIImage could not decode this file.")
+                print("NCImageViewerContentView decode failed:", path, "size:", fileSize)
+                return
+            }
+
+            print("NCImageViewerContentView loaded:", path, "size:", fileSize)
+            loadState = .ready(image)
+        } catch {
+            loadState = .failed(error.localizedDescription)
+            print("NCImageViewerContentView error:", error.localizedDescription, path)
+        }
     }
+
+    // MARK: - Private
 
     private func clampedScale(_ value: CGFloat) -> CGFloat {
         min(max(value, minimumScale), maximumScale)
@@ -151,7 +247,7 @@ struct NCImageViewerContentView: View {
     }
 
     private func resetImageState() {
-        image = nil
+        loadState = .loading
         resetZoom()
     }
 }

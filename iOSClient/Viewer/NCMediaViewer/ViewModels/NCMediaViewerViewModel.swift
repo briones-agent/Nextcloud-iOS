@@ -197,6 +197,23 @@ final class NCMediaViewerViewModel: ObservableObject {
         loadingTasksByOcId[ocId] = nil
     }
 
+    /// Handles a selection change already applied by the SwiftUI TabView binding.
+    ///
+    /// This method must not force a new selection because `selectedIndex` has
+    /// already been updated by the `TabView`.
+    ///
+    /// - Parameter index: New selected absolute index.
+    func handleSelectedIndexChanged(_ index: Int) async {
+        guard ocIds.indices.contains(index) else {
+            return
+        }
+
+        rebuildVisiblePages()
+        cancelTasksOutsideVisibleWindow()
+
+        await loadPageIfNeeded(index: index)
+    }
+
     // MARK: - Private Loading
 
     /// Loads metadata and media content for a page.
@@ -240,9 +257,11 @@ final class NCMediaViewerViewModel: ObservableObject {
             return
         }
 
-        // Show the preview state before checking/downloading the full media.
-        // If `previewURL` is nil, the UI will keep showing the loading/black state.
-        setState(.remoteOnly(previewURL: previewURL), for: ocId)
+        // Show the preview only if it actually exists.
+        // If there is no preview, keep the page in checking/loading state.
+        if previewURL != nil {
+            setState(.remoteOnly(previewURL: previewURL), for: ocId)
+        }
 
         // Check whether the full media file is already available locally.
         if let localURL = await loader.localMediaURL(for: metadata) {
@@ -421,6 +440,39 @@ private extension NCMediaViewerPageState {
              .ready,
              .failed:
             return false
+        }
+    }
+}
+
+// MARK: - NCMediaViewerPageState Debug
+
+private extension NCMediaViewerPageState {
+
+    var debugDescription: String {
+        switch self {
+        case .idle:
+            return "idle"
+
+        case .loadingMetadata:
+            return "loadingMetadata"
+
+        case .metadataMissing:
+            return "metadataMissing"
+
+        case .checkingLocalFile:
+            return "checkingLocalFile"
+
+        case .remoteOnly(let previewURL):
+            return "remoteOnly previewURL: \(previewURL?.path ?? "nil")"
+
+        case .downloading(let previewURL, let progress):
+            return "downloading previewURL: \(previewURL?.path ?? "nil"), progress: \(progress?.description ?? "nil")"
+
+        case .ready(let localURL):
+            return "ready localURL: \(localURL.path)"
+
+        case .failed(let previewURL, let message):
+            return "failed previewURL: \(previewURL?.path ?? "nil"), message: \(message)"
         }
     }
 }
