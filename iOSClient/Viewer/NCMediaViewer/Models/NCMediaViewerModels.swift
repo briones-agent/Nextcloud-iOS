@@ -36,7 +36,10 @@ enum NCMediaViewerPageState {
     case downloading(previewURL: URL?, progress: Double?)
 
     /// The full media file is locally available and ready to be rendered.
-    case ready(localURL: URL)
+    ///
+    /// `previewURL` is preserved so the image renderer can keep showing the preview
+    /// while the full-size image is decoded, avoiding flickering.
+    case ready(localURL: URL, previewURL: URL?)
 
     /// The page failed while resolving metadata, checking local content, or downloading.
     case failed(previewURL: URL?, message: String)
@@ -107,7 +110,7 @@ struct NCMediaViewerInitialModel {
     ///
     /// - Parameters:
     ///   - currentMetadata: Detached metadata of the initially opened media.
-    ///   - ocIds: Ordered list of image/video ocIds.
+    ///   - ocIds: Ordered list of image/audio/video ocIds.
     init(
         currentMetadata: tableMetadata,
         ocIds: [String]
