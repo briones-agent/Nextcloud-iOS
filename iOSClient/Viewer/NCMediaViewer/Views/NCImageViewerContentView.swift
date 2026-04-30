@@ -199,9 +199,7 @@ struct NCImageViewerContentView: View {
         loadedFullURL = fullURL
         failedMessage = nil
 
-        // Important:
-        // Do not clear `currentImage` before this point.
-        // The preview remains visible until the full image is decoded.
+        // Replace the visible bitmap only after decoding to avoid preview-to-full flickering.
         currentImage = image
     }
 
