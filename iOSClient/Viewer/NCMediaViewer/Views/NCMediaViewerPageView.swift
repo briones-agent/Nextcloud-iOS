@@ -60,7 +60,8 @@ struct NCMediaViewerPageView: View {
 
             case .failed(let previewURL, let message):
                 ZStack {
-                    previewImageView(previewURL: previewURL)
+                    previewStateView(previewURL: previewURL)
+
                     failedOverlay(
                         fileName: displayFileName(from: page.metadata),
                         message: message
@@ -93,7 +94,10 @@ struct NCMediaViewerPageView: View {
     @ViewBuilder
     private func previewStateView(previewURL: URL?) -> some View {
         if let previewURL {
-            NCPreviewImageView(fileURL: previewURL)
+            NCImageViewerContentView(
+                fileURL: previewURL,
+                previewURL: nil
+            )
         } else {
             loadingView
         }
@@ -102,21 +106,17 @@ struct NCMediaViewerPageView: View {
     @ViewBuilder
     private func downloadingStateView(previewURL: URL?, progress: Double?) -> some View {
         ZStack {
-            previewImageView(previewURL: previewURL)
+            if let previewURL {
+                NCImageViewerContentView(
+                    fileURL: previewURL,
+                    previewURL: nil
+                )
+            } else {
+                Color.black
+                    .ignoresSafeArea()
 
-            if previewURL == nil {
                 downloadingOverlay(progress: progress)
             }
-        }
-    }
-
-    @ViewBuilder
-    private func previewImageView(previewURL: URL?) -> some View {
-        if let previewURL {
-            NCPreviewImageView(fileURL: previewURL)
-        } else {
-            Color.black
-                .ignoresSafeArea()
         }
     }
 
