@@ -49,7 +49,7 @@ class NCViewer: NSObject {
                 ocIds: mediaOcIds
             )
 
-            let viewModel = NCMediaViewerViewModel(
+            let viewModel = NCMediaViewerModel(
                 initialModel: initialModel,
                 loader: NCNextcloudMediaViewerLoader()
             )

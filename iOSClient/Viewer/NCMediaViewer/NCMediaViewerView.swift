@@ -14,14 +14,14 @@ struct NCMediaViewerView: View {
 
     // MARK: - State
 
-    @StateObject private var viewModel: NCMediaViewerViewModel
+    @StateObject private var viewModel: NCMediaViewerModel
 
     // MARK: - Init
 
     /// Creates the media viewer view.
     ///
     /// - Parameter viewModel: View model that owns page state and loading logic.
-    init(viewModel: NCMediaViewerViewModel) {
+    init(viewModel: NCMediaViewerModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
 
