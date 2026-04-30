@@ -17,8 +17,8 @@ import NextcloudKit
 /// - keep the current selected index
 /// - expose the visible page window
 /// - resolve metadata lazily
-/// - check local media availability
 /// - request preview URLs
+/// - check local media availability
 /// - start full media downloads through the loader
 /// - prefetch previous and next pages
 /// - update page states
@@ -43,9 +43,6 @@ final class NCMediaViewerViewModel: ObservableObject {
     private let loader: NCMediaViewerLoading
 
     // MARK: - Source Data
-
-    /// Metadata of the initially opened media.
-    private let currentMetadata: tableMetadata
 
     /// Full ordered media identifier list.
     private let ocIds: [String]
@@ -80,7 +77,6 @@ final class NCMediaViewerViewModel: ObservableObject {
         windowRadius: Int = 1
     ) {
         self.loader = loader
-        self.currentMetadata = initialModel.currentMetadata
         self.ocIds = initialModel.normalizedOcIds
         self.selectedIndex = initialModel.initialSelectedIndex
         self.windowRadius = max(1, windowRadius)
@@ -227,8 +223,7 @@ final class NCMediaViewerViewModel: ObservableObject {
 
     /// Loads metadata and media content for the selected page.
     ///
-    /// This method may download the full media regardless of media type because
-    /// the user explicitly selected this page.
+    /// The page always requests preview first, then checks or downloads the full media.
     ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     private func loadPage(index: Int) async {
@@ -259,18 +254,14 @@ final class NCMediaViewerViewModel: ObservableObject {
         }
 
         setMetadata(metadata, for: ocId)
-        setState(.checkingLocalFile, for: ocId)
 
-        // Load preview first so it can remain visible while the full media is checked or downloaded.
         let previewURL = await loader.previewURL(for: metadata)
 
         guard !Task.isCancelled else {
             return
         }
 
-        if previewURL != nil {
-            setState(.remoteOnly(previewURL: previewURL), for: ocId)
-        }
+        setState(.remoteOnly(previewURL: previewURL), for: ocId)
 
         if let localURL = await loader.localMediaURL(for: metadata) {
             guard !Task.isCancelled else {
@@ -410,7 +401,6 @@ final class NCMediaViewerViewModel: ObservableObject {
         }
 
         setMetadata(metadata, for: ocId)
-        setState(.checkingLocalFile, for: ocId)
 
         let previewURL = await loader.previewURL(for: metadata)
 
@@ -418,9 +408,7 @@ final class NCMediaViewerViewModel: ObservableObject {
             return
         }
 
-        if previewURL != nil {
-            setState(.remoteOnly(previewURL: previewURL), for: ocId)
-        }
+        setState(.remoteOnly(previewURL: previewURL), for: ocId)
 
         if let localURL = await loader.localMediaURL(for: metadata) {
             guard !Task.isCancelled else {
@@ -441,8 +429,6 @@ final class NCMediaViewerViewModel: ObservableObject {
             return
         }
 
-        // Only images are prefetched as full media.
-        // Video and audio can be large, so they are downloaded only when selected.
         guard isImage(metadata) else {
             return
         }
@@ -575,8 +561,6 @@ final class NCMediaViewerViewModel: ObservableObject {
     ///   - state: New page state.
     ///   - ocId: Page file identifier.
     private func setState(_ state: NCMediaViewerPageState, for ocId: String) {
-        print("NCMediaViewer state:", ocId, state.debugDescription)
-
         updatePage(ocId: ocId) { page in
             page.state = state
         }
@@ -635,39 +619,6 @@ private extension NCMediaViewerPageState {
              .ready,
              .failed:
             return false
-        }
-    }
-}
-
-// MARK: - NCMediaViewerPageState Debug
-
-private extension NCMediaViewerPageState {
-
-    var debugDescription: String {
-        switch self {
-        case .idle:
-            return "idle"
-
-        case .loadingMetadata:
-            return "loadingMetadata"
-
-        case .metadataMissing:
-            return "metadataMissing"
-
-        case .checkingLocalFile:
-            return "checkingLocalFile"
-
-        case .remoteOnly(let previewURL):
-            return "remoteOnly previewURL: \(previewURL?.path ?? "nil")"
-
-        case .downloading(let previewURL, let progress):
-            return "downloading previewURL: \(previewURL?.path ?? "nil"), progress: \(progress?.description ?? "nil")"
-
-        case .ready(let localURL, let previewURL):
-            return "ready localURL: \(localURL.path), previewURL: \(previewURL?.path ?? "nil")"
-
-        case .failed(let previewURL, let message):
-            return "failed previewURL: \(previewURL?.path ?? "nil"), message: \(message)"
         }
     }
 }

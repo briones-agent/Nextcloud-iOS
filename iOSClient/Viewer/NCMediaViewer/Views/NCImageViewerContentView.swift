@@ -10,7 +10,7 @@ import UIKit
 /// Displays a local full-size image with optional preview fallback.
 ///
 /// The preview remains visible while the full image is decoded.
-/// This avoids flickering when transitioning from remote preview to full local image.
+/// The full image replaces the preview only when it is ready.
 struct NCImageViewerContentView: View {
 
     // MARK: - Load State
@@ -51,6 +51,8 @@ struct NCImageViewerContentView: View {
 
                 switch loadState {
                 case .loading:
+                    // ProgressView()
+                    //    .tint(.white)
                     Color.black
                         .ignoresSafeArea()
 
@@ -102,13 +104,6 @@ struct NCImageViewerContentView: View {
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.65))
-                .multilineTextAlignment(.center)
-
-            Text(fileURL.path)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.45))
-                .lineLimit(3)
-                .truncationMode(.middle)
                 .multilineTextAlignment(.center)
         }
         .foregroundStyle(.white)
@@ -171,11 +166,11 @@ struct NCImageViewerContentView: View {
 
     /// Loads the preview first, then replaces it with the full image when ready.
     private func loadImages() async {
-        loadState = .loading
-
         if let previewURL,
            let previewImage = await decodeImageIfPossible(url: previewURL) {
             loadState = .preview(previewImage)
+        } else {
+            loadState = .loading
         }
 
         guard let fullImage = await decodeImageIfPossible(url: fileURL) else {

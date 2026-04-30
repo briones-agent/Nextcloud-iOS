@@ -37,8 +37,8 @@ enum NCMediaViewerPageState {
 
     /// The full media file is locally available and ready to be rendered.
     ///
-    /// `previewURL` is preserved so the image renderer can keep showing the preview
-    /// while the full-size image is decoded, avoiding flickering.
+    /// `previewURL` is preserved so the image view can show the preview first
+    /// and replace it with the full image only after decoding is complete.
     case ready(localURL: URL, previewURL: URL?)
 
     /// The page failed while resolving metadata, checking local content, or downloading.

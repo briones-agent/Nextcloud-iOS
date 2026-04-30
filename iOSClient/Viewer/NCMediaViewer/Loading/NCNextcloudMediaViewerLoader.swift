@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
+import NextcloudKit
 
 // MARK: - Nextcloud Media Viewer Loader
 
@@ -43,13 +44,7 @@ final class NCNextcloudMediaViewerLoader: NCMediaViewerLoading, @unchecked Senda
             return nil
         }
 
-        guard fileManager.fileExists(atPath: localURL.path) else {
-            return nil
-        }
-
-        guard let attributes = try? fileManager.attributesOfItem(atPath: localURL.path),
-              let fileSize = attributes[.size] as? Int64,
-              fileSize > 0 else {
+        guard isValidLocalFile(path: localURL.path) else {
             return nil
         }
 
@@ -64,13 +59,38 @@ final class NCNextcloudMediaViewerLoader: NCMediaViewerLoading, @unchecked Senda
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Local preview URL if available.
     func previewURL(for metadata: tableMetadata) async -> URL? {
-        let localPath = utilityFileSystem.getDirectoryProviderStorageImageOcId(metadata.ocId,
-                                                                               etag: metadata.etag,
-                                                                               ext: global.previewExt1024,
-                                                                               userId: metadata.userId,
-                                                                               urlBase: metadata.urlBase)
+        var localPath = utilityFileSystem.getDirectoryProviderStorageImageOcId(
+            metadata.ocId,
+            etag: metadata.etag,
+            ext: global.previewExt1024,
+            userId: metadata.userId,
+            urlBase: metadata.urlBase
+        )
 
-        guard !localPath.isEmpty else {
+        if isValidLocalFile(path: localPath) {
+            return URL(fileURLWithPath: localPath)
+        }
+
+        let resultsDownloadPreview = await NextcloudKit.shared.downloadPreviewAsync(
+            fileId: metadata.fileId,
+            etag: metadata.etag,
+            account: metadata.account
+        )
+
+        if resultsDownloadPreview.error == .success,
+           let data = resultsDownloadPreview.responseData?.data {
+            NCUtility().createImageFileFrom(data: data, metadata: metadata)
+        }
+
+        localPath = utilityFileSystem.getDirectoryProviderStorageImageOcId(
+            metadata.ocId,
+            etag: metadata.etag,
+            ext: global.previewExt1024,
+            userId: metadata.userId,
+            urlBase: metadata.urlBase
+        )
+
+        guard isValidLocalFile(path: localPath) else {
             return nil
         }
 
@@ -120,6 +140,24 @@ final class NCNextcloudMediaViewerLoader: NCMediaViewerLoading, @unchecked Senda
         }
 
         return URL(fileURLWithPath: localPath)
+    }
+
+    private func isValidLocalFile(path: String) -> Bool {
+        guard !path.isEmpty else {
+            return false
+        }
+
+        guard fileManager.fileExists(atPath: path) else {
+            return false
+        }
+
+        guard let attributes = try? fileManager.attributesOfItem(atPath: path),
+              let fileSize = attributes[.size] as? Int64,
+              fileSize > 0 else {
+            return false
+        }
+
+        return true
     }
 }
 
