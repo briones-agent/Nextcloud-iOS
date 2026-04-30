@@ -41,11 +41,18 @@ struct NCMediaViewerPageView: View {
             case .metadataMissing:
                 metadataMissingView
 
-            case .remoteOnly(let previewURL):
-                previewStateView(previewURL: previewURL)
+            case .image(let previewURL, let localURL, let progress):
+                imageStateView(
+                    previewURL: previewURL,
+                    localURL: localURL,
+                    progress: progress
+                )
 
             case .downloading(let previewURL, let progress):
-                downloadingStateView(previewURL: previewURL, progress: progress)
+                downloadingStateView(
+                    previewURL: previewURL,
+                    progress: progress
+                )
 
             case .ready(let localURL, let previewURL):
                 if let metadata = page.metadata {
@@ -60,7 +67,11 @@ struct NCMediaViewerPageView: View {
 
             case .failed(let previewURL, let message):
                 ZStack {
-                    previewStateView(previewURL: previewURL)
+                    imageStateView(
+                        previewURL: previewURL,
+                        localURL: nil,
+                        progress: nil
+                    )
 
                     failedOverlay(
                         fileName: displayFileName(from: page.metadata),
@@ -92,24 +103,33 @@ struct NCMediaViewerPageView: View {
     }
 
     @ViewBuilder
-    private func previewStateView(previewURL: URL?) -> some View {
-        if let previewURL {
+    private func imageStateView(
+        previewURL: URL?,
+        localURL: URL?,
+        progress: Double?
+    ) -> some View {
+        ZStack {
             NCImageViewerContentView(
-                fileURL: previewURL,
-                previewURL: nil
+                previewURL: previewURL,
+                fullURL: localURL
             )
-        } else {
-            loadingView
+
+            if previewURL == nil && localURL == nil {
+                loadingView
+            }
         }
     }
 
     @ViewBuilder
-    private func downloadingStateView(previewURL: URL?, progress: Double?) -> some View {
+    private func downloadingStateView(
+        previewURL: URL?,
+        progress: Double?
+    ) -> some View {
         ZStack {
             if let previewURL {
                 NCImageViewerContentView(
-                    fileURL: previewURL,
-                    previewURL: nil
+                    previewURL: previewURL,
+                    fullURL: nil
                 )
             } else {
                 Color.black
@@ -149,8 +169,8 @@ struct NCMediaViewerPageView: View {
         switch mediaKind(for: metadata) {
         case .image:
             NCImageViewerContentView(
-                fileURL: localURL,
-                previewURL: previewURL
+                previewURL: previewURL,
+                fullURL: localURL
             )
 
         case .video:
