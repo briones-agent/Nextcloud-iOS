@@ -26,33 +26,21 @@ struct NCImageViewerContentView: View {
     @State private var loadedFullURL: URL?
     @State private var failedMessage: String?
 
-    @State private var scale: CGFloat = 1
-    @State private var lastScale: CGFloat = 1
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
-
-    // MARK: - Constants
-
-    private let minimumScale: CGFloat = 1
-    private let maximumScale: CGFloat = 5
-    private let doubleTapScale: CGFloat = 2.5
-
     // MARK: - Body
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
+
+            if let currentImage {
+                NCImageZoomView(image: currentImage)
+                    .ignoresSafeArea()
+            } else if let failedMessage {
+                failedView(failedMessage)
+            } else {
                 Color.black
                     .ignoresSafeArea()
-
-                if let currentImage {
-                    imageView(currentImage, proxy: proxy)
-                } else if let failedMessage {
-                    failedView(failedMessage)
-                } else {
-                    Color.black
-                        .ignoresSafeArea()
-                }
             }
         }
         .task(id: previewURL) {
@@ -64,29 +52,6 @@ struct NCImageViewerContentView: View {
     }
 
     // MARK: - Views
-
-    @ViewBuilder
-    private func imageView(_ image: UIImage, proxy: GeometryProxy) -> some View {
-        let baseView = Image(uiImage: image)
-            .resizable()
-            .scaledToFit()
-            .scaleEffect(scale)
-            .offset(offset)
-            .frame(
-                width: proxy.size.width,
-                height: proxy.size.height
-            )
-            .contentShape(Rectangle())
-            .gesture(magnifyGesture)
-            .simultaneousGesture(doubleTapGesture)
-
-        if scale > minimumScale {
-            baseView
-                .simultaneousGesture(dragGesture)
-        } else {
-            baseView
-        }
-    }
 
     private func failedView(_ message: String) -> some View {
         VStack(spacing: 12) {
@@ -103,58 +68,6 @@ struct NCImageViewerContentView: View {
         }
         .foregroundStyle(.white)
         .padding(24)
-    }
-
-    // MARK: - Gestures
-
-    private var magnifyGesture: some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                let newScale = lastScale * value.magnification
-                scale = clampedScale(newScale)
-            }
-            .onEnded { _ in
-                scale = clampedScale(scale)
-                lastScale = scale
-
-                if scale == minimumScale {
-                    resetOffset()
-                }
-            }
-    }
-
-    private var dragGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                guard scale > minimumScale else {
-                    return
-                }
-
-                offset = CGSize(
-                    width: lastOffset.width + value.translation.width,
-                    height: lastOffset.height + value.translation.height
-                )
-            }
-            .onEnded { _ in
-                guard scale > minimumScale else {
-                    resetOffset()
-                    return
-                }
-
-                lastOffset = offset
-            }
-    }
-
-    private var doubleTapGesture: some Gesture {
-        TapGesture(count: 2)
-            .onEnded {
-                if scale > minimumScale {
-                    resetZoom()
-                } else {
-                    scale = doubleTapScale
-                    lastScale = doubleTapScale
-                }
-            }
     }
 
     // MARK: - Loading
@@ -232,22 +145,5 @@ struct NCImageViewerContentView: View {
                 UIImage(contentsOfFile: path)
             }
         }.value
-    }
-
-    // MARK: - Private
-
-    private func clampedScale(_ value: CGFloat) -> CGFloat {
-        min(max(value, minimumScale), maximumScale)
-    }
-
-    private func resetOffset() {
-        offset = .zero
-        lastOffset = .zero
-    }
-
-    private func resetZoom() {
-        scale = minimumScale
-        lastScale = minimumScale
-        resetOffset()
     }
 }
