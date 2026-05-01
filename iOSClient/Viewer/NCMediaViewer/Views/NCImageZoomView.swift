@@ -14,11 +14,7 @@ import UIKit
 /// hosted inside a paging `TabView`.
 struct NCImageZoomView: UIViewRepresentable {
 
-    // MARK: - Properties
-
     let image: UIImage
-
-    // MARK: - Constants
 
     private let minimumZoomScale: CGFloat = 1
     private let maximumZoomScale: CGFloat = 5
