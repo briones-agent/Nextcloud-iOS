@@ -100,6 +100,8 @@ private struct DisableVerticalBounceInPagingTabView: UIViewRepresentable {
         for scrollView in scrollViews {
             scrollView.alwaysBounceVertical = false
             scrollView.showsVerticalScrollIndicator = false
+            scrollView.contentInsetAdjustmentBehavior = .never
+            scrollView.isDirectionalLockEnabled = true
         }
 
         let collectionViews = rootView.findSubviews(of: UICollectionView.self)
@@ -107,6 +109,8 @@ private struct DisableVerticalBounceInPagingTabView: UIViewRepresentable {
         for collectionView in collectionViews {
             collectionView.alwaysBounceVertical = false
             collectionView.showsVerticalScrollIndicator = false
+            collectionView.contentInsetAdjustmentBehavior = .never
+            collectionView.isDirectionalLockEnabled = true
         }
     }
 }
