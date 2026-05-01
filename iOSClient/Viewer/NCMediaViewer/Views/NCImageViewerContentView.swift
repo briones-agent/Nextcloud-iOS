@@ -65,8 +65,9 @@ struct NCImageViewerContentView: View {
 
     // MARK: - Views
 
+    @ViewBuilder
     private func imageView(_ image: UIImage, proxy: GeometryProxy) -> some View {
-        Image(uiImage: image)
+        let baseView = Image(uiImage: image)
             .resizable()
             .scaledToFit()
             .scaleEffect(scale)
@@ -77,8 +78,14 @@ struct NCImageViewerContentView: View {
             )
             .contentShape(Rectangle())
             .gesture(magnifyGesture)
-            .simultaneousGesture(dragGesture)
             .simultaneousGesture(doubleTapGesture)
+
+        if scale > minimumScale {
+            baseView
+                .simultaneousGesture(dragGesture)
+        } else {
+            baseView
+        }
     }
 
     private func failedView(_ message: String) -> some View {
