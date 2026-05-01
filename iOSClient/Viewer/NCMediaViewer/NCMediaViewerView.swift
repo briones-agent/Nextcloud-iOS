@@ -4,12 +4,15 @@
 
 import SwiftUI
 
-// MARK: - Main Media Viewer View
+// MARK: - Media Viewer View
 
-/// Root SwiftUI media viewer.
+/// Main SwiftUI media viewer.
 ///
-/// This view displays only the small visible page window exposed by the ViewModel.
-/// It does not render all `ocId` values when the media list is large.
+/// This view owns the `NCMediaViewerModel` as a `StateObject`.
+/// It renders only the currently visible page window exposed by the model.
+///
+/// The model keeps the full `ocIds` list internally, while this view renders
+/// only `visiblePages` to avoid creating thousands of SwiftUI pages.
 struct NCMediaViewerView: View {
 
     // MARK: - State
@@ -20,7 +23,7 @@ struct NCMediaViewerView: View {
 
     /// Creates the media viewer view.
     ///
-    /// - Parameter viewModel: View model that owns page state and loading logic.
+    /// - Parameter model: Media viewer model containing page state and loading logic.
     init(model: NCMediaViewerModel) {
         _model = StateObject(wrappedValue: model)
     }
@@ -36,6 +39,7 @@ struct NCMediaViewerView: View {
                 ForEach(model.visiblePages) { page in
                     NCMediaViewerPageView(page: page)
                         .tag(page.index)
+                        .ignoresSafeArea()
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
