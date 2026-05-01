@@ -204,7 +204,7 @@ final class NCMediaViewerModel: ObservableObject {
     init(
         initialModel: NCMediaViewerInitialModel,
         loader: NCMediaViewerLoading,
-        windowRadius: Int = 20
+        windowRadius: Int = 2
     ) {
         self.loader = loader
         self.ocIds = initialModel.normalizedOcIds
@@ -240,7 +240,7 @@ final class NCMediaViewerModel: ObservableObject {
         currentMetadata: tableMetadata,
         ocIds: [String],
         loader: NCMediaViewerLoading,
-        windowRadius: Int = 20
+        windowRadius: Int = 2
     ) {
         let initialModel = NCMediaViewerInitialModel(
             currentMetadata: currentMetadata,
@@ -274,6 +274,11 @@ final class NCMediaViewerModel: ObservableObject {
         guard selectedIndex != index else {
             await loadPageIfNeeded(index: index)
             prefetchNeighborPages(around: index)
+
+            if isVisibleWindowEdge(index) {
+                rebuildVisiblePages()
+            }
+
             return
         }
 
@@ -281,6 +286,10 @@ final class NCMediaViewerModel: ObservableObject {
 
         await loadPageIfNeeded(index: index)
         prefetchNeighborPages(around: index)
+
+        if isVisibleWindowEdge(index) {
+            rebuildVisiblePages()
+        }
     }
 
     /// Handles a selection change already applied by the SwiftUI TabView binding.
@@ -296,6 +305,10 @@ final class NCMediaViewerModel: ObservableObject {
 
         await loadPageIfNeeded(index: index)
         prefetchNeighborPages(around: index)
+
+        if isVisibleWindowEdge(index) {
+            rebuildVisiblePages()
+        }
     }
 
     /// Loads the currently selected page if needed.
@@ -676,6 +689,15 @@ final class NCMediaViewerModel: ObservableObject {
                 for: ocId
             )
         }
+    }
+
+    private func isVisibleWindowEdge(_ index: Int) -> Bool {
+        guard let firstIndex = visiblePages.first?.index,
+              let lastIndex = visiblePages.last?.index else {
+            return true
+        }
+
+        return index == firstIndex || index == lastIndex
     }
 
     // MARK: - Window Management
