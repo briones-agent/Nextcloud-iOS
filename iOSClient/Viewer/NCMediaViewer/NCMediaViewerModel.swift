@@ -204,7 +204,7 @@ final class NCMediaViewerModel: ObservableObject {
     init(
         initialModel: NCMediaViewerInitialModel,
         loader: NCMediaViewerLoading,
-        windowRadius: Int = 2
+        windowRadius: Int = 20
     ) {
         self.loader = loader
         self.ocIds = initialModel.normalizedOcIds
@@ -240,7 +240,7 @@ final class NCMediaViewerModel: ObservableObject {
         currentMetadata: tableMetadata,
         ocIds: [String],
         loader: NCMediaViewerLoading,
-        windowRadius: Int = 2
+        windowRadius: Int = 20
     ) {
         let initialModel = NCMediaViewerInitialModel(
             currentMetadata: currentMetadata,
