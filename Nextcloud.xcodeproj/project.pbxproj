@@ -253,6 +253,7 @@
 		F7160A822BE933390034DCB3 /* RealmSwift in Frameworks */ = {isa = PBXBuildFile; productRef = F7160A812BE933390034DCB3 /* RealmSwift */; };
 		F71638922FA0C20C00A913B7 /* NCMoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71638912FA0C1FC00A913B7 /* NCMoreView.swift */; };
 		F71638942FA0F65A00A913B7 /* NCMoreModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71638932FA0F64B00A913B7 /* NCMoreModel.swift */; };
+		F716DA652FA4E87B006A6703 /* NCImageZoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F716DA642FA4E878006A6703 /* NCImageZoomView.swift */; };
 		F717402D24F699A5000C87D5 /* NCFavorite.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F717402B24F699A5000C87D5 /* NCFavorite.storyboard */; };
 		F717402E24F699A5000C87D5 /* NCFavorite.swift in Sources */ = {isa = PBXBuildFile; fileRef = F717402C24F699A5000C87D5 /* NCFavorite.swift */; };
 		F718C24E254D507B00C5C256 /* NCViewerMediaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F718C24D254D507B00C5C256 /* NCViewerMediaDetailView.swift */; };
@@ -1373,6 +1374,7 @@
 		F71638932FA0F64B00A913B7 /* NCMoreModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCMoreModel.swift; sourceTree = "<group>"; };
 		F7169A301EE59BB70086BD69 /* it */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = it; path = it.lproj/Localizable.strings; sourceTree = "<group>"; };
 		F7169A4C1EE59C640086BD69 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/Localizable.strings; sourceTree = "<group>"; };
+		F716DA642FA4E878006A6703 /* NCImageZoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCImageZoomView.swift; sourceTree = "<group>"; };
 		F717402B24F699A5000C87D5 /* NCFavorite.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = NCFavorite.storyboard; sourceTree = "<group>"; };
 		F717402C24F699A5000C87D5 /* NCFavorite.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCFavorite.swift; sourceTree = "<group>"; };
 		F718C24D254D507B00C5C256 /* NCViewerMediaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCViewerMediaDetailView.swift; sourceTree = "<group>"; };
@@ -3140,6 +3142,7 @@
 			children = (
 				F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */,
 				F7CDB5B62FA33CA300F72306 /* NCImageViewerContentView.swift */,
+				F716DA642FA4E878006A6703 /* NCImageZoomView.swift */,
 				F7CDB5BF2FA33CA300F72306 /* NCVideoViewerPlaceholderView.swift */,
 				F7CDB5D22FA3448A00F72306 /* NCAudioViewerPlaceholderView.swift */,
 			);
@@ -4793,6 +4796,7 @@
 				F7145610296433C80038D028 /* NCDocumentCamera.swift in Sources */,
 				F34E1AD72ECB937D00FA10C3 /* NCStatusMessageView.swift in Sources */,
 				F76882312C0DD1E7001CF441 /* NCFileNameView.swift in Sources */,
+				F716DA652FA4E87B006A6703 /* NCImageZoomView.swift in Sources */,
 				F7381EE1218218C9000B1560 /* NCOffline.swift in Sources */,
 				F751247C2C42919C00E63DB8 /* NCPhotoCell.swift in Sources */,
 				F7A509252C26BD5D00326106 /* NCCreate.swift in Sources */,
