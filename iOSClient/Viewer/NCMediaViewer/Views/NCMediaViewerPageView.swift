@@ -41,11 +41,10 @@ struct NCMediaViewerPageView: View {
             case .metadataMissing:
                 metadataMissingView
 
-            case .image(let previewURL, let localURL, let progress):
+            case .image(let previewURL, let localURL, _):
                 imageStateView(
                     previewURL: previewURL,
-                    localURL: localURL,
-                    progress: progress
+                    localURL: localURL
                 )
 
             case .downloading(let previewURL, let progress):
@@ -69,8 +68,7 @@ struct NCMediaViewerPageView: View {
                 ZStack {
                     imageStateView(
                         previewURL: previewURL,
-                        localURL: nil,
-                        progress: nil
+                        localURL: nil
                     )
 
                     failedOverlay(
@@ -105,8 +103,7 @@ struct NCMediaViewerPageView: View {
     @ViewBuilder
     private func imageStateView(
         previewURL: URL?,
-        localURL: URL?,
-        progress: Double?
+        localURL: URL?
     ) -> some View {
         ZStack {
             NCImageViewerContentView(
