@@ -78,6 +78,8 @@ struct NCMediaViewerPageView: View {
                 }
             }
         }
+        .background(Color.black)
+        .ignoresSafeArea()
     }
 
     // MARK: - State Views
