@@ -46,8 +46,8 @@ enum NCMediaViewerPageState {
 
 /// Represents one page inside the media viewer.
 ///
-/// The viewer must not create one page for every `ocId` when the source list is large.
-/// The model creates only a small visible window around the selected index.
+/// The model does not create one page for every media item upfront.
+/// Pages are created lazily when requested by the UIKit pager.
 struct NCMediaViewerPageModel: Identifiable {
 
     /// Stable identifier used by SwiftUI.
@@ -137,15 +137,16 @@ struct NCMediaViewerInitialModel {
 
 // MARK: - Media Viewer Model
 
-/// Model for the SwiftUI media viewer.
+/// Model for the media viewer.
 ///
 /// This model is optimized for very large media lists.
-/// It stores the full ordered `ocIds` array, but exposes only a small visible page
-/// window around the selected index.
+/// It stores the full ordered `ocIds` array, but creates page models lazily only
+/// when the pager asks for them.
 ///
 /// Responsibilities:
 /// - keep the current selected index
-/// - expose the visible page window
+/// - expose page count
+/// - create page models lazily
 /// - resolve metadata lazily
 /// - request preview URLs
 /// - check local media availability
@@ -160,13 +161,14 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Published State
 
-    /// Pages currently rendered by SwiftUI.
-    ///
-    /// This array must stay small, usually 3 or 5 items.
-    @Published private(set) var visiblePages: [NCMediaViewerPageModel]
-
     /// Currently selected absolute index inside the full `ocIds` array.
-    @Published var selectedIndex: Int
+    @Published private(set) var selectedIndex: Int
+
+    /// Incremented when a page changes state.
+    ///
+    /// The UIKit pager observes this value indirectly through SwiftUI updates
+    /// and refreshes visible cells.
+    @Published private(set) var revision: Int = 0
 
     // MARK: - Dependencies
 
@@ -177,21 +179,29 @@ final class NCMediaViewerModel: ObservableObject {
     /// Full ordered media identifier list.
     private let ocIds: [String]
 
-    /// Number of pages kept before and after the selected page.
-    private let windowRadius: Int
-
     // MARK: - Page Cache
 
-    /// Small state cache keyed by `ocId`.
+    /// Page state cache keyed by `ocId`.
     ///
-    /// This allows the viewer to preserve state when a page temporarily leaves
-    /// the visible window and later comes back.
+    /// Pages are created lazily when the pager asks for a specific index.
     private var cachedPagesByOcId: [String: NCMediaViewerPageModel] = [:]
 
     // MARK: - Running Tasks
 
     /// Running page loading tasks keyed by `ocId`.
     private var loadingTasksByOcId: [String: Task<Void, Never>] = [:]
+
+    // MARK: - Public Read-Only Access
+
+    /// Total number of media pages.
+    var numberOfPages: Int {
+        ocIds.count
+    }
+
+    /// Initial selected index.
+    var initialSelectedIndex: Int {
+        selectedIndex
+    }
 
     // MARK: - Init
 
@@ -200,17 +210,13 @@ final class NCMediaViewerModel: ObservableObject {
     /// - Parameters:
     ///   - initialModel: Initial viewer model containing current metadata and ordered ocIds.
     ///   - loader: Loader used to resolve metadata, local URLs, previews, and downloads.
-    ///   - windowRadius: Number of pages kept before and after the selected page.
     init(
         initialModel: NCMediaViewerInitialModel,
-        loader: NCMediaViewerLoading,
-        windowRadius: Int = 2
+        loader: NCMediaViewerLoading
     ) {
         self.loader = loader
         self.ocIds = initialModel.normalizedOcIds
         self.selectedIndex = initialModel.initialSelectedIndex
-        self.windowRadius = max(1, windowRadius)
-        self.visiblePages = []
 
         let currentPage = NCMediaViewerPageModel(
             index: initialModel.initialSelectedIndex,
@@ -220,13 +226,6 @@ final class NCMediaViewerModel: ObservableObject {
         )
 
         self.cachedPagesByOcId[initialModel.currentMetadata.ocId] = currentPage
-
-        self.visiblePages = Self.makeVisiblePages(
-            selectedIndex: initialModel.initialSelectedIndex,
-            ocIds: initialModel.normalizedOcIds,
-            windowRadius: max(1, windowRadius),
-            cachedPagesByOcId: self.cachedPagesByOcId
-        )
     }
 
     /// Creates a media viewer model from the current metadata and ordered media identifiers.
@@ -235,12 +234,10 @@ final class NCMediaViewerModel: ObservableObject {
     ///   - currentMetadata: Detached metadata of the initially opened media.
     ///   - ocIds: Ordered list of image/audio/video ocIds.
     ///   - loader: Loader used to resolve metadata, local URLs, previews, and downloads.
-    ///   - windowRadius: Number of pages kept before and after the selected page.
     convenience init(
         currentMetadata: tableMetadata,
         ocIds: [String],
-        loader: NCMediaViewerLoading,
-        windowRadius: Int = 2
+        loader: NCMediaViewerLoading
     ) {
         let initialModel = NCMediaViewerInitialModel(
             currentMetadata: currentMetadata,
@@ -249,8 +246,7 @@ final class NCMediaViewerModel: ObservableObject {
 
         self.init(
             initialModel: initialModel,
-            loader: loader,
-            windowRadius: windowRadius
+            loader: loader
         )
     }
 
@@ -261,24 +257,39 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Public API
 
-    /// Handles selection changes from code.
+    /// Returns the page model for an absolute index.
     ///
-    /// Use this when selection has not already been applied by SwiftUI.
+    /// If the page is not cached yet, a lightweight idle page is created and cached.
     ///
-    /// - Parameter index: New selected absolute index.
-    func selectIndex(_ index: Int) async {
+    /// - Parameter index: Absolute index inside the full `ocIds` array.
+    /// - Returns: Page model if the index exists.
+    func pageModel(at index: Int) -> NCMediaViewerPageModel? {
         guard ocIds.indices.contains(index) else {
-            return
+            return nil
         }
 
-        guard selectedIndex != index else {
-            await loadPageIfNeeded(index: index)
-            prefetchNeighborPages(around: index)
+        let ocId = ocIds[index]
 
-            if isVisibleWindowEdge(index) {
-                rebuildVisiblePages()
-            }
+        if let cachedPage = cachedPagesByOcId[ocId] {
+            return cachedPage
+        }
 
+        let page = NCMediaViewerPageModel(
+            index: index,
+            ocId: ocId,
+            metadata: nil,
+            state: .idle
+        )
+
+        cachedPagesByOcId[ocId] = page
+        return page
+    }
+
+    /// Handles page display from the UIKit pager.
+    ///
+    /// - Parameter index: Absolute page index currently displayed.
+    func displayPage(at index: Int) async {
+        guard ocIds.indices.contains(index) else {
             return
         }
 
@@ -286,32 +297,9 @@ final class NCMediaViewerModel: ObservableObject {
 
         await loadPageIfNeeded(index: index)
         prefetchNeighborPages(around: index)
-
-        if isVisibleWindowEdge(index) {
-            rebuildVisiblePages()
-        }
     }
 
-    /// Handles a selection change already applied by the SwiftUI TabView binding.
-    ///
-    /// This method must not force a new selection because `selectedIndex` has
-    /// already been updated by the `TabView`.
-    ///
-    /// - Parameter index: New selected absolute index.
-    func handleSelectedIndexChanged(_ index: Int) async {
-        guard ocIds.indices.contains(index) else {
-            return
-        }
-
-        await loadPageIfNeeded(index: index)
-        prefetchNeighborPages(around: index)
-
-        if isVisibleWindowEdge(index) {
-            rebuildVisiblePages()
-        }
-    }
-
-    /// Loads the currently selected page if needed.
+    /// Loads the initially selected page if needed.
     func loadSelectedPageIfNeeded() async {
         await loadPageIfNeeded(index: selectedIndex)
         prefetchNeighborPages(around: selectedIndex)
@@ -382,12 +370,12 @@ final class NCMediaViewerModel: ObservableObject {
         loadingTasksByOcId[ocId] = nil
     }
 
-    // MARK: - Private Loading
+    // MARK: - Selected Page Loading
 
     /// Loads metadata and media content for the selected page.
     ///
-    /// Image pages keep a stable `.image` state so the same image view can move
-    /// from preview to full image without being replaced by another SwiftUI branch.
+    /// Image pages use `.image(previewURL:localURL:progress:)` for both preview
+    /// and full media availability.
     ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     private func loadPage(index: Int) async {
@@ -436,25 +424,12 @@ final class NCMediaViewerModel: ObservableObject {
                 return
             }
 
-            if isImage(metadata) {
-                setState(
-                    .image(
-                        previewURL: previewURL,
-                        localURL: localURL,
-                        progress: nil
-                    ),
-                    for: ocId
-                )
-            } else {
-                setState(
-                    .ready(
-                        localURL: localURL,
-                        previewURL: previewURL
-                    ),
-                    for: ocId
-                )
-            }
-
+            setReadyState(
+                metadata: metadata,
+                previewURL: previewURL,
+                localURL: localURL,
+                for: ocId
+            )
             return
         }
 
@@ -463,16 +438,7 @@ final class NCMediaViewerModel: ObservableObject {
         }
 
         do {
-            if isImage(metadata) {
-                setState(
-                    .image(
-                        previewURL: previewURL,
-                        localURL: nil,
-                        progress: nil
-                    ),
-                    for: ocId
-                )
-            } else {
+            if !isImage(metadata) {
                 setState(.downloading(previewURL: previewURL, progress: nil), for: ocId)
             }
 
@@ -482,24 +448,12 @@ final class NCMediaViewerModel: ObservableObject {
                 return
             }
 
-            if isImage(metadata) {
-                setState(
-                    .image(
-                        previewURL: previewURL,
-                        localURL: downloadedURL,
-                        progress: nil
-                    ),
-                    for: ocId
-                )
-            } else {
-                setState(
-                    .ready(
-                        localURL: downloadedURL,
-                        previewURL: previewURL
-                    ),
-                    for: ocId
-                )
-            }
+            setReadyState(
+                metadata: metadata,
+                previewURL: previewURL,
+                localURL: downloadedURL,
+                for: ocId
+            )
         } catch is CancellationError {
             return
         } catch {
@@ -513,9 +467,10 @@ final class NCMediaViewerModel: ObservableObject {
         }
     }
 
+    // MARK: - Prefetch
+
     /// Prefetches neighbor pages around the selected index.
     ///
-    /// This reduces visible loading while swiping horizontally.
     /// Images are allowed to download the full file.
     /// Video and audio avoid automatic full download during prefetch.
     ///
@@ -572,8 +527,7 @@ final class NCMediaViewerModel: ObservableObject {
     ///
     /// Prefetch must be silent as much as possible:
     /// - it should not publish intermediate loading states
-    /// - it should not show empty image states
-    /// - it should update the visible page only when preview or full media is available
+    /// - it should update page state only when preview or full media is available
     ///
     /// For images, this can download the full file.
     /// For video/audio, this resolves metadata, preview and local availability only.
@@ -610,25 +564,12 @@ final class NCMediaViewerModel: ObservableObject {
                 return
             }
 
-            if isImage(metadata) {
-                setState(
-                    .image(
-                        previewURL: previewURL,
-                        localURL: localURL,
-                        progress: nil
-                    ),
-                    for: ocId
-                )
-            } else {
-                setState(
-                    .ready(
-                        localURL: localURL,
-                        previewURL: previewURL
-                    ),
-                    for: ocId
-                )
-            }
-
+            setReadyState(
+                metadata: metadata,
+                previewURL: previewURL,
+                localURL: localURL,
+                for: ocId
+            )
             return
         }
 
@@ -636,163 +577,52 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        if isImage(metadata) {
-            // Publish preview only if it actually exists.
-            // This avoids showing an empty loading/black transition during prefetch.
+        guard isImage(metadata) else {
             if previewURL != nil {
                 setState(
-                    .image(
+                    .downloading(
                         previewURL: previewURL,
-                        localURL: nil,
                         progress: nil
                     ),
                     for: ocId
                 )
-            }
-
-            do {
-                let downloadedURL = try await loader.downloadMedia(for: metadata)
-
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                setState(
-                    .image(
-                        previewURL: previewURL,
-                        localURL: downloadedURL,
-                        progress: nil
-                    ),
-                    for: ocId
-                )
-            } catch is CancellationError {
-                return
-            } catch {
-                // Do not show a failed state for silent prefetch.
-                // The page will try again when it becomes selected.
-                updatePage(ocId: ocId) { page in
-                    page.state = .idle
-                }
             }
 
             return
         }
 
-        // For video/audio, do not download the full file during prefetch.
-        // If a preview exists, keep the page in a lightweight downloadable state.
         if previewURL != nil {
             setState(
-                .downloading(
+                .image(
                     previewURL: previewURL,
+                    localURL: nil,
                     progress: nil
                 ),
                 for: ocId
             )
         }
-    }
 
-    private func isVisibleWindowEdge(_ index: Int) -> Bool {
-        guard let firstIndex = visiblePages.first?.index,
-              let lastIndex = visiblePages.last?.index else {
-            return true
-        }
+        do {
+            let downloadedURL = try await loader.downloadMedia(for: metadata)
 
-        return index == firstIndex || index == lastIndex
-    }
-
-    // MARK: - Window Management
-
-    /// Rebuilds the visible page window around the selected index.
-    private func rebuildVisiblePages() {
-        visiblePages = Self.makeVisiblePages(
-            selectedIndex: selectedIndex,
-            ocIds: ocIds,
-            windowRadius: windowRadius,
-            cachedPagesByOcId: cachedPagesByOcId
-        )
-    }
-
-    /// Rebuilds the visible page window only when the selected index reaches the edge.
-    ///
-    /// This avoids rebuilding the TabView page array on every single swipe.
-    ///
-    /// - Parameter index: Selected absolute index.
-    private func rebuildVisiblePagesIfNeeded(for index: Int) {
-        guard !visiblePages.isEmpty else {
-            rebuildVisiblePages()
-            return
-        }
-
-        guard let firstIndex = visiblePages.first?.index,
-              let lastIndex = visiblePages.last?.index else {
-            rebuildVisiblePages()
-            return
-        }
-
-        guard index <= firstIndex || index >= lastIndex else {
-            return
-        }
-
-        rebuildVisiblePages()
-    }
-
-    /// Builds the visible page window.
-    ///
-    /// - Parameters:
-    ///   - selectedIndex: Current selected absolute index.
-    ///   - ocIds: Full ordered media identifier list.
-    ///   - windowRadius: Number of pages before and after the selected page.
-    ///   - cachedPagesByOcId: Previously cached page models.
-    /// - Returns: Visible page models.
-    private static func makeVisiblePages(
-        selectedIndex: Int,
-        ocIds: [String],
-        windowRadius: Int,
-        cachedPagesByOcId: [String: NCMediaViewerPageModel]
-    ) -> [NCMediaViewerPageModel] {
-        guard !ocIds.isEmpty else {
-            return []
-        }
-
-        guard ocIds.indices.contains(selectedIndex) else {
-            return []
-        }
-
-        let lowerBound = max(0, selectedIndex - windowRadius)
-        let upperBound = min(ocIds.count - 1, selectedIndex + windowRadius)
-
-        return (lowerBound...upperBound).map { index in
-            let ocId = ocIds[index]
-
-            if let cachedPage = cachedPagesByOcId[ocId] {
-                return cachedPage
+            guard !Task.isCancelled else {
+                return
             }
 
-            return NCMediaViewerPageModel(
-                index: index,
-                ocId: ocId,
-                metadata: nil,
-                state: .idle
+            setState(
+                .image(
+                    previewURL: previewURL,
+                    localURL: downloadedURL,
+                    progress: nil
+                ),
+                for: ocId
             )
-        }
-    }
-
-    /// Cancels loading tasks for pages outside the current visible/prefetch window.
-    private func cancelTasksOutsideVisibleWindow() {
-        var allowedOcIds = Set(visiblePages.map(\.ocId))
-
-        let neighborIndexes = [
-            selectedIndex - 1,
-            selectedIndex + 1
-        ]
-
-        for index in neighborIndexes where ocIds.indices.contains(index) {
-            allowedOcIds.insert(ocIds[index])
-        }
-
-        for (ocId, task) in loadingTasksByOcId where !allowedOcIds.contains(ocId) {
-            task.cancel()
-            loadingTasksByOcId[ocId] = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            updatePage(ocId: ocId) { page in
+                page.state = .idle
+            }
         }
     }
 
@@ -840,10 +670,40 @@ final class NCMediaViewerModel: ObservableObject {
         }
     }
 
-    /// Mutates a cached page and refreshes the visible page if needed.
+    /// Sets the correct ready state for image and non-image media.
     ///
-    /// This method updates only the affected visible page instead of rebuilding
-    /// the whole visible window.
+    /// - Parameters:
+    ///   - metadata: Detached metadata.
+    ///   - previewURL: Optional local preview URL.
+    ///   - localURL: Local full media URL.
+    ///   - ocId: Page file identifier.
+    private func setReadyState(
+        metadata: tableMetadata,
+        previewURL: URL?,
+        localURL: URL,
+        for ocId: String
+    ) {
+        if isImage(metadata) {
+            setState(
+                .image(
+                    previewURL: previewURL,
+                    localURL: localURL,
+                    progress: nil
+                ),
+                for: ocId
+            )
+        } else {
+            setState(
+                .ready(
+                    localURL: localURL,
+                    previewURL: previewURL
+                ),
+                for: ocId
+            )
+        }
+    }
+
+    /// Mutates a cached page and publishes a model revision.
     ///
     /// - Parameters:
     ///   - ocId: Page file identifier.
@@ -866,12 +726,7 @@ final class NCMediaViewerModel: ObservableObject {
         mutation(&page)
 
         cachedPagesByOcId[ocId] = page
-
-        guard let visibleIndex = visiblePages.firstIndex(where: { $0.ocId == ocId }) else {
-            return
-        }
-
-        visiblePages[visibleIndex] = page
+        revision &+= 1
     }
 
     /// Returns whether the metadata represents an image.

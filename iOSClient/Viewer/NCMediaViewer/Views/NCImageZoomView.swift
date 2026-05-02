@@ -87,21 +87,17 @@ struct NCImageZoomView: UIViewRepresentable {
             context.coordinator.currentImage = image
             context.coordinator.resetBoundsTracking()
 
-            imageView.image = image
-            imageView.frame = .zero
-
             scrollView.setZoomScale(minimumZoomScale, animated: false)
             scrollView.contentOffset = .zero
             scrollView.contentInset = .zero
-            scrollView.contentSize = .zero
+
+            imageView.image = image
         }
 
-        DispatchQueue.main.async {
-            if imageChanged {
-                context.coordinator.layoutImageViewResettingZoom()
-            } else {
-                context.coordinator.layoutImageViewKeepingZoomIfPossible()
-            }
+        if imageChanged {
+            context.coordinator.layoutImageViewResettingZoom()
+        } else {
+            context.coordinator.layoutImageViewKeepingZoomIfPossible()
         }
     }
 
