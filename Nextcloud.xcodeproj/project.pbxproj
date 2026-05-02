@@ -2326,14 +2326,14 @@
 			path = Shares;
 			sourceTree = "<group>";
 		};
-		F716DA682FA5F137006A6703 /* Media */ = {
+		F716DA682FA5F137006A6703 /* Content */ = {
 			isa = PBXGroup;
 			children = (
 				F7CDB5B62FA33CA300F72306 /* NCImageViewerContentView.swift */,
 				F7CDB5BF2FA33CA300F72306 /* NCVideoViewerPlaceholderView.swift */,
 				F7CDB5D22FA3448A00F72306 /* NCAudioViewerPlaceholderView.swift */,
 			);
-			path = Media;
+			path = Content;
 			sourceTree = "<group>";
 		};
 		F720B5B72507B9A5008C94E5 /* Cell */ = {
@@ -3099,7 +3099,7 @@
 				F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */,
 				F716DA662FA5F019006A6703 /* NCMediaViewerPagingView.swift */,
 				F716DA642FA4E878006A6703 /* NCImageZoomView.swift */,
-				F716DA682FA5F137006A6703 /* Media */,
+				F716DA682FA5F137006A6703 /* Content */,
 			);
 			path = Views;
 			sourceTree = "<group>";
