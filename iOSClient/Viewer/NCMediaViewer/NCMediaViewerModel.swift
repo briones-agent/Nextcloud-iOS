@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
-import RealmSwift
 import NextcloudKit
 
 // MARK: - Page State
@@ -13,7 +12,6 @@ import NextcloudKit
 /// The page metadata is stored in `NCMediaViewerPageModel.metadata`.
 /// This state only describes the current loading/rendering phase.
 enum NCMediaViewerPageState {
-
     /// The page exists but no loading operation has started yet.
     case idle
 
@@ -32,7 +30,10 @@ enum NCMediaViewerPageState {
     /// to full image. This avoids flickering caused by replacing SwiftUI view branches.
     case image(previewURL: URL?, localURL: URL?, progress: Double?)
 
-    /// Generic downloading state for non-image media.
+    /// Remote media state with an optional preview and optional download progress.
+    ///
+    /// For video/audio, this can also represent a remote-only state where a preview
+    /// is available but the full media file has not been downloaded.
     case downloading(previewURL: URL?, progress: Double?)
 
     /// Non-image media is locally available.
@@ -49,7 +50,6 @@ enum NCMediaViewerPageState {
 /// The model does not create one page for every media item upfront.
 /// Pages are created lazily when requested by the UIKit pager.
 struct NCMediaViewerPageModel: Identifiable {
-
     /// Stable identifier used by SwiftUI.
     let id: String
 
@@ -96,7 +96,6 @@ struct NCMediaViewerPageModel: Identifiable {
 ///
 /// The current metadata must be detached before being passed here.
 struct NCMediaViewerInitialModel {
-
     /// Metadata of the initially opened media.
     let currentMetadata: tableMetadata
 
@@ -164,10 +163,9 @@ final class NCMediaViewerModel: ObservableObject {
     /// Currently selected absolute index inside the full `ocIds` array.
     @Published private(set) var selectedIndex: Int
 
-    /// Incremented when a page changes state.
+    /// Incremented when a cached page changes.
     ///
-    /// The UIKit pager observes this value indirectly through SwiftUI updates
-    /// and refreshes visible cells.
+    /// The UIKit paging coordinator observes this value and refreshes visible cells.
     @Published private(set) var revision: Int = 0
 
     // MARK: - Dependencies
@@ -188,7 +186,7 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Running Tasks
 
-    /// Running page loading tasks keyed by `ocId`.
+    /// Running foreground or prefetch loading tasks keyed by `ocId`.
     private var loadingTasksByOcId: [String: Task<Void, Never>] = [:]
 
     // MARK: - Public Read-Only Access
@@ -300,6 +298,8 @@ final class NCMediaViewerModel: ObservableObject {
     }
 
     /// Returns the page model for the currently selected index.
+    ///
+    /// - Returns: Selected page model if available.
     func selectedPageModel() -> NCMediaViewerPageModel? {
         pageModel(at: selectedIndex)
     }
@@ -377,10 +377,11 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Selected Page Loading
 
-    /// Loads metadata and media content for the selected page.
+    /// Loads metadata and media content for a selected or explicitly requested page.
     ///
     /// Image pages use `.image(previewURL:localURL:progress:)` for both preview
-    /// and full media availability.
+    /// and full media availability. Non-image pages use `.ready` only when the
+    /// local full media file is available.
     ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     private func loadPage(index: Int) async {
@@ -500,7 +501,7 @@ final class NCMediaViewerModel: ObservableObject {
     /// Prefetches one page if it is still idle.
     ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
-    private func prefetchPageIfNeeded(index: Int) async {
+    internal func prefetchPageIfNeeded(index: Int) async {
         guard ocIds.indices.contains(index) else {
             return
         }
@@ -552,7 +553,6 @@ final class NCMediaViewerModel: ObservableObject {
         }
 
         guard let metadata else {
-            setState(.metadataMissing, for: ocId)
             return
         }
 
@@ -746,7 +746,6 @@ final class NCMediaViewerModel: ObservableObject {
 // MARK: - NCMediaViewerPageState Helpers
 
 private extension NCMediaViewerPageState {
-
     /// Returns true when the page has not started loading yet.
     var isIdle: Bool {
         switch self {

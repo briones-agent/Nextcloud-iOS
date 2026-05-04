@@ -5,14 +5,13 @@
 import SwiftUI
 import UIKit
 import Combine
-import NextcloudKit
 
 // MARK: - Media Viewer Hosting Controller
 
-/// Hosting controller used by the media viewer.
+/// UIKit hosting controller used by the media viewer.
 ///
-/// This controller embeds the SwiftUI media viewer inside UIKit so the viewer can
-/// use a real navigation item for the title, close button, and menu button.
+/// This controller embeds the SwiftUI media viewer and provides standard UIKit
+/// navigation items for the title, close button, and menu button.
 @MainActor
 final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerView> {
     private let model: NCMediaViewerModel
@@ -24,9 +23,9 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     /// Creates a media viewer hosting controller.
     ///
     /// - Parameters:
-    ///   - model: Media viewer model.
-    ///   - onClose: Closure called when the close button is tapped.
-    ///   - onMenu: Closure called when the menu button is tapped.
+    ///   - model: Media viewer model used to render and page through media items.
+    ///   - onClose: Closure called when the navigation bar close button is tapped.
+    ///   - onMenu: Closure called when the navigation bar menu button is tapped.
     init(
         model: NCMediaViewerModel,
         onClose: @escaping () -> Void,
