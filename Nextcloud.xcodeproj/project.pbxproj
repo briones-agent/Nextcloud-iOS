@@ -3080,9 +3080,9 @@
 		F7CDB5C12FA33CA300F72306 /* NCMediaViewer */ = {
 			isa = PBXGroup;
 			children = (
-				F7CDB5B82FA33CA300F72306 /* NCMediaViewerModel.swift */,
 				F7EDBB402FA866E700098C42 /* NCMediaViewerTransitionSource.swift */,
 				F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */,
+				F7CDB5B82FA33CA300F72306 /* NCMediaViewerModel.swift */,
 				F7CDB5CE2FA33DED00F72306 /* Loading */,
 				F7CDB5D02FA33E3500F72306 /* Views */,
 			);
