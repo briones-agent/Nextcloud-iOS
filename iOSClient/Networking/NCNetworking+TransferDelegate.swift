@@ -95,7 +95,7 @@ extension NCNetworking: NCTransferDelegate {
                     if let viewController = controller.currentViewController() {
                         let image = NCUtility().getImage(ocId: metadata.ocId, etag: metadata.etag, ext: NCGlobal.shared.previewExt1024, userId: metadata.userId, urlBase: metadata.urlBase)
                         Task {
-                            if let vc = await NCViewer().getViewerController(metadata: metadata, image: image, delegate: viewController) {
+                            if let vc = await NCViewer().getViewerController(metadata: metadata, image: image, delegate: viewController, viewerTransitionSource: nil) {
                                 viewController.navigationController?.pushViewController(vc, animated: true)
                             }
                         }
@@ -215,7 +215,7 @@ extension NCNetworking: NCTransferDelegate {
                 )
                 let fileSize = attr[FileAttributeKey.size] as? UInt64 ?? 0
                 if fileSize > 0 {
-                    if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController) {
+                    if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController, viewerTransitionSource: nil) {
                         viewController.navigationController?.pushViewController(vc, animated: true)
                     }
                     return
@@ -255,7 +255,7 @@ extension NCNetworking: NCTransferDelegate {
         )
 
         if metadata.isAudioOrVideo {
-            if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController) {
+            if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController, viewerTransitionSource: nil) {
                 viewController.navigationController?.pushViewController(vc, animated: true)
             }
             return
@@ -290,7 +290,7 @@ extension NCNetworking: NCTransferDelegate {
 
         if download.nkError == .success {
             await NCManageDatabase.shared.addLocalFilesAsync(metadatas: [metadata])
-            if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController) {
+            if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController, viewerTransitionSource: nil) {
                 viewController.navigationController?.pushViewController(vc, animated: true)
             }
         }

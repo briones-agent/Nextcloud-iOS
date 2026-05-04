@@ -49,7 +49,7 @@ class NCCreate: NSObject {
                 url: url,
                 session: session,
                 sceneIdentifier: controller.sceneIdentifier)
-            if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController) {
+            if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController, viewerTransitionSource: nil) {
                 viewController.navigationController?.pushViewController(vc, animated: true)
             }
 
@@ -79,7 +79,7 @@ class NCCreate: NSObject {
                 session: session,
                 sceneIdentifier: controller.sceneIdentifier)
 
-            if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController) {
+            if let vc = await NCViewer().getViewerController(metadata: metadata, delegate: viewController, viewerTransitionSource: nil) {
                 viewController.navigationController?.pushViewController(vc, animated: true)
             }
         }
