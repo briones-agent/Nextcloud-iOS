@@ -4,6 +4,7 @@
 
 import SwiftUI
 import UIKit
+import Combine
 
 // MARK: - Media Viewer View
 
@@ -13,204 +14,29 @@ import UIKit
 /// Paging is handled by `NCMediaViewerPagingView`, which is backed by
 /// `UICollectionView` to support large virtualized media lists.
 ///
-/// The viewer is displayed fullscreen and draws its own transparent overlay bar
-/// above the media content.
+/// Navigation buttons and title are provided by `NCMediaViewerHostingController`.
+
 struct NCMediaViewerView: View {
-
-    // MARK: - State
-
     @StateObject private var model: NCMediaViewerModel
-    @Environment(\.colorScheme) private var colorScheme
 
-    // MARK: - Actions
-
-    private let onClose: () -> Void
-    private let onMenu: () -> Void
-
-    // MARK: - Computed Properties
-
-    private var title: String {
-        guard let page = model.selectedPageModel(),
-              let metadata = page.metadata else {
-            return ""
-        }
-
-        if !metadata.fileNameView.isEmpty {
-            return metadata.fileNameView
-        }
-
-        return metadata.fileName
-    }
-
-    private var overlayButtonForegroundColor: Color {
-        colorScheme == .dark ? .white : .black
-    }
-
-    // MARK: - Init
-
-    /// Creates the media viewer view.
-    ///
-    /// - Parameters:
-    ///   - model: Media viewer model containing page state and loading logic.
-    ///   - onClose: Closure called when the back button is tapped.
-    ///   - onMenu: Closure called when the menu button is tapped.
-    init(
-        model: NCMediaViewerModel,
-        onClose: @escaping () -> Void = {},
-        onMenu: @escaping () -> Void = {}
-    ) {
+    init(model: NCMediaViewerModel) {
         _model = StateObject(wrappedValue: model)
-        self.onClose = onClose
-        self.onMenu = onMenu
     }
-
-    // MARK: - Body
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .top) {
-                Color.ncViewerBackground(.system)
-                    .ignoresSafeArea()
+        ZStack {
+            Color.ncViewerBackground(.system)
+                .ignoresSafeArea()
 
-                NCMediaViewerPagingView(model: model)
-                    .ignoresSafeArea()
-
-                topOverlayBar(
-                    topInset: proxy.safeAreaInsets.top,
-                    containerSize: proxy.size
-                )
-            }
-            .background(Color.ncViewerBackground(.system))
-            .ignoresSafeArea()
+            NCMediaViewerPagingView(model: model)
+                .ignoresSafeArea()
         }
+        .background(Color.ncViewerBackground(.system))
+        .ignoresSafeArea()
         .statusBarHidden(true)
         .task {
             await model.loadSelectedPageIfNeeded()
         }
-    }
-
-    // MARK: - Top Overlay Bar
-
-    private func topOverlayBar(
-        topInset: CGFloat,
-        containerSize: CGSize
-    ) -> some View {
-        HStack(spacing: 8) {
-            Button {
-                onClose()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(overlayButtonForegroundColor)
-                    .frame(width: 36, height: 36)
-                    .contentShape(Rectangle())
-                    .viewerGlassButton()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(NSLocalizedString("_back_", comment: "")))
-
-            Text(title)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(overlayButtonForegroundColor)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Spacer()
-
-            Button {
-                onMenu()
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(overlayButtonForegroundColor)
-                    .frame(width: 36, height: 36)
-                    .contentShape(Rectangle())
-                    .viewerGlassButton()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(NSLocalizedString("_more_", comment: "")))
-        }
-        .padding(.horizontal, 12)
-        .padding(
-            .top,
-            topBarTopPadding(
-                topInset: topInset,
-                containerSize: containerSize
-            )
-        )
-        .frame(maxWidth: .infinity)
-        .background(
-            topOverlayGradient(
-                topInset: topInset,
-                containerSize: containerSize
-            ),
-            alignment: .top
-        )
-        .ignoresSafeArea(edges: .top)
-    }
-
-    private func topOverlayGradient(
-        topInset: CGFloat,
-        containerSize: CGSize
-    ) -> some View {
-        LinearGradient(
-            colors: [
-                .black.opacity(0.34),
-                .black.opacity(0.12),
-                .clear
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(
-            height: topBarTopPadding(
-                topInset: topInset,
-                containerSize: containerSize
-            ) + 68
-        )
-        .allowsHitTesting(false)
-    }
-
-    private func topBarTopPadding(
-        topInset: CGFloat,
-        containerSize: CGSize
-    ) -> CGFloat {
-        let isLandscape = containerSize.width > containerSize.height
-        let isPad = UIDevice.current.userInterfaceIdiom == .pad
-
-        if isPad {
-            return topInset + 8
-        }
-
-        if isLandscape {
-            return max(topInset + 10, 22)
-        } else {
-            return topInset + 4
-        }
-    }
-}
-
-// MARK: - Viewer Glass Button Modifier
-
-private struct NCViewerGlassButtonModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content
-                .padding(4)
-                .glassEffect(.regular.interactive(), in: .circle)
-        } else {
-            content
-                .padding(4)
-                .background(.black.opacity(0.32))
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.45), radius: 3, x: 0, y: 1)
-        }
-    }
-}
-
-private extension View {
-    func viewerGlassButton() -> some View {
-        modifier(NCViewerGlassButtonModifier())
     }
 }
 
@@ -222,23 +48,14 @@ private extension View {
 /// thumbnail-to-fullscreen opening and closing animations.
 @MainActor
 final class NCMediaViewerPresenter {
-
-    // MARK: - Singleton
-
     static let shared = NCMediaViewerPresenter()
 
-    // MARK: - State
-
-    private var hostingController: UIHostingController<NCMediaViewerView>?
-    private weak var hostingView: UIView?
+    private var navigationController: UINavigationController?
+    private weak var viewerContainerView: UIView?
     private var currentViewerTransitionSource: NCViewerTransitionSource?
-
-    // MARK: - Constants
 
     private let openingAnimationDuration: TimeInterval = 0.28
     private let closingAnimationDuration: TimeInterval = 0.24
-
-    // MARK: - Init
 
     private init() { }
 
@@ -265,7 +82,7 @@ final class NCMediaViewerPresenter {
 
         currentViewerTransitionSource = viewerTransitionSource
 
-        let viewer = NCMediaViewerView(
+        let hostingController = NCMediaViewerHostingController(
             model: model,
             onClose: { [weak self] in
                 self?.dismiss(animated: true)
@@ -273,29 +90,34 @@ final class NCMediaViewerPresenter {
             onMenu: onMenu
         )
 
-        let hostingController = UIHostingController(rootView: viewer)
-        hostingController.view.backgroundColor = .ncViewerBackground(.system)
-        hostingController.view.frame = window.bounds
-        hostingController.view.autoresizingMask = [
+        let navigationController = UINavigationController(
+            rootViewController: hostingController
+        )
+
+        configureNavigationController(navigationController)
+
+        navigationController.view.backgroundColor = .ncViewerBackground(.system)
+        navigationController.view.frame = window.bounds
+        navigationController.view.autoresizingMask = [
             .flexibleWidth,
             .flexibleHeight
         ]
 
-        self.hostingController = hostingController
-        self.hostingView = hostingController.view
+        self.navigationController = navigationController
+        self.viewerContainerView = navigationController.view
 
         if let viewerTransitionSource {
-            hostingController.view.alpha = 0
-            window.addSubview(hostingController.view)
+            navigationController.view.alpha = 0
+            window.addSubview(navigationController.view)
 
             animateOpening(
                 viewerTransitionSource: viewerTransitionSource,
                 in: window,
-                viewerView: hostingController.view
+                viewerView: navigationController.view
             )
         } else {
-            hostingController.view.alpha = 1
-            window.addSubview(hostingController.view)
+            navigationController.view.alpha = 1
+            window.addSubview(navigationController.view)
         }
     }
 
@@ -303,23 +125,23 @@ final class NCMediaViewerPresenter {
     ///
     /// - Parameter animated: Whether dismissal should be animated.
     func dismiss(animated: Bool = true) {
-        guard let hostingView else {
+        guard let viewerContainerView else {
             cleanup()
             return
         }
 
         guard animated else {
-            hostingView.removeFromSuperview()
+            viewerContainerView.removeFromSuperview()
             cleanup()
             return
         }
 
         if let viewerTransitionSource = currentViewerTransitionSource,
-           let window = hostingView.window {
+           let window = viewerContainerView.window {
             animateClosing(
                 viewerTransitionSource: viewerTransitionSource,
                 in: window,
-                viewerView: hostingView
+                viewerView: viewerContainerView
             )
             return
         }
@@ -329,11 +151,37 @@ final class NCMediaViewerPresenter {
             delay: 0,
             options: [.curveEaseInOut]
         ) {
-            hostingView.alpha = 0
+            viewerContainerView.alpha = 0
         } completion: { [weak self] _ in
-            hostingView.removeFromSuperview()
+            viewerContainerView.removeFromSuperview()
             self?.cleanup()
         }
+    }
+
+    // MARK: - Navigation Appearance
+
+    /// Configures the dedicated navigation controller used by the viewer.
+    ///
+    /// - Parameter navigationController: Viewer navigation controller.
+    private func configureNavigationController(_ navigationController: UINavigationController) {
+        navigationController.setNavigationBarHidden(false, animated: false)
+        navigationController.navigationBar.isTranslucent = true
+        navigationController.navigationBar.tintColor = .label
+        navigationController.navigationBar.prefersLargeTitles = false
+
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundColor = .clear
+        appearance.shadowColor = .clear
+        appearance.titleTextAttributes = [
+            .foregroundColor: UIColor.label,
+            .font: UIFont.systemFont(ofSize: 17, weight: .semibold)
+        ]
+
+        navigationController.navigationBar.standardAppearance = appearance
+        navigationController.navigationBar.scrollEdgeAppearance = appearance
+        navigationController.navigationBar.compactAppearance = appearance
+        navigationController.navigationBar.compactScrollEdgeAppearance = appearance
     }
 
     // MARK: - Opening Animation
@@ -371,7 +219,6 @@ final class NCMediaViewerPresenter {
             containerSize: window.bounds.size
         )
 
-        // Keep the real viewer hidden during the whole zoom-in transition.
         viewerView.alpha = 0
 
         UIView.animate(
@@ -384,7 +231,6 @@ final class NCMediaViewerPresenter {
             imageView.layer.cornerRadius = 0
         } completion: { _ in
             viewerView.alpha = 1
-
             imageView.removeFromSuperview()
             dimView.removeFromSuperview()
         }
@@ -416,9 +262,6 @@ final class NCMediaViewerPresenter {
 
         window.addSubview(imageView)
 
-        // Hide the real viewer immediately.
-        // This prevents the fullscreen viewer image from being visible behind
-        // the temporary animated image during the zoom-out transition.
         viewerView.alpha = 0
 
         UIView.animate(
@@ -439,8 +282,8 @@ final class NCMediaViewerPresenter {
 
     /// Clears the current overlay state.
     private func cleanup() {
-        hostingController = nil
-        hostingView = nil
+        navigationController = nil
+        viewerContainerView = nil
         currentViewerTransitionSource = nil
     }
 
@@ -523,11 +366,7 @@ private extension NCMediaViewerView {
             loader: NCMediaViewerLoader()
         )
 
-        return NCMediaViewerView(
-            model: model,
-            onClose: {},
-            onMenu: {}
-        )
+        return NCMediaViewerView(model: model)
     }
 }
 #endif
