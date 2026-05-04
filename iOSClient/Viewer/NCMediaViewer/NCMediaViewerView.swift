@@ -176,6 +176,11 @@ struct NCMediaViewerView: View {
         containerSize: CGSize
     ) -> CGFloat {
         let isLandscape = containerSize.width > containerSize.height
+        let isPad = UIDevice.current.userInterfaceIdiom == .pad
+
+        if isPad {
+            return topInset + 8
+        }
 
         if isLandscape {
             return max(topInset + 10, 22)
