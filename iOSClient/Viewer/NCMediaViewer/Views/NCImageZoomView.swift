@@ -21,14 +21,7 @@ struct NCImageZoomView: UIViewRepresentable {
     private let doubleTapZoomScale: CGFloat = 2.5
 
     /// Creates an image zoom view.
-    ///
-    /// - Parameters:
-    ///   - image: Image to display and zoom.
-    ///   - backgroundStyle: Background style used behind the image.
-    init(
-        image: UIImage,
-        backgroundStyle: NCViewerBackgroundStyle = .system
-    ) {
+    init(image: UIImage, backgroundStyle: NCViewerBackgroundStyle = .system) {
         self.image = image
         self.backgroundStyle = backgroundStyle
     }
@@ -263,15 +256,7 @@ struct NCImageZoomView: UIViewRepresentable {
         }
 
         /// Returns whether the current image and container sizes can be used for layout.
-        ///
-        /// - Parameters:
-        ///   - imageSize: Original image size.
-        ///   - boundsSize: Current scroll view bounds size.
-        /// - Returns: True when both sizes are valid.
-        private func isValidLayout(
-            imageSize: CGSize,
-            boundsSize: CGSize
-        ) -> Bool {
+        private func isValidLayout(imageSize: CGSize, boundsSize: CGSize) -> Bool {
             imageSize.width > 0 &&
             imageSize.height > 0 &&
             boundsSize.width > 0 &&
@@ -279,15 +264,7 @@ struct NCImageZoomView: UIViewRepresentable {
         }
 
         /// Returns the aspect-fit size of an image inside a container.
-        ///
-        /// - Parameters:
-        ///   - imageSize: Original image size.
-        ///   - containerSize: Available container size.
-        /// - Returns: Aspect-fitted image size.
-        private func fittedImageSize(
-            imageSize: CGSize,
-            containerSize: CGSize
-        ) -> CGSize {
+        private func fittedImageSize(imageSize: CGSize, containerSize: CGSize) -> CGSize {
             let widthRatio = containerSize.width / imageSize.width
             let heightRatio = containerSize.height / imageSize.height
             let ratio = min(widthRatio, heightRatio)
@@ -301,8 +278,6 @@ struct NCImageZoomView: UIViewRepresentable {
         // MARK: - Gestures
 
         /// Handles double tap zoom and reset.
-        ///
-        /// - Parameter gesture: Double tap recognizer.
         @objc
         func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
             guard let scrollView,
@@ -328,17 +303,7 @@ struct NCImageZoomView: UIViewRepresentable {
         }
 
         /// Builds the zoom rect used by double tap.
-        ///
-        /// - Parameters:
-        ///   - scrollView: Source scroll view.
-        ///   - scale: Target zoom scale.
-        ///   - center: Center point in image view coordinates.
-        /// - Returns: Zoom rectangle.
-        private func zoomRect(
-            for scrollView: UIScrollView,
-            scale: CGFloat,
-            center: CGPoint
-        ) -> CGRect {
+        private func zoomRect(for scrollView: UIScrollView, scale: CGFloat, center: CGPoint) -> CGRect {
             let size = CGSize(
                 width: scrollView.bounds.width / scale,
                 height: scrollView.bounds.height / scale
