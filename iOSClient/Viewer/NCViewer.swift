@@ -45,9 +45,7 @@ class NCViewer: NSObject {
             let mediaOcIds = ocIds ?? [metadata.ocId]
             let model = NCMediaViewerModel(currentMetadata: metadata, ocIds: mediaOcIds, loader: NCMediaViewerLoader())
 
-            return UIHostingController(
-                rootView: NCMediaViewerView(model: model, viewerTransitionSource: viewerTransitionSource)
-            )
+            NCMediaViewerPresenter.shared.show(model: model, viewerTransitionSource: viewerTransitionSource, from: delegate?.view)
         }
 
         // DOCUMENTS

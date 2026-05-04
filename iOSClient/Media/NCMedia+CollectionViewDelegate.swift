@@ -34,6 +34,7 @@ extension NCMedia: UICollectionViewDelegate {
                 }
 
                 if let vc = await NCViewer().getViewerController(metadata: metadata, ocIds: ocIds, image: image, delegate: self, viewerTransitionSource: viewerTransitionSource) {
+                    vc.view.backgroundColor = .clear
                     self.navigationController?.pushViewController(vc, animated: false)
                 }
             }

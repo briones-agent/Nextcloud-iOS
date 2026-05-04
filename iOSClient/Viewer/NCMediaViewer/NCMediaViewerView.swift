@@ -12,138 +12,202 @@ import UIKit
 /// This view owns the `NCMediaViewerModel` as a `StateObject`.
 /// Paging is handled by `NCMediaViewerPagingView`, which is backed by
 /// `UICollectionView` to support large virtualized media lists.
-///
-/// When a `viewerTransitionSource` is provided, the viewer performs an opening
-/// thumbnail-to-fullscreen animation before revealing the real paging content.
 struct NCMediaViewerView: View {
 
     // MARK: - State
 
     @StateObject private var model: NCMediaViewerModel
 
-    @State private var isOpeningAnimationRunning = false
-    @State private var isOpeningAnimationCompleted: Bool
-
-    // MARK: - Transition
-
-    private let viewerTransitionSource: NCViewerTransitionSource?
-
-    // MARK: - Constants
-
-    private let openingAnimationDuration: TimeInterval = 0.28
-
     // MARK: - Init
 
     /// Creates the media viewer view.
     ///
-    /// - Parameters:
-    ///   - model: Media viewer model containing page state and loading logic.
-    ///   - viewerTransitionSource: Optional thumbnail source used for the opening animation.
-    init(
-        model: NCMediaViewerModel,
-        viewerTransitionSource: NCViewerTransitionSource? = nil
-    ) {
+    /// - Parameter model: Media viewer model containing page state and loading logic.
+    init(model: NCMediaViewerModel) {
         _model = StateObject(wrappedValue: model)
-        self.viewerTransitionSource = viewerTransitionSource
-        self._isOpeningAnimationCompleted = State(initialValue: viewerTransitionSource == nil)
     }
 
     // MARK: - Body
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                Color.black
-                    .ignoresSafeArea()
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
 
-                NCMediaViewerPagingView(model: model)
-                    .opacity(isOpeningAnimationCompleted ? 1 : 0)
-                    .ignoresSafeArea()
+            NCMediaViewerPagingView(model: model)
+                .ignoresSafeArea()
+        }
+        .background(Color.black)
+        .ignoresSafeArea()
+        .statusBarHidden(true)
+        .task {
+            await model.loadSelectedPageIfNeeded()
+        }
+    }
+}
 
-                if let viewerTransitionSource, !isOpeningAnimationCompleted {
-                    openingTransitionView(
-                        viewerTransitionSource: viewerTransitionSource,
-                        containerSize: proxy.size
-                    )
-                }
-            }
-            .background(Color.black)
-            .ignoresSafeArea()
-            .statusBarHidden(true)
-            .task {
-                await model.loadSelectedPageIfNeeded()
-                startOpeningAnimationIfNeeded()
-            }
+// MARK: - Media Viewer Presenter
+
+/// Presents the media viewer as a fullscreen overlay above the current window.
+///
+/// This avoids navigation push/present transitions and allows a clean
+/// thumbnail-to-fullscreen opening animation.
+@MainActor
+final class NCMediaViewerPresenter {
+
+    // MARK: - Singleton
+
+    static let shared = NCMediaViewerPresenter()
+
+    // MARK: - State
+
+    private var hostingController: UIHostingController<NCMediaViewerView>?
+    private weak var hostingView: UIView?
+
+    // MARK: - Constants
+
+    private let openingAnimationDuration: TimeInterval = 0.28
+    private let closingAnimationDuration: TimeInterval = 0.20
+
+    // MARK: - Init
+
+    private init() { }
+
+    // MARK: - Presentation
+
+    /// Shows the media viewer above the current window.
+    ///
+    /// - Parameters:
+    ///   - model: Media viewer model.
+    ///   - viewerTransitionSource: Optional thumbnail source used for the opening animation.
+    ///   - sourceView: View used to resolve the current window.
+    func show(
+        model: NCMediaViewerModel,
+        viewerTransitionSource: NCViewerTransitionSource?,
+        from sourceView: UIView? = nil
+    ) {
+        guard let window = sourceView?.window ?? activeWindow() else {
+            return
+        }
+
+        dismiss(animated: false)
+
+        let viewer = NCMediaViewerView(model: model)
+        let hostingController = UIHostingController(rootView: viewer)
+
+        hostingController.view.backgroundColor = .black
+        hostingController.view.frame = window.bounds
+        hostingController.view.autoresizingMask = [
+            .flexibleWidth,
+            .flexibleHeight
+        ]
+
+        self.hostingController = hostingController
+        self.hostingView = hostingController.view
+
+        if let viewerTransitionSource {
+            hostingController.view.alpha = 0
+            window.addSubview(hostingController.view)
+
+            animateOpening(
+                viewerTransitionSource: viewerTransitionSource,
+                in: window,
+                viewerView: hostingController.view
+            )
+        } else {
+            hostingController.view.alpha = 1
+            window.addSubview(hostingController.view)
         }
     }
 
-    // MARK: - Opening Transition
+    /// Dismisses the current media viewer overlay.
+    ///
+    /// - Parameter animated: Whether dismissal should fade out.
+    func dismiss(animated: Bool = true) {
+        guard let hostingView else {
+            hostingController = nil
+            return
+        }
 
-    @ViewBuilder
-    private func openingTransitionView(
+        let cleanup = { [weak self] in
+            hostingView.removeFromSuperview()
+            self?.hostingController = nil
+            self?.hostingView = nil
+        }
+
+        guard animated else {
+            cleanup()
+            return
+        }
+
+        UIView.animate(
+            withDuration: closingAnimationDuration,
+            delay: 0,
+            options: [.curveEaseInOut]
+        ) {
+            hostingView.alpha = 0
+        } completion: { _ in
+            cleanup()
+        }
+    }
+
+    // MARK: - Opening Animation
+
+    /// Animates the thumbnail image into the fullscreen viewer.
+    ///
+    /// - Parameters:
+    ///   - viewerTransitionSource: Source thumbnail data.
+    ///   - window: Current app window.
+    ///   - viewerView: Real viewer view to reveal at the end.
+    private func animateOpening(
         viewerTransitionSource: NCViewerTransitionSource,
-        containerSize: CGSize
-    ) -> some View {
+        in window: UIWindow,
+        viewerView: UIView
+    ) {
+        let dimView = UIView(frame: window.bounds)
+        dimView.backgroundColor = .black
+        dimView.alpha = 0
+        dimView.autoresizingMask = [
+            .flexibleWidth,
+            .flexibleHeight
+        ]
+
+        let imageView = UIImageView(image: viewerTransitionSource.image)
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.frame = viewerTransitionSource.sourceFrame
+        imageView.layer.cornerRadius = viewerTransitionSource.cornerRadius
+
+        window.addSubview(dimView)
+        window.addSubview(imageView)
+
         let destinationFrame = aspectFitFrame(
             imageSize: viewerTransitionSource.image.size,
-            containerSize: containerSize
+            containerSize: window.bounds.size
         )
 
-        let currentFrame = isOpeningAnimationRunning
-            ? destinationFrame
-            : viewerTransitionSource.sourceFrame
-
-        let currentCornerRadius = isOpeningAnimationRunning
-            ? 0
-            : viewerTransitionSource.cornerRadius
-
-        Image(uiImage: viewerTransitionSource.image)
-            .resizable()
-            .scaledToFill()
-            .frame(
-                width: currentFrame.width,
-                height: currentFrame.height
-            )
-            .clipShape(
-                RoundedRectangle(
-                    cornerRadius: currentCornerRadius,
-                    style: .continuous
-                )
-            )
-            .position(
-                x: currentFrame.midX,
-                y: currentFrame.midY
-            )
-            .ignoresSafeArea()
-    }
-
-    /// Starts the opening animation when a transition source is available.
-    private func startOpeningAnimationIfNeeded() {
-        guard viewerTransitionSource != nil else {
-            isOpeningAnimationCompleted = true
-            return
-        }
-
-        guard !isOpeningAnimationRunning,
-              !isOpeningAnimationCompleted else {
-            return
-        }
-
-        withAnimation(.easeInOut(duration: openingAnimationDuration)) {
-            isOpeningAnimationRunning = true
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(openingAnimationDuration))
-            isOpeningAnimationCompleted = true
+        UIView.animate(
+            withDuration: openingAnimationDuration,
+            delay: 0,
+            options: [.curveEaseInOut]
+        ) {
+            dimView.alpha = 1
+            imageView.frame = destinationFrame
+            imageView.layer.cornerRadius = 0
+        } completion: { _ in
+            viewerView.alpha = 1
+            imageView.removeFromSuperview()
+            dimView.removeFromSuperview()
         }
     }
 
-    /// Computes the aspect-fit frame for an image inside the viewer container.
+    // MARK: - Helpers
+
+    /// Computes the aspect-fit frame for an image inside the fullscreen container.
     ///
     /// - Parameters:
     ///   - imageSize: Source image size.
-    ///   - containerSize: Fullscreen container size.
+    ///   - containerSize: Window size.
     /// - Returns: Aspect-fit destination frame.
     private func aspectFitFrame(
         imageSize: CGSize,
@@ -171,5 +235,25 @@ struct NCMediaViewerView: View {
             width: fittedSize.width,
             height: fittedSize.height
         )
+    }
+
+    /// Returns the current foreground key window.
+
+    ///
+
+    /// - Returns: Active foreground window if available.
+
+    private func activeWindow() -> UIWindow? {
+
+        UIApplication.shared.connectedScenes
+
+            .compactMap { $0 as? UIWindowScene }
+
+            .filter { $0.activationState == .foregroundActive }
+
+            .flatMap(\.windows)
+
+            .first { $0.isKeyWindow }
+
     }
 }
