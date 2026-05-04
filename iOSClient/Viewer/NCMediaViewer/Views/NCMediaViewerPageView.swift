@@ -66,10 +66,15 @@ struct NCMediaViewerPageView: View {
 
             case .failed(let previewURL, let message):
                 ZStack {
-                    imageStateView(
-                        previewURL: previewURL,
-                        localURL: nil
-                    )
+                    if let previewURL {
+                        imageStateView(
+                            previewURL: previewURL,
+                            localURL: nil
+                        )
+                    } else {
+                        Color.ncViewerBackground(backgroundStyle)
+                            .ignoresSafeArea()
+                    }
 
                     failedOverlay(
                         fileName: displayFileName(from: page.metadata),
