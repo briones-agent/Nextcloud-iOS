@@ -906,8 +906,8 @@
 		F7E98C1727E0D0FC001F9F19 /* NCManageDatabase+Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E98C1527E0D0FC001F9F19 /* NCManageDatabase+Video.swift */; };
 		F7E98C1927E0D0FC001F9F19 /* NCManageDatabase+Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E98C1527E0D0FC001F9F19 /* NCManageDatabase+Video.swift */; };
 		F7ED547C25EEA65400956C55 /* QRCodeReader in Frameworks */ = {isa = PBXBuildFile; productRef = F7ED547B25EEA65400956C55 /* QRCodeReader */; };
-		F7EDBB412FA866E900098C42 /* NCMediaViewerTransitionSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EDBB402FA866E700098C42 /* NCMediaViewerTransitionSource.swift */; };
-		F7EDBB422FA86B3600098C42 /* NCMediaViewerTransitionSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EDBB402FA866E700098C42 /* NCMediaViewerTransitionSource.swift */; };
+		F7EDBB482FA8781C00098C42 /* NCViewerTransitionSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EDBB472FA8781900098C42 /* NCViewerTransitionSource.swift */; };
+		F7EDBB492FA8781C00098C42 /* NCViewerTransitionSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EDBB472FA8781900098C42 /* NCViewerTransitionSource.swift */; };
 		F7EDE4D6262D7B9600414FE6 /* NCListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78ACD4121903CE00088454D /* NCListCell.swift */; };
 		F7EDE4DB262D7BA200414FE6 /* NCCellMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370D26AE248A3D7A00121797 /* NCCellMain.swift */; };
 		F7EDE509262DA9D600414FE6 /* NCSelectCommandViewSelect.xib in Resources */ = {isa = PBXBuildFile; fileRef = F7EDE508262DA9D600414FE6 /* NCSelectCommandViewSelect.xib */; };
@@ -1848,7 +1848,7 @@
 		F7E7AEA42BA32C6500512E52 /* NCCollectionViewDownloadThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCCollectionViewDownloadThumbnail.swift; sourceTree = "<group>"; };
 		F7E8A390295DC5E0006CB2D0 /* View+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Extension.swift"; sourceTree = "<group>"; };
 		F7E98C1527E0D0FC001F9F19 /* NCManageDatabase+Video.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NCManageDatabase+Video.swift"; sourceTree = "<group>"; };
-		F7EDBB402FA866E700098C42 /* NCMediaViewerTransitionSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCMediaViewerTransitionSource.swift; sourceTree = "<group>"; };
+		F7EDBB472FA8781900098C42 /* NCViewerTransitionSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCViewerTransitionSource.swift; sourceTree = "<group>"; };
 		F7EDE508262DA9D600414FE6 /* NCSelectCommandViewSelect.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = NCSelectCommandViewSelect.xib; sourceTree = "<group>"; };
 		F7EDE513262DC2CD00414FE6 /* NCSelectCommandViewSelect+CreateFolder.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = "NCSelectCommandViewSelect+CreateFolder.xib"; sourceTree = "<group>"; };
 		F7EDE51A262DD0C400414FE6 /* NCSelectCommandViewCopyMove.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = NCSelectCommandViewCopyMove.xib; sourceTree = "<group>"; };
@@ -3136,9 +3136,9 @@
 		F7CDB5C12FA33CA300F72306 /* NCMediaViewer */ = {
 			isa = PBXGroup;
 			children = (
-				F7EDBB402FA866E700098C42 /* NCMediaViewerTransitionSource.swift */,
 				F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */,
 				F7CDB5B82FA33CA300F72306 /* NCMediaViewerModel.swift */,
+				F7EDBB472FA8781900098C42 /* NCViewerTransitionSource.swift */,
 				F7CDB5CE2FA33DED00F72306 /* Loading */,
 				F7CDB5D02FA33E3500F72306 /* Views */,
 			);
@@ -4409,6 +4409,7 @@
 				F7D4BF312CA2E8D800A5E746 /* TOPasscodeSettingsViewController.m in Sources */,
 				F71916122E2901FB00E13E96 /* NCNetworking+Upload.swift in Sources */,
 				F73BC74F2F23811E003170C2 /* WarningBannerView.swift in Sources */,
+				F7EDBB492FA8781C00098C42 /* NCViewerTransitionSource.swift in Sources */,
 				F7D4BF322CA2E8D800A5E746 /* TOPasscodeCircleImage.m in Sources */,
 				F7CAFE192F168F6000DB35A5 /* NCDebouncer.swift in Sources */,
 				F7D4BF332CA2E8D800A5E746 /* TOPasscodeView.m in Sources */,
@@ -4422,7 +4423,6 @@
 				F7D4BF3A2CA2E8D800A5E746 /* TOPasscodeViewContentLayout.m in Sources */,
 				F79792482F5EECE100FE9544 /* Font+Extension.swift in Sources */,
 				F7D61EBF2EBF1878007F865B /* NCManageDatabase+Tag.swift in Sources */,
-				F7EDBB422FA86B3600098C42 /* NCMediaViewerTransitionSource.swift in Sources */,
 				F7D4BF3B2CA2E8D800A5E746 /* TOPasscodeSettingsKeypadButton.m in Sources */,
 				F7D4BF3C2CA2E8D800A5E746 /* TOPasscodeViewController.m in Sources */,
 				F74AF3A5247FB6AE00AC767B /* NCUtilityFileSystem.swift in Sources */,
@@ -4654,7 +4654,6 @@
 				AF93471D27E2361E002537EE /* NCShareAdvancePermissionFooter.swift in Sources */,
 				AF1A9B6427D0CA1E00F17A9E /* UIAlertController+Extension.swift in Sources */,
 				F7FA80012C0F4F3B0072FC60 /* NCUploadAssetsView.swift in Sources */,
-				F7EDBB412FA866E900098C42 /* NCMediaViewerTransitionSource.swift in Sources */,
 				F74230F32C79B57200CA1ACA /* NCNetworking+Task.swift in Sources */,
 				F757CC8229E7F88B00F31428 /* NCManageDatabase+Groupfolders.swift in Sources */,
 				F7B769A82B7A0B2000C1AAEB /* NCManageDatabase+Metadata+Session.swift in Sources */,
@@ -4690,6 +4689,7 @@
 				AA8D31552D41052300FE2775 /* NCManageDatabase+DownloadLimit.swift in Sources */,
 				F758B460212C56A400515F55 /* NCScan.swift in Sources */,
 				F76882262C0DD1E7001CF441 /* NCSettingsView.swift in Sources */,
+				F7EDBB482FA8781C00098C42 /* NCViewerTransitionSource.swift in Sources */,
 				F78ACD52219046DC0088454D /* NCSectionFirstHeader.swift in Sources */,
 				F743C89E2E5B25A1000173A9 /* UIScene+Extension.swift in Sources */,
 				F72944F52A8424F800246839 /* NCEndToEndMetadataV1.swift in Sources */,
