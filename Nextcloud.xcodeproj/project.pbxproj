@@ -3163,9 +3163,9 @@
 			isa = PBXGroup;
 			children = (
 				F7CDB5B82FA33CA300F72306 /* NCMediaViewerModel.swift */,
-				F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */,
-				F716DA662FA5F019006A6703 /* NCMediaViewerPagingView.swift */,
 				F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */,
+				F716DA662FA5F019006A6703 /* NCMediaViewerPagingView.swift */,
+				F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */,
 				F716DA642FA4E878006A6703 /* NCImageZoomView.swift */,
 				F716DA682FA5F137006A6703 /* Content */,
 			);
