@@ -46,7 +46,7 @@ class NCViewer: NSObject {
             let model = NCMediaViewerModel(currentMetadata: metadata, ocIds: mediaOcIds, loader: NCMediaViewerLoader())
 
             return UIHostingController(
-                rootView: NCMediaViewerView(model: model)
+                rootView: NCMediaViewerView(model: model, viewerTransitionSource: viewerTransitionSource)
             )
         }
 
