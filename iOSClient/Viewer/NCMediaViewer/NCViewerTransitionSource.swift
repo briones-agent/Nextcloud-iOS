@@ -38,3 +38,49 @@ struct NCViewerTransitionSource {
         self.cornerRadius = cornerRadius
     }
 }
+
+// MARK: - Viewer Appearance
+
+enum NCViewerBackgroundStyle {
+    /// Uses the current system appearance.
+    case system
+    /// Always uses black, useful for image/video viewers.
+    case black
+    /// Always uses white, useful for document-like viewers.
+    case white
+    /// Uses a custom UIKit color.
+    case custom(UIColor)
+}
+
+extension UIColor {
+
+    /// Returns the background color for a viewer background style.
+    ///
+    /// - Parameter style: Viewer background style.
+    /// - Returns: Resolved UIKit background color.
+    static func ncViewerBackground(_ style: NCViewerBackgroundStyle = .system) -> UIColor {
+        switch style {
+        case .system:
+            return .systemBackground
+
+        case .black:
+            return .black
+
+        case .white:
+            return .white
+
+        case .custom(let color):
+            return color
+        }
+    }
+}
+
+extension Color {
+    /// Returns the background color for a viewer background style.
+    ///
+    /// - Parameter style: Viewer background style.
+    /// - Returns: Resolved SwiftUI background color.
+    static func ncViewerBackground(_ style: NCViewerBackgroundStyle = .system) -> Color {
+        Color(uiColor: .ncViewerBackground(style))
+    }
+}
