@@ -24,6 +24,10 @@ struct NCImageViewerContentView: View {
     @State private var loadedFullURL: URL?
     @State private var failedMessage: String?
 
+    private var taskIdentifier: String {
+        "\(previewURL?.absoluteString ?? "")|\(fullURL?.absoluteString ?? "")"
+    }
+
     /// Creates an image viewer content view.
     ///
     /// - Parameters:
@@ -59,11 +63,8 @@ struct NCImageViewerContentView: View {
             }
         }
         .background(Color.ncViewerBackground(backgroundStyle))
-        .task(id: previewURL) {
-            await loadPreviewIfNeeded()
-        }
-        .task(id: fullURL) {
-            await loadFullIfNeeded()
+        .task(id: taskIdentifier) {
+            await loadBestAvailableImage()
         }
     }
 
@@ -114,11 +115,38 @@ struct NCImageViewerContentView: View {
 
     // MARK: - Loading
 
-    /// Loads the preview image only when no image is currently displayed.
+    /// Loads the best available image for the current URLs.
     ///
-    /// This prevents the preview from replacing a full image, animated GIF,
-    /// or rasterized SVG that has already been decoded.
-    private func loadPreviewIfNeeded() async {
+    /// The full image has priority over the preview. This avoids decoding both
+    /// preview and full image when both URLs are already available during page reuse.
+    private func loadBestAvailableImage() async {
+        if let fullURL {
+            guard loadedFullURL != fullURL else {
+                return
+            }
+
+            let image: UIImage?
+
+            if isGIF(fullURL) {
+                image = await decodeGIFImageIfPossible(url: fullURL)
+            } else if isSVG(fullURL) {
+                image = await decodeSVGImageIfPossible(url: fullURL)
+            } else {
+                image = await decodeImageIfPossible(url: fullURL)
+            }
+
+            if let image {
+                loadedFullURL = fullURL
+                failedMessage = nil
+                currentImage = image
+                return
+            }
+
+            if currentImage == nil {
+                failedMessage = imageDecodeFailedMessage(for: fullURL)
+            }
+        }
+
         guard currentImage == nil else {
             return
         }
@@ -137,43 +165,6 @@ struct NCImageViewerContentView: View {
 
         loadedPreviewURL = previewURL
         failedMessage = nil
-        currentImage = image
-    }
-
-    /// Loads the full image and replaces the currently displayed bitmap only after decoding.
-    ///
-    /// GIF files are decoded as animated `UIImage` instances.
-    /// SVG files are rasterized into `UIImage` instances.
-    private func loadFullIfNeeded() async {
-        guard let fullURL else {
-            return
-        }
-
-        guard loadedFullURL != fullURL else {
-            return
-        }
-
-        let image: UIImage?
-
-        if isGIF(fullURL) {
-            image = await decodeGIFImageIfPossible(url: fullURL)
-        } else if isSVG(fullURL) {
-            image = await decodeSVGImageIfPossible(url: fullURL)
-        } else {
-            image = await decodeImageIfPossible(url: fullURL)
-        }
-
-        guard let image else {
-            if currentImage == nil {
-                failedMessage = imageDecodeFailedMessage(for: fullURL)
-            }
-            return
-        }
-
-        loadedFullURL = fullURL
-        failedMessage = nil
-
-        // Replace the visible bitmap only after decoding to avoid preview-to-full flickering.
         currentImage = image
     }
 
