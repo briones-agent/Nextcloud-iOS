@@ -65,22 +65,10 @@ struct NCMediaViewerPageView: View {
                 }
 
             case .failed(let previewURL, let message):
-                ZStack {
-                    if let previewURL {
-                        imageStateView(
-                            previewURL: previewURL,
-                            localURL: nil
-                        )
-                    } else {
-                        Color.ncViewerBackground(backgroundStyle)
-                            .ignoresSafeArea()
-                    }
-
-                    failedOverlay(
-                        fileName: displayFileName(from: page.metadata),
-                        message: message
-                    )
-                }
+                failedStateView(
+                    previewURL: previewURL,
+                    message: message
+                )
             }
         }
         .background(Color.ncViewerBackground(backgroundStyle))
@@ -138,18 +126,43 @@ struct NCMediaViewerPageView: View {
     ) -> some View {
         ZStack {
             if let previewURL {
-                NCImageViewerContentView(
-                    previewURL: previewURL,
-                    fullURL: nil,
-                    backgroundStyle: backgroundStyle
-                )
+                previewOnlyView(previewURL: previewURL)
             } else {
                 Color.ncViewerBackground(backgroundStyle)
                     .ignoresSafeArea()
-
-                downloadingOverlay(progress: progress)
             }
+
+            downloadingOverlay(progress: progress)
         }
+    }
+
+    @ViewBuilder
+    private func failedStateView(
+        previewURL: URL?,
+        message: String
+    ) -> some View {
+        ZStack {
+            if let previewURL {
+                previewOnlyView(previewURL: previewURL)
+            } else {
+                Color.ncViewerBackground(backgroundStyle)
+                    .ignoresSafeArea()
+            }
+
+            failedOverlay(
+                fileName: displayFileName(from: page.metadata),
+                message: message
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func previewOnlyView(previewURL: URL) -> some View {
+        NCImageViewerContentView(
+            previewURL: previewURL,
+            fullURL: nil,
+            backgroundStyle: backgroundStyle
+        )
     }
 
     private func downloadingOverlay(progress: Double?) -> some View {
@@ -308,7 +321,7 @@ struct NCMediaViewerPageView: View {
             return .audio
 
         default:
-            return .video
+            return .image
         }
     }
 }

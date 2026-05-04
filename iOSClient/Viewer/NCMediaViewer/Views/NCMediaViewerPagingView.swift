@@ -109,9 +109,8 @@ final class NCMediaViewerCollectionView: UICollectionView {
 ///
 /// It acts as:
 /// - collection view data source
-/// - collection view delegate
-/// - flow layout delegate
-/// - prefetch data source
+/// - collection view delegate flow layout
+/// - collection view prefetch data source
 @MainActor
 final class NCMediaViewerPagingCoordinator: NSObject,
                                             UICollectionViewDataSource,
@@ -352,7 +351,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     ) {
         for indexPath in indexPaths {
             Task {
-                await model.loadPageIfNeeded(index: indexPath.item)
+                await model.prefetchPageIfNeeded(index: indexPath.item)
             }
         }
     }

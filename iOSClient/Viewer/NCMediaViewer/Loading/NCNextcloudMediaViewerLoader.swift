@@ -16,10 +16,11 @@ import NextcloudKit
 /// - downloading the full media file when needed
 ///
 /// It must always return detached `tableMetadata` objects.
+///
+/// The loader is marked as `@unchecked Sendable` because it is used from Swift
+/// concurrency tasks, while several app-level dependencies are legacy singleton
+/// services. The loader itself does not keep mutable request state.
 final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
-
-    // MARK: - Dependencies
-
     private let database = NCManageDatabase.shared
     private let global = NCGlobal.shared
     private let utilityFileSystem = NCUtilityFileSystem()
@@ -53,8 +54,9 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
 
     /// Returns a local preview URL if available.
     ///
-    /// For the first implementation this returns `nil`.
-    /// Later this can point to your thumbnail/preview cache.
+    /// The loader first checks the local preview cache. If the preview is not
+    /// available, it requests one from the server and stores it using the existing
+    /// app preview cache pipeline.
     ///
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Local preview URL if available.
@@ -79,7 +81,10 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
 
         if resultsDownloadPreview.error == .success,
            let data = resultsDownloadPreview.responseData?.data {
-            NCUtility().createImageFileFrom(data: data, metadata: metadata)
+            NCUtility().createImageFileFrom(
+                data: data,
+                metadata: metadata
+            )
         }
 
         localPath = utilityFileSystem.getDirectoryProviderStorageImageOcId(
@@ -127,13 +132,15 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
 
     /// Builds the expected full local file URL for a metadata object.
     ///
-    /// This is a placeholder implementation.
-    /// Replace it with the same path logic already used by the app.
-    ///
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Expected local full media URL.
     private func fullLocalURL(for metadata: tableMetadata) -> URL? {
-        let localPath = utilityFileSystem.getDirectoryProviderStorageOcId(metadata.ocId, fileName: metadata.fileNameView, userId: metadata.userId, urlBase: metadata.urlBase)
+        let localPath = utilityFileSystem.getDirectoryProviderStorageOcId(
+            metadata.ocId,
+            fileName: metadata.fileNameView,
+            userId: metadata.userId,
+            urlBase: metadata.urlBase
+        )
 
         guard !localPath.isEmpty else {
             return nil
@@ -142,6 +149,10 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
         return URL(fileURLWithPath: localPath)
     }
 
+    /// Checks whether a local file exists and has a non-zero size.
+    ///
+    /// - Parameter path: Local file path.
+    /// - Returns: True when the file exists and is not empty.
     private func isValidLocalFile(path: String) -> Bool {
         guard !path.isEmpty else {
             return false
@@ -165,15 +176,10 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
 
 /// Errors thrown by the media viewer loader.
 enum NCMediaViewerLoaderError: LocalizedError {
-
-    case downloadNotImplemented
     case localFileUnavailable
 
     var errorDescription: String? {
         switch self {
-        case .downloadNotImplemented:
-            return "Download is not implemented yet."
-
         case .localFileUnavailable:
             return "The local file is not available."
         }
@@ -191,7 +197,6 @@ enum NCMediaViewerLoaderError: LocalizedError {
 /// - thumbnail cache
 /// - download pipeline
 protocol NCMediaViewerLoading: Sendable {
-
     /// Resolves detached metadata from an `ocId`.
     ///
     /// - Parameter ocId: Nextcloud file identifier.

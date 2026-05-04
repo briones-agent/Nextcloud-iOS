@@ -898,6 +898,7 @@
 		F7EDBB552FA8CEBE00098C42 /* NCViewerTransitionSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EDBB542FA8CEBE00098C42 /* NCViewerTransitionSource.swift */; };
 		F7EDBB562FA8CEC900098C42 /* NCViewerTransitionSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EDBB542FA8CEBE00098C42 /* NCViewerTransitionSource.swift */; };
 		F7EDBB582FA8D00200098C42 /* NCViewerAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EDBB572FA8CFFF00098C42 /* NCViewerAppearance.swift */; };
+		F7EDBB5C2FA8DBE800098C42 /* NCMediaViewerPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EDBB5B2FA8DBE600098C42 /* NCMediaViewerPresenter.swift */; };
 		F7EDE4D6262D7B9600414FE6 /* NCListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78ACD4121903CE00088454D /* NCListCell.swift */; };
 		F7EDE4DB262D7BA200414FE6 /* NCCellMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370D26AE248A3D7A00121797 /* NCCellMain.swift */; };
 		F7EDE509262DA9D600414FE6 /* NCSelectCommandViewSelect.xib in Resources */ = {isa = PBXBuildFile; fileRef = F7EDE508262DA9D600414FE6 /* NCSelectCommandViewSelect.xib */; };
@@ -1824,6 +1825,7 @@
 		F7EDBB512FA8CACA00098C42 /* NCMediaViewerHostingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCMediaViewerHostingController.swift; sourceTree = "<group>"; };
 		F7EDBB542FA8CEBE00098C42 /* NCViewerTransitionSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCViewerTransitionSource.swift; sourceTree = "<group>"; };
 		F7EDBB572FA8CFFF00098C42 /* NCViewerAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCViewerAppearance.swift; sourceTree = "<group>"; };
+		F7EDBB5B2FA8DBE600098C42 /* NCMediaViewerPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCMediaViewerPresenter.swift; sourceTree = "<group>"; };
 		F7EDE508262DA9D600414FE6 /* NCSelectCommandViewSelect.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = NCSelectCommandViewSelect.xib; sourceTree = "<group>"; };
 		F7EDE513262DC2CD00414FE6 /* NCSelectCommandViewSelect+CreateFolder.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = "NCSelectCommandViewSelect+CreateFolder.xib"; sourceTree = "<group>"; };
 		F7EDE51A262DD0C400414FE6 /* NCSelectCommandViewCopyMove.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = NCSelectCommandViewCopyMove.xib; sourceTree = "<group>"; };
@@ -3087,8 +3089,8 @@
 		F7CDB5C12FA33CA300F72306 /* NCMediaViewer */ = {
 			isa = PBXGroup;
 			children = (
-				F7EDBB542FA8CEBE00098C42 /* NCViewerTransitionSource.swift */,
 				F7EDBB512FA8CACA00098C42 /* NCMediaViewerHostingController.swift */,
+				F7EDBB5B2FA8DBE600098C42 /* NCMediaViewerPresenter.swift */,
 				F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */,
 				F7CDB5B82FA33CA300F72306 /* NCMediaViewerModel.swift */,
 				F7CDB5CE2FA33DED00F72306 /* Loading */,
@@ -3256,6 +3258,7 @@
 		F7EDBB592FA8D09E00098C42 /* Helpers */ = {
 			isa = PBXGroup;
 			children = (
+				F7EDBB542FA8CEBE00098C42 /* NCViewerTransitionSource.swift */,
 				F7EDBB572FA8CFFF00098C42 /* NCViewerAppearance.swift */,
 			);
 			path = Helpers;
@@ -4817,6 +4820,7 @@
 				F768822A2C0DD1E7001CF441 /* NCSettingsModel.swift in Sources */,
 				F737DA9D2B7B893C0063BAFC /* NCPasscode.swift in Sources */,
 				F77C97392953131000FDDD09 /* NCCameraRoll.swift in Sources */,
+				F7EDBB5C2FA8DBE800098C42 /* NCMediaViewerPresenter.swift in Sources */,
 				F7CADEFD2EA159210057849E /* NCMetadataTranfersSuccess.swift in Sources */,
 				F343A4B32A1E01FF00DDA874 /* PHAsset+Extension.swift in Sources */,
 				F70968A424212C4E00ED60E5 /* NCLivePhoto.swift in Sources */,
