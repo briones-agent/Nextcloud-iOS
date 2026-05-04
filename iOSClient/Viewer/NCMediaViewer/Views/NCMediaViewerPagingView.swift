@@ -16,6 +16,9 @@ import Combine
 /// The paging view uses a `UICollectionView` with reusable cells.
 /// Each cell hosts a SwiftUI `NCMediaViewerPageView`.
 struct NCMediaViewerPagingView: UIViewRepresentable {
+
+    // MARK: - Properties
+
     @ObservedObject var model: NCMediaViewerModel
 
     // MARK: - UIViewRepresentable
@@ -26,8 +29,12 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         layout.minimumLineSpacing = 0
         layout.minimumInteritemSpacing = 0
 
-        let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
-        collectionView.backgroundColor = .black
+        let collectionView = UICollectionView(
+            frame: .zero,
+            collectionViewLayout: layout
+        )
+
+        collectionView.backgroundColor = .ncViewerBackground(.system)
         collectionView.isPagingEnabled = true
         collectionView.showsHorizontalScrollIndicator = false
         collectionView.showsVerticalScrollIndicator = false
@@ -54,6 +61,8 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
 
     func updateUIView(_ collectionView: UICollectionView, context: Context) {
         context.coordinator.model = model
+
+        collectionView.backgroundColor = .ncViewerBackground(.system)
 
         if let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
             let itemSize = collectionView.bounds.size
@@ -90,6 +99,9 @@ final class NCMediaViewerPagingCoordinator: NSObject,
                                             UICollectionViewDataSource,
                                             UICollectionViewDelegateFlowLayout,
                                             UICollectionViewDataSourcePrefetching {
+
+    // MARK: - Properties
+
     var model: NCMediaViewerModel
     weak var collectionView: UICollectionView?
 
@@ -112,6 +124,8 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     // MARK: - Initial Scroll
 
     /// Scrolls to the initial selected page once.
+    ///
+    /// - Parameter animated: Whether the scroll should be animated.
     func scrollToInitialIndexIfNeeded(animated: Bool) {
         guard !didScrollToInitialIndex else {
             return
@@ -136,7 +150,11 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         let indexPath = IndexPath(item: index, section: 0)
 
-        collectionView.scrollToItem(at: indexPath, at: .centeredHorizontally, animated: animated)
+        collectionView.scrollToItem(
+            at: indexPath,
+            at: .centeredHorizontally,
+            animated: animated
+        )
 
         didScrollToInitialIndex = true
     }
@@ -158,7 +176,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         collectionView.layoutIfNeeded()
 
-        let index = model.initialSelectedIndex
+        let index = model.selectedIndex
 
         guard index >= 0,
               index < model.numberOfPages else {
@@ -167,7 +185,11 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         let indexPath = IndexPath(item: index, section: 0)
 
-        collectionView.scrollToItem(at: indexPath, at: .centeredHorizontally, animated: animated)
+        collectionView.scrollToItem(
+            at: indexPath,
+            at: .centeredHorizontally,
+            animated: animated
+        )
     }
 
     // MARK: - Visible Cell Refresh
@@ -191,11 +213,17 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - UICollectionViewDataSource
 
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+    func collectionView(
+        _ collectionView: UICollectionView,
+        numberOfItemsInSection section: Int
+    ) -> Int {
         model.numberOfPages
     }
 
-    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+    func collectionView(
+        _ collectionView: UICollectionView,
+        cellForItemAt indexPath: IndexPath
+    ) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(
             withReuseIdentifier: NCMediaViewerPagingCell.reuseIdentifier,
             for: indexPath
@@ -216,7 +244,11 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - UICollectionViewDelegateFlowLayout
 
-    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+    func collectionView(
+        _ collectionView: UICollectionView,
+        layout collectionViewLayout: UICollectionViewLayout,
+        sizeForItemAt indexPath: IndexPath
+    ) -> CGSize {
         collectionView.bounds.size
     }
 
@@ -230,7 +262,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         updateSelectedIndexFromScrollView(scrollView)
     }
 
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    func scrollViewDidEndDragging(
+        _ scrollView: UIScrollView,
+        willDecelerate decelerate: Bool
+    ) {
         if !decelerate {
             updateSelectedIndexFromScrollView(scrollView)
         }
@@ -261,7 +296,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - UICollectionViewDataSourcePrefetching
 
-    func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+    func collectionView(
+        _ collectionView: UICollectionView,
+        prefetchItemsAt indexPaths: [IndexPath]
+    ) {
         for indexPath in indexPaths {
             Task {
                 await model.loadPageIfNeeded(index: indexPath.item)
@@ -269,7 +307,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         }
     }
 
-    func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
+    func collectionView(
+        _ collectionView: UICollectionView,
+        cancelPrefetchingForItemsAt indexPaths: [IndexPath]
+    ) {
         for indexPath in indexPaths {
             model.cancelLoading(index: indexPath.item)
         }
@@ -280,7 +321,13 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
 /// Collection view cell hosting one SwiftUI media viewer page.
 final class NCMediaViewerPagingCell: UICollectionViewCell {
+
+    // MARK: - Static
+
     static let reuseIdentifier = "NCMediaViewerPagingCell"
+
+    // MARK: - State
+
     private var hostingController: UIHostingController<AnyView>?
 
     // MARK: - Init
@@ -288,16 +335,16 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     override init(frame: CGRect) {
         super.init(frame: frame)
 
-        backgroundColor = .black
-        contentView.backgroundColor = .black
+        backgroundColor = .ncViewerBackground(.system)
+        contentView.backgroundColor = .ncViewerBackground(.system)
         contentView.clipsToBounds = true
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
 
-        backgroundColor = .black
-        contentView.backgroundColor = .black
+        backgroundColor = .ncViewerBackground(.system)
+        contentView.backgroundColor = .ncViewerBackground(.system)
         contentView.clipsToBounds = true
     }
 
@@ -305,9 +352,11 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         super.prepareForReuse()
 
         hostingController?.rootView = AnyView(
-            Color.black
+            Color.ncViewerBackground(.system)
                 .ignoresSafeArea()
         )
+
+        hostingController?.view.backgroundColor = .ncViewerBackground(.system)
     }
 
     override func layoutSubviews() {
@@ -319,20 +368,26 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     // MARK: - Configuration
 
     /// Configures the cell with a media viewer page.
+    ///
+    /// - Parameter page: Page model to render.
     func configure(page: NCMediaViewerPageModel) {
+        backgroundColor = .ncViewerBackground(.system)
+        contentView.backgroundColor = .ncViewerBackground(.system)
+
         let view = AnyView(
             NCMediaViewerPageView(page: page)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black)
+                .background(Color.ncViewerBackground(.system))
                 .ignoresSafeArea()
         )
 
         if let hostingController {
             hostingController.rootView = view
+            hostingController.view.backgroundColor = .ncViewerBackground(.system)
             hostingController.view.frame = contentView.bounds
         } else {
             let hostingController = UIHostingController(rootView: view)
-            hostingController.view.backgroundColor = .black
+            hostingController.view.backgroundColor = .ncViewerBackground(.system)
             hostingController.view.frame = contentView.bounds
 
             contentView.addSubview(hostingController.view)
@@ -340,19 +395,23 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         }
     }
 
-    /// Configures the cell as an empty black page.
+    /// Configures the cell as an empty page.
     func configureEmpty() {
+        backgroundColor = .ncViewerBackground(.system)
+        contentView.backgroundColor = .ncViewerBackground(.system)
+
         let view = AnyView(
-            Color.black
+            Color.ncViewerBackground(.system)
                 .ignoresSafeArea()
         )
 
         if let hostingController {
             hostingController.rootView = view
+            hostingController.view.backgroundColor = .ncViewerBackground(.system)
             hostingController.view.frame = contentView.bounds
         } else {
             let hostingController = UIHostingController(rootView: view)
-            hostingController.view.backgroundColor = .black
+            hostingController.view.backgroundColor = .ncViewerBackground(.system)
             hostingController.view.frame = contentView.bounds
 
             contentView.addSubview(hostingController.view)

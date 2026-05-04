@@ -18,6 +18,7 @@ struct NCImageViewerContentView: View {
 
     let previewURL: URL?
     let fullURL: URL?
+    let backgroundStyle: NCViewerBackgroundStyle
 
     // MARK: - State
 
@@ -26,23 +27,45 @@ struct NCImageViewerContentView: View {
     @State private var loadedFullURL: URL?
     @State private var failedMessage: String?
 
+    // MARK: - Init
+
+    /// Creates an image viewer content view.
+    ///
+    /// - Parameters:
+    ///   - previewURL: Optional preview image URL.
+    ///   - fullURL: Optional full-size image URL.
+    ///   - backgroundStyle: Background style used behind the image.
+    init(
+        previewURL: URL?,
+        fullURL: URL?,
+        backgroundStyle: NCViewerBackgroundStyle = .system
+    ) {
+        self.previewURL = previewURL
+        self.fullURL = fullURL
+        self.backgroundStyle = backgroundStyle
+    }
+
     // MARK: - Body
 
     var body: some View {
         ZStack {
-            Color.black
+            Color.ncViewerBackground(backgroundStyle)
                 .ignoresSafeArea()
 
             if let currentImage {
-                NCImageZoomView(image: currentImage)
-                    .ignoresSafeArea()
+                NCImageZoomView(
+                    image: currentImage,
+                    backgroundStyle: backgroundStyle
+                )
+                .ignoresSafeArea()
             } else if let failedMessage {
                 failedView(failedMessage)
             } else {
-                Color.black
+                Color.ncViewerBackground(backgroundStyle)
                     .ignoresSafeArea()
             }
         }
+        .background(Color.ncViewerBackground(backgroundStyle))
         .task(id: previewURL) {
             await loadPreviewIfNeeded()
         }
@@ -63,11 +86,37 @@ struct NCImageViewerContentView: View {
 
             Text(message)
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(secondaryForegroundStyle)
                 .multilineTextAlignment(.center)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(primaryForegroundStyle)
         .padding(24)
+    }
+
+    // MARK: - Appearance
+
+    private var primaryForegroundStyle: Color {
+        switch backgroundStyle {
+        case .black:
+            return .white
+
+        case .system,
+             .white,
+             .custom:
+            return .primary
+        }
+    }
+
+    private var secondaryForegroundStyle: Color {
+        switch backgroundStyle {
+        case .black:
+            return .white.opacity(0.65)
+
+        case .system,
+             .white,
+             .custom:
+            return .secondary
+        }
     }
 
     // MARK: - Loading

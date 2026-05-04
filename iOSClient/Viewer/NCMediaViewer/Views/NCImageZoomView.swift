@@ -17,6 +17,7 @@ struct NCImageZoomView: UIViewRepresentable {
     // MARK: - Properties
 
     let image: UIImage
+    let backgroundStyle: NCViewerBackgroundStyle
 
     // MARK: - Constants
 
@@ -24,13 +25,28 @@ struct NCImageZoomView: UIViewRepresentable {
     private let maximumZoomScale: CGFloat = 5
     private let doubleTapZoomScale: CGFloat = 2.5
 
+    // MARK: - Init
+
+    /// Creates an image zoom view.
+    ///
+    /// - Parameters:
+    ///   - image: Image to display and zoom.
+    ///   - backgroundStyle: Background style used behind the image.
+    init(
+        image: UIImage,
+        backgroundStyle: NCViewerBackgroundStyle = .system
+    ) {
+        self.image = image
+        self.backgroundStyle = backgroundStyle
+    }
+
     // MARK: - UIViewRepresentable
 
     func makeUIView(context: Context) -> NCZoomScrollView {
         let scrollView = NCZoomScrollView()
 
         scrollView.delegate = context.coordinator
-        scrollView.backgroundColor = .black
+        scrollView.backgroundColor = .ncViewerBackground(backgroundStyle)
         scrollView.minimumZoomScale = minimumZoomScale
         scrollView.maximumZoomScale = maximumZoomScale
         scrollView.zoomScale = minimumZoomScale
@@ -45,7 +61,7 @@ struct NCImageZoomView: UIViewRepresentable {
 
         let imageView = UIImageView(frame: .zero)
         imageView.image = image
-        imageView.backgroundColor = .black
+        imageView.backgroundColor = .ncViewerBackground(backgroundStyle)
         imageView.contentMode = .scaleAspectFit
         imageView.isUserInteractionEnabled = true
         imageView.clipsToBounds = true
@@ -55,6 +71,7 @@ struct NCImageZoomView: UIViewRepresentable {
         context.coordinator.scrollView = scrollView
         context.coordinator.imageView = imageView
         context.coordinator.currentImage = image
+        context.coordinator.backgroundStyle = backgroundStyle
         context.coordinator.minimumZoomScale = minimumZoomScale
         context.coordinator.maximumZoomScale = maximumZoomScale
         context.coordinator.doubleTapZoomScale = doubleTapZoomScale
@@ -78,12 +95,15 @@ struct NCImageZoomView: UIViewRepresentable {
             return
         }
 
+        context.coordinator.backgroundStyle = backgroundStyle
         context.coordinator.minimumZoomScale = minimumZoomScale
         context.coordinator.maximumZoomScale = maximumZoomScale
         context.coordinator.doubleTapZoomScale = doubleTapZoomScale
 
+        scrollView.backgroundColor = .ncViewerBackground(backgroundStyle)
         scrollView.minimumZoomScale = minimumZoomScale
         scrollView.maximumZoomScale = maximumZoomScale
+        imageView.backgroundColor = .ncViewerBackground(backgroundStyle)
 
         let imageChanged = context.coordinator.currentImage !== image
 
@@ -127,6 +147,7 @@ struct NCImageZoomView: UIViewRepresentable {
         weak var scrollView: UIScrollView?
         weak var imageView: UIImageView?
         var currentImage: UIImage?
+        var backgroundStyle: NCViewerBackgroundStyle = .system
 
         var minimumZoomScale: CGFloat = 1
         var maximumZoomScale: CGFloat = 5
@@ -165,13 +186,19 @@ struct NCImageZoomView: UIViewRepresentable {
                 return
             }
 
-            let fittedSize = fittedImageSize(imageSize: image.size, containerSize: boundsSize)
+            let fittedSize = fittedImageSize(
+                imageSize: image.size,
+                containerSize: boundsSize
+            )
 
             scrollView.setZoomScale(minimumZoomScale, animated: false)
             scrollView.contentInset = .zero
             scrollView.contentOffset = .zero
 
-            imageView.frame = CGRect(origin: .zero, size: fittedSize)
+            imageView.frame = CGRect(
+                origin: .zero,
+                size: fittedSize
+            )
 
             scrollView.contentSize = fittedSize
             lastBoundsSize = boundsSize
@@ -203,14 +230,25 @@ struct NCImageZoomView: UIViewRepresentable {
 
             let wasZoomed = scrollView.zoomScale > minimumZoomScale + 0.01
             let currentZoomScale = scrollView.zoomScale
-            let fittedSize = fittedImageSize(imageSize: image.size, containerSize: boundsSize)
 
-            imageView.frame = CGRect(origin: .zero, size: fittedSize)
+            let fittedSize = fittedImageSize(
+                imageSize: image.size,
+                containerSize: boundsSize
+            )
+
+            imageView.frame = CGRect(
+                origin: .zero,
+                size: fittedSize
+            )
 
             scrollView.contentSize = fittedSize
 
             if wasZoomed {
-                let clampedZoomScale = min(max(currentZoomScale, minimumZoomScale), maximumZoomScale)
+                let clampedZoomScale = min(
+                    max(currentZoomScale, minimumZoomScale),
+                    maximumZoomScale
+                )
+
                 scrollView.setZoomScale(clampedZoomScale, animated: false)
             } else {
                 scrollView.setZoomScale(minimumZoomScale, animated: false)
@@ -247,7 +285,15 @@ struct NCImageZoomView: UIViewRepresentable {
         }
 
         /// Returns whether the current image and container sizes can be used for layout.
-        private func isValidLayout(imageSize: CGSize, boundsSize: CGSize) -> Bool {
+        ///
+        /// - Parameters:
+        ///   - imageSize: Original image size.
+        ///   - boundsSize: Current scroll view bounds size.
+        /// - Returns: True when both sizes are valid.
+        private func isValidLayout(
+            imageSize: CGSize,
+            boundsSize: CGSize
+        ) -> Bool {
             imageSize.width > 0 &&
             imageSize.height > 0 &&
             boundsSize.width > 0 &&
@@ -255,18 +301,32 @@ struct NCImageZoomView: UIViewRepresentable {
         }
 
         /// Returns the aspect-fit size of an image inside a container.
-        private func fittedImageSize(imageSize: CGSize, containerSize: CGSize) -> CGSize {
+        ///
+        /// - Parameters:
+        ///   - imageSize: Original image size.
+        ///   - containerSize: Available container size.
+        /// - Returns: Aspect-fitted image size.
+        private func fittedImageSize(
+            imageSize: CGSize,
+            containerSize: CGSize
+        ) -> CGSize {
             let widthRatio = containerSize.width / imageSize.width
             let heightRatio = containerSize.height / imageSize.height
             let ratio = min(widthRatio, heightRatio)
 
-            return CGSize(width: imageSize.width * ratio, height: imageSize.height * ratio)
+            return CGSize(
+                width: imageSize.width * ratio,
+                height: imageSize.height * ratio
+            )
         }
 
         // MARK: - Gestures
 
         /// Handles double tap zoom and reset.
-        @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+        ///
+        /// - Parameter gesture: Double tap recognizer.
+        @objc
+        func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
             guard let scrollView,
                   let imageView else {
                 return
@@ -280,16 +340,38 @@ struct NCImageZoomView: UIViewRepresentable {
             let point = gesture.location(in: imageView)
             let targetScale = min(doubleTapZoomScale, maximumZoomScale)
 
-            let zoomRect = zoomRect(for: scrollView, scale: targetScale, center: point)
+            let zoomRect = zoomRect(
+                for: scrollView,
+                scale: targetScale,
+                center: point
+            )
 
             scrollView.zoom(to: zoomRect, animated: true)
         }
 
         /// Builds the zoom rect used by double tap.
-        private func zoomRect(for scrollView: UIScrollView, scale: CGFloat, center: CGPoint) -> CGRect {
-            let size = CGSize(width: scrollView.bounds.width / scale, height: scrollView.bounds.height / scale)
+        ///
+        /// - Parameters:
+        ///   - scrollView: Source scroll view.
+        ///   - scale: Target zoom scale.
+        ///   - center: Center point in image view coordinates.
+        /// - Returns: Zoom rectangle.
+        private func zoomRect(
+            for scrollView: UIScrollView,
+            scale: CGFloat,
+            center: CGPoint
+        ) -> CGRect {
+            let size = CGSize(
+                width: scrollView.bounds.width / scale,
+                height: scrollView.bounds.height / scale
+            )
 
-            return CGRect(x: center.x - size.width * 0.5, y: center.y - size.height * 0.5, width: size.width, height: size.height)
+            return CGRect(
+                x: center.x - size.width * 0.5,
+                y: center.y - size.height * 0.5,
+                width: size.width,
+                height: size.height
+            )
         }
     }
 }

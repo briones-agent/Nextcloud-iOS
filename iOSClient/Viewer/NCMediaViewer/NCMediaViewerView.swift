@@ -4,7 +4,6 @@
 
 import SwiftUI
 import UIKit
-import NextcloudKit
 
 // MARK: - Media Viewer View
 
@@ -49,7 +48,7 @@ struct NCMediaViewerView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color(uiColor: .systemBackground)
+            Color.ncViewerBackground(.system)
                 .ignoresSafeArea()
 
             NCMediaViewerPagingView(model: model)
@@ -57,7 +56,7 @@ struct NCMediaViewerView: View {
 
             topOverlayBar
         }
-        .background(Color(uiColor: .systemBackground))
+        .background(Color.ncViewerBackground(.system))
         .ignoresSafeArea()
         .statusBarHidden(true)
         .task {
@@ -214,7 +213,7 @@ final class NCMediaViewerPresenter {
         )
 
         let hostingController = UIHostingController(rootView: viewer)
-        hostingController.view.backgroundColor = .systemBackground
+        hostingController.view.backgroundColor = .ncViewerBackground(.system)
         hostingController.view.frame = window.bounds
         hostingController.view.autoresizingMask = [
             .flexibleWidth,
@@ -290,7 +289,7 @@ final class NCMediaViewerPresenter {
         viewerView: UIView
     ) {
         let dimView = UIView(frame: window.bounds)
-        dimView.backgroundColor = .systemBackground
+        dimView.backgroundColor = .ncViewerBackground(.system)
         dimView.alpha = 0
         dimView.autoresizingMask = [
             .flexibleWidth,
