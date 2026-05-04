@@ -20,6 +20,7 @@ struct NCMediaViewerView: View {
     // MARK: - State
 
     @StateObject private var model: NCMediaViewerModel
+    @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - Actions
 
@@ -73,7 +74,7 @@ struct NCMediaViewerView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(overlayButtonForegroundColor)
                     .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
                     .viewerGlassButton()
@@ -88,7 +89,7 @@ struct NCMediaViewerView: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(overlayButtonForegroundColor)
                     .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
                     .viewerGlassButton()
@@ -124,6 +125,10 @@ struct NCMediaViewerView: View {
             .flatMap(\.windows)
             .first { $0.isKeyWindow }?
             .safeAreaInsets.top ?? 0
+    }
+
+    private var overlayButtonForegroundColor: Color {
+        colorScheme == .dark ? .white : .black
     }
 }
 
@@ -430,3 +435,44 @@ final class NCMediaViewerPresenter {
         )
     }
 }
+
+// MARK: - Media Viewer Preview
+
+#if DEBUG
+import SwiftUI
+import NextcloudKit
+
+#Preview("Media Viewer - Light") {
+    NCMediaViewerView.previewView()
+        .preferredColorScheme(.light)
+}
+
+#Preview("Media Viewer - Dark") {
+    NCMediaViewerView.previewView()
+        .preferredColorScheme(.dark)
+}
+
+private extension NCMediaViewerView {
+    static func previewView() -> some View {
+        let metadata = tableMetadata()
+        metadata.ocId = "preview-ocid"
+        metadata.fileName = "preview.jpg"
+        metadata.fileNameView = "preview.jpg"
+        metadata.classFile = NKTypeClassFile.image.rawValue
+
+        let model = NCMediaViewerModel(
+            currentMetadata: metadata.detachedCopy(),
+            ocIds: [
+                metadata.ocId
+            ],
+            loader: NCMediaViewerLoader()
+        )
+
+        return NCMediaViewerView(
+            model: model,
+            onClose: {},
+            onMenu: {}
+        )
+    }
+}
+#endif
