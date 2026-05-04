@@ -379,7 +379,7 @@ class NCFiles: NCCollectionViewCommon {
         guard let metadata else {
             return
         }
-        await didSelectMetadata(metadata, withOcIds: false)
+        await didSelectMetadata(metadata, withOcIds: false, viewerTransitionSource: nil)
     }
 
     // MARK: - NCAccountSettingsModelDelegate
