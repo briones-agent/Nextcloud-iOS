@@ -29,7 +29,7 @@ struct NCMediaViewerPageView: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            Color.ncViewerBackground(backgroundStyle)
                 .ignoresSafeArea()
 
             switch page.state {
@@ -78,15 +78,21 @@ struct NCMediaViewerPageView: View {
                 }
             }
         }
-        .background(Color.black)
+        .background(Color.ncViewerBackground(backgroundStyle))
         .ignoresSafeArea()
+    }
+
+    // MARK: - Computed Properties
+
+    private var backgroundStyle: NCViewerBackgroundStyle {
+        ncViewerBackgroundStyle(for: page.metadata)
     }
 
     // MARK: - State Views
 
     private var loadingView: some View {
         ProgressView()
-            .tint(.white)
+            .tint(progressTintColor)
     }
 
     private var metadataMissingView: some View {
@@ -97,7 +103,7 @@ struct NCMediaViewerPageView: View {
             Text("Media not available")
                 .font(.headline)
         }
-        .foregroundStyle(.white.opacity(0.85))
+        .foregroundStyle(primaryForegroundStyle)
         .multilineTextAlignment(.center)
         .padding()
     }
@@ -110,7 +116,8 @@ struct NCMediaViewerPageView: View {
         ZStack {
             NCImageViewerContentView(
                 previewURL: previewURL,
-                fullURL: localURL
+                fullURL: localURL,
+                backgroundStyle: backgroundStyle
             )
 
             if previewURL == nil && localURL == nil {
@@ -128,10 +135,11 @@ struct NCMediaViewerPageView: View {
             if let previewURL {
                 NCImageViewerContentView(
                     previewURL: previewURL,
-                    fullURL: nil
+                    fullURL: nil,
+                    backgroundStyle: backgroundStyle
                 )
             } else {
-                Color.black
+                Color.ncViewerBackground(backgroundStyle)
                     .ignoresSafeArea()
 
                 downloadingOverlay(progress: progress)
@@ -147,12 +155,12 @@ struct NCMediaViewerPageView: View {
                     .frame(maxWidth: 180)
             } else {
                 ProgressView()
-                    .tint(.white)
+                    .tint(progressTintColor)
             }
 
             Text(downloadText(progress))
                 .font(.footnote)
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(secondaryForegroundStyle)
         }
         .padding(16)
         .background(.black.opacity(0.45))
@@ -165,11 +173,14 @@ struct NCMediaViewerPageView: View {
         localURL: URL,
         previewURL: URL?
     ) -> some View {
+        let style = ncViewerBackgroundStyle(for: metadata)
+
         switch mediaKind(for: metadata) {
         case .image:
             NCImageViewerContentView(
                 previewURL: previewURL,
-                fullURL: localURL
+                fullURL: localURL,
+                backgroundStyle: style
             )
 
         case .video:
@@ -177,12 +188,14 @@ struct NCMediaViewerPageView: View {
                 metadata: metadata,
                 localURL: localURL
             )
+            .background(Color.ncViewerBackground(style))
 
         case .audio:
             NCAudioViewerPlaceholderView(
                 metadata: metadata,
                 localURL: localURL
             )
+            .background(Color.ncViewerBackground(style))
         }
     }
 
@@ -215,6 +228,44 @@ struct NCMediaViewerPageView: View {
         .background(.black.opacity(0.45))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding()
+    }
+
+    // MARK: - Appearance Helpers
+
+    private var progressTintColor: Color {
+        switch backgroundStyle {
+        case .black:
+            return .white
+
+        case .system,
+             .white,
+             .custom:
+            return .accentColor
+        }
+    }
+
+    private var primaryForegroundStyle: Color {
+        switch backgroundStyle {
+        case .black:
+            return .white.opacity(0.85)
+
+        case .system,
+             .white,
+             .custom:
+            return .primary
+        }
+    }
+
+    private var secondaryForegroundStyle: Color {
+        switch backgroundStyle {
+        case .black:
+            return .white.opacity(0.85)
+
+        case .system,
+             .white,
+             .custom:
+            return .secondary
+        }
     }
 
     // MARK: - Helpers
