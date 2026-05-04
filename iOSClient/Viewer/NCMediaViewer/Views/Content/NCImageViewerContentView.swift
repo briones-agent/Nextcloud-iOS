@@ -11,23 +11,18 @@ import UIKit
 ///
 /// The preview is decoded first when available.
 /// The full image replaces the preview only after it has been decoded.
-/// The SwiftUI view remains mounted while moving from preview to full image.
+/// Animated GIF files are decoded as animated `UIImage` instances.
+/// SVG files are rasterized into `UIImage` instances before rendering.
+/// All decoded images are rendered through the same zoom pipeline.
 struct NCImageViewerContentView: View {
-
-    // MARK: - Properties
-
     let previewURL: URL?
     let fullURL: URL?
     let backgroundStyle: NCViewerBackgroundStyle
-
-    // MARK: - State
 
     @State private var currentImage: UIImage?
     @State private var loadedPreviewURL: URL?
     @State private var loadedFullURL: URL?
     @State private var failedMessage: String?
-
-    // MARK: - Init
 
     /// Creates an image viewer content view.
     ///
@@ -44,8 +39,6 @@ struct NCImageViewerContentView: View {
         self.fullURL = fullURL
         self.backgroundStyle = backgroundStyle
     }
-
-    // MARK: - Body
 
     var body: some View {
         ZStack {
@@ -123,7 +116,8 @@ struct NCImageViewerContentView: View {
 
     /// Loads the preview image only when no image is currently displayed.
     ///
-    /// This prevents the preview from replacing a full image that has already been decoded.
+    /// This prevents the preview from replacing a full image, animated GIF,
+    /// or rasterized SVG that has already been decoded.
     private func loadPreviewIfNeeded() async {
         guard currentImage == nil else {
             return
@@ -148,7 +142,8 @@ struct NCImageViewerContentView: View {
 
     /// Loads the full image and replaces the currently displayed bitmap only after decoding.
     ///
-    /// This keeps the preview visible until the full image is completely ready.
+    /// GIF files are decoded as animated `UIImage` instances.
+    /// SVG files are rasterized into `UIImage` instances.
     private func loadFullIfNeeded() async {
         guard let fullURL else {
             return
@@ -158,9 +153,19 @@ struct NCImageViewerContentView: View {
             return
         }
 
-        guard let image = await decodeImageIfPossible(url: fullURL) else {
+        let image: UIImage?
+
+        if isGIF(fullURL) {
+            image = await decodeGIFImageIfPossible(url: fullURL)
+        } else if isSVG(fullURL) {
+            image = await decodeSVGImageIfPossible(url: fullURL)
+        } else {
+            image = await decodeImageIfPossible(url: fullURL)
+        }
+
+        guard let image else {
             if currentImage == nil {
-                failedMessage = "UIImage could not decode this file."
+                failedMessage = imageDecodeFailedMessage(for: fullURL)
             }
             return
         }
@@ -172,27 +177,111 @@ struct NCImageViewerContentView: View {
         currentImage = image
     }
 
-    /// Decodes a local image file.
+    /// Decodes a local standard image file.
     ///
     /// - Parameter url: Local file URL.
     /// - Returns: Decoded image if possible.
     private func decodeImageIfPossible(url: URL) async -> UIImage? {
+        guard isValidLocalFile(url: url) else {
+            return nil
+        }
+
         let path = url.path
-
-        guard FileManager.default.fileExists(atPath: path) else {
-            return nil
-        }
-
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
-              let fileSize = attributes[.size] as? Int64,
-              fileSize > 0 else {
-            return nil
-        }
 
         return await Task.detached(priority: .userInitiated) {
             autoreleasepool {
                 UIImage(contentsOfFile: path)
             }
         }.value
+    }
+
+    /// Decodes a local GIF file as an animated `UIImage`.
+    ///
+    /// - Parameter url: Local GIF file URL.
+    /// - Returns: Animated image if the GIF can be decoded.
+    private func decodeGIFImageIfPossible(url: URL) async -> UIImage? {
+        guard isValidLocalFile(url: url) else {
+            return nil
+        }
+
+        return await Task.detached(priority: .userInitiated) {
+            autoreleasepool {
+                UIImage.animatedImage(withAnimatedGIFURL: url)
+            }
+        }.value
+    }
+
+    /// Decodes a local SVG file by rasterizing it into a `UIImage`.
+    ///
+    /// `NCSVGRenderer` is WKWebView-backed, so this method must run on the main actor.
+    ///
+    /// - Parameter url: Local SVG file URL.
+    /// - Returns: Rasterized SVG image if possible.
+    @MainActor
+    private func decodeSVGImageIfPossible(url: URL) async -> UIImage? {
+        guard isValidLocalFile(url: url) else {
+            return nil
+        }
+
+        guard let svgData = try? Data(contentsOf: url) else {
+            return nil
+        }
+
+        return try? await NCSVGRenderer().renderSVGToUIImage(
+            svgData: svgData,
+            size: CGSize(width: 1024, height: 1024)
+        )
+    }
+
+    /// Returns whether the URL points to a GIF file.
+    ///
+    /// - Parameter url: Optional file URL.
+    /// - Returns: True when the path extension is `gif`.
+    private func isGIF(_ url: URL?) -> Bool {
+        url?.pathExtension.lowercased() == "gif"
+    }
+
+    /// Returns whether the URL points to an SVG file.
+    ///
+    /// - Parameter url: Optional file URL.
+    /// - Returns: True when the path extension is `svg`.
+    private func isSVG(_ url: URL?) -> Bool {
+        url?.pathExtension.lowercased() == "svg"
+    }
+
+    /// Returns the proper decode failure message for a local image URL.
+    ///
+    /// - Parameter url: Local file URL.
+    /// - Returns: User-facing decode failure message.
+    private func imageDecodeFailedMessage(for url: URL) -> String {
+        if isGIF(url) {
+            return "GIF file could not be decoded."
+        }
+
+        if isSVG(url) {
+            return "SVG file could not be rendered."
+        }
+
+        return "UIImage could not decode this file."
+    }
+
+    /// Checks whether a local file exists and has a non-zero size.
+    ///
+    /// - Parameter url: Local file URL.
+    /// - Returns: True when the file exists and is not empty.
+    private func isValidLocalFile(url: URL) -> Bool {
+        let path = url.path
+
+        guard FileManager.default.fileExists(atPath: path) else {
+            return false
+        }
+
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let fileSize = attributes[.size] as? Int64,
+              fileSize > 0 else {
+            return false
+        }
+
+        return true
     }
 }
