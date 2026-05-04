@@ -13,19 +13,12 @@ import UIKit
 /// and pan behavior, which is more reliable than SwiftUI `MagnifyGesture` when
 /// hosted inside a paging container.
 struct NCImageZoomView: UIViewRepresentable {
-
-    // MARK: - Properties
-
     let image: UIImage
     let backgroundStyle: NCViewerBackgroundStyle
-
-    // MARK: - Constants
 
     private let minimumZoomScale: CGFloat = 1
     private let maximumZoomScale: CGFloat = 5
     private let doubleTapZoomScale: CGFloat = 2.5
-
-    // MARK: - Init
 
     /// Creates an image zoom view.
     ///
@@ -77,7 +70,7 @@ struct NCImageZoomView: UIViewRepresentable {
         context.coordinator.doubleTapZoomScale = doubleTapZoomScale
 
         scrollView.onLayoutSubviews = { [weak coordinator = context.coordinator] in
-            coordinator?.layoutImageViewKeepingZoomIfPossible()
+            coordinator?.layoutImageViewResettingOnBoundsChange()
         }
 
         let doubleTapGesture = UITapGestureRecognizer(
@@ -118,7 +111,7 @@ struct NCImageZoomView: UIViewRepresentable {
             imageView.image = image
             context.coordinator.layoutImageViewResettingZoom()
         } else {
-            context.coordinator.layoutImageViewKeepingZoomIfPossible()
+            context.coordinator.layoutImageViewResettingOnBoundsChange()
         }
     }
 
@@ -129,7 +122,6 @@ struct NCImageZoomView: UIViewRepresentable {
     // MARK: - Scroll View
 
     final class NCZoomScrollView: UIScrollView {
-
         var onLayoutSubviews: (() -> Void)?
 
         override func layoutSubviews() {
@@ -141,9 +133,6 @@ struct NCImageZoomView: UIViewRepresentable {
     // MARK: - Coordinator
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
-
-        // MARK: - State
-
         weak var scrollView: UIScrollView?
         weak var imageView: UIImageView?
         var currentImage: UIImage?
@@ -208,9 +197,9 @@ struct NCImageZoomView: UIViewRepresentable {
 
         /// Lays out the image view when the container size changes.
         ///
-        /// If the image is not zoomed, the image is refitted to the new container.
-        /// If the image is zoomed, the zoom value is preserved as much as possible.
-        func layoutImageViewKeepingZoomIfPossible() {
+        /// The zoom is reset on bounds changes because rotation, iPad resizing,
+        /// and Stage Manager can otherwise leave stale offsets or invalid content sizes.
+        func layoutImageViewResettingOnBoundsChange() {
             guard let scrollView,
                   let imageView,
                   let image = imageView.image else {
@@ -228,13 +217,14 @@ struct NCImageZoomView: UIViewRepresentable {
                 return
             }
 
-            let wasZoomed = scrollView.zoomScale > minimumZoomScale + 0.01
-            let currentZoomScale = scrollView.zoomScale
-
             let fittedSize = fittedImageSize(
                 imageSize: image.size,
                 containerSize: boundsSize
             )
+
+            scrollView.setZoomScale(minimumZoomScale, animated: false)
+            scrollView.contentInset = .zero
+            scrollView.contentOffset = .zero
 
             imageView.frame = CGRect(
                 origin: .zero,
@@ -242,20 +232,8 @@ struct NCImageZoomView: UIViewRepresentable {
             )
 
             scrollView.contentSize = fittedSize
-
-            if wasZoomed {
-                let clampedZoomScale = min(
-                    max(currentZoomScale, minimumZoomScale),
-                    maximumZoomScale
-                )
-
-                scrollView.setZoomScale(clampedZoomScale, animated: false)
-            } else {
-                scrollView.setZoomScale(minimumZoomScale, animated: false)
-                scrollView.contentOffset = .zero
-            }
-
             lastBoundsSize = boundsSize
+
             centerImageView()
         }
 

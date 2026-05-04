@@ -16,20 +16,17 @@ import Combine
 /// The paging view uses a `UICollectionView` with reusable cells.
 /// Each cell hosts a SwiftUI `NCMediaViewerPageView`.
 struct NCMediaViewerPagingView: UIViewRepresentable {
-
-    // MARK: - Properties
-
     @ObservedObject var model: NCMediaViewerModel
 
     // MARK: - UIViewRepresentable
 
-    func makeUIView(context: Context) -> UICollectionView {
+    func makeUIView(context: Context) -> NCMediaViewerCollectionView {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         layout.minimumLineSpacing = 0
         layout.minimumInteritemSpacing = 0
 
-        let collectionView = UICollectionView(
+        let collectionView = NCMediaViewerCollectionView(
             frame: .zero,
             collectionViewLayout: layout
         )
@@ -52,6 +49,10 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
 
         context.coordinator.collectionView = collectionView
 
+        collectionView.onLayoutSubviews = { [weak coordinator = context.coordinator] in
+            coordinator?.updateLayoutAfterBoundsChangeIfNeeded()
+        }
+
         DispatchQueue.main.async {
             context.coordinator.scrollToInitialIndexIfNeeded(animated: false)
         }
@@ -59,15 +60,16 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         return collectionView
     }
 
-    func updateUIView(_ collectionView: UICollectionView, context: Context) {
+    func updateUIView(_ collectionView: NCMediaViewerCollectionView, context: Context) {
         context.coordinator.model = model
-
         collectionView.backgroundColor = .ncViewerBackground(.system)
 
         if let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
             let itemSize = collectionView.bounds.size
 
-            if layout.itemSize != itemSize {
+            if itemSize.width > 0,
+               itemSize.height > 0,
+               layout.itemSize != itemSize {
                 layout.itemSize = itemSize
                 layout.invalidateLayout()
 
@@ -85,6 +87,22 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
     }
 }
 
+// MARK: - Media Viewer Collection View
+
+/// Collection view subclass used to detect bounds changes reliably.
+///
+/// This is needed because rotation, iPad split view resizing, and floating window
+/// resizing can change the collection view bounds without SwiftUI immediately
+/// rebuilding the representable.
+final class NCMediaViewerCollectionView: UICollectionView {
+    var onLayoutSubviews: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayoutSubviews?()
+    }
+}
+
 // MARK: - Media Viewer Paging Coordinator
 
 /// Coordinator for the UIKit paging collection view.
@@ -99,13 +117,11 @@ final class NCMediaViewerPagingCoordinator: NSObject,
                                             UICollectionViewDataSource,
                                             UICollectionViewDelegateFlowLayout,
                                             UICollectionViewDataSourcePrefetching {
-
-    // MARK: - Properties
-
     var model: NCMediaViewerModel
     weak var collectionView: UICollectionView?
 
     private var didScrollToInitialIndex = false
+    private var lastCollectionViewBoundsSize: CGSize = .zero
     private var cancellable: AnyCancellable?
 
     // MARK: - Init
@@ -119,6 +135,40 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             .sink { [weak self] _ in
                 self?.refreshVisibleCells()
             }
+    }
+
+    // MARK: - Layout
+
+    /// Updates the paging layout after bounds changes.
+    ///
+    /// This keeps the selected page centered after rotation, split view resizing,
+    /// or iPad floating window resizing.
+    func updateLayoutAfterBoundsChangeIfNeeded() {
+        guard let collectionView else {
+            return
+        }
+
+        let boundsSize = collectionView.bounds.size
+
+        guard boundsSize.width > 0,
+              boundsSize.height > 0 else {
+            return
+        }
+
+        guard boundsSize != lastCollectionViewBoundsSize else {
+            return
+        }
+
+        lastCollectionViewBoundsSize = boundsSize
+
+        if let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
+            layout.itemSize = boundsSize
+            layout.invalidateLayout()
+        }
+
+        collectionView.performBatchUpdates(nil) { [weak self] _ in
+            self?.scrollToCurrentIndex(animated: false)
+        }
     }
 
     // MARK: - Initial Scroll
@@ -321,12 +371,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
 /// Collection view cell hosting one SwiftUI media viewer page.
 final class NCMediaViewerPagingCell: UICollectionViewCell {
-
-    // MARK: - Static
-
     static let reuseIdentifier = "NCMediaViewerPagingCell"
-
-    // MARK: - State
 
     private var hostingController: UIHostingController<AnyView>?
 

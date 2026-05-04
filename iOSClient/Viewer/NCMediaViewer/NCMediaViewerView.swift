@@ -27,11 +27,14 @@ struct NCMediaViewerView: View {
     private let onClose: () -> Void
     private let onMenu: () -> Void
 
+    // MARK: - Computed Properties
+
     private var title: String {
         guard let page = model.selectedPageModel(),
               let metadata = page.metadata else {
             return ""
         }
+
         if !metadata.fileNameView.isEmpty {
             return metadata.fileNameView
         }
@@ -64,17 +67,22 @@ struct NCMediaViewerView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.ncViewerBackground(.system)
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            ZStack(alignment: .top) {
+                Color.ncViewerBackground(.system)
+                    .ignoresSafeArea()
 
-            NCMediaViewerPagingView(model: model)
-                .ignoresSafeArea()
+                NCMediaViewerPagingView(model: model)
+                    .ignoresSafeArea()
 
-            topOverlayBar
+                topOverlayBar(
+                    topInset: proxy.safeAreaInsets.top,
+                    containerSize: proxy.size
+                )
+            }
+            .background(Color.ncViewerBackground(.system))
+            .ignoresSafeArea()
         }
-        .background(Color.ncViewerBackground(.system))
-        .ignoresSafeArea()
         .statusBarHidden(true)
         .task {
             await model.loadSelectedPageIfNeeded()
@@ -83,8 +91,11 @@ struct NCMediaViewerView: View {
 
     // MARK: - Top Overlay Bar
 
-    private var topOverlayBar: some View {
-        HStack {
+    private func topOverlayBar(
+        topInset: CGFloat,
+        containerSize: CGSize
+    ) -> some View {
+        HStack(spacing: 8) {
             Button {
                 onClose()
             } label: {
@@ -99,8 +110,7 @@ struct NCMediaViewerView: View {
             .accessibilityLabel(Text(NSLocalizedString("_back_", comment: "")))
 
             Text(title)
-                .font(.headline)
-                .fontWeight(.semibold)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(overlayButtonForegroundColor)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -121,13 +131,28 @@ struct NCMediaViewerView: View {
             .accessibilityLabel(Text(NSLocalizedString("_more_", comment: "")))
         }
         .padding(.horizontal, 12)
-        .padding(.top, safeAreaTopInset + 4)
+        .padding(
+            .top,
+            topBarTopPadding(
+                topInset: topInset,
+                containerSize: containerSize
+            )
+        )
         .frame(maxWidth: .infinity)
-        .background(topOverlayGradient, alignment: .top)
+        .background(
+            topOverlayGradient(
+                topInset: topInset,
+                containerSize: containerSize
+            ),
+            alignment: .top
+        )
         .ignoresSafeArea(edges: .top)
     }
 
-    private var topOverlayGradient: some View {
+    private func topOverlayGradient(
+        topInset: CGFloat,
+        containerSize: CGSize
+    ) -> some View {
         LinearGradient(
             colors: [
                 .black.opacity(0.34),
@@ -137,17 +162,26 @@ struct NCMediaViewerView: View {
             startPoint: .top,
             endPoint: .bottom
         )
-        .frame(height: safeAreaTopInset + 72)
+        .frame(
+            height: topBarTopPadding(
+                topInset: topInset,
+                containerSize: containerSize
+            ) + 68
+        )
         .allowsHitTesting(false)
     }
 
-    private var safeAreaTopInset: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .filter { $0.activationState == .foregroundActive }
-            .flatMap(\.windows)
-            .first { $0.isKeyWindow }?
-            .safeAreaInsets.top ?? 0
+    private func topBarTopPadding(
+        topInset: CGFloat,
+        containerSize: CGSize
+    ) -> CGFloat {
+        let isLandscape = containerSize.width > containerSize.height
+
+        if isLandscape {
+            return max(topInset + 10, 22)
+        } else {
+            return topInset + 4
+        }
     }
 }
 
@@ -183,6 +217,7 @@ private extension View {
 /// thumbnail-to-fullscreen opening and closing animations.
 @MainActor
 final class NCMediaViewerPresenter {
+
     // MARK: - Singleton
 
     static let shared = NCMediaViewerPresenter()
@@ -455,7 +490,6 @@ final class NCMediaViewerPresenter {
 // MARK: - Media Viewer Preview
 
 #if DEBUG
-import SwiftUI
 import NextcloudKit
 
 #Preview("Media Viewer - Light") {
