@@ -27,6 +27,22 @@ struct NCMediaViewerView: View {
     private let onClose: () -> Void
     private let onMenu: () -> Void
 
+    private var title: String {
+        guard let page = model.selectedPageModel(),
+              let metadata = page.metadata else {
+            return ""
+        }
+        if !metadata.fileNameView.isEmpty {
+            return metadata.fileNameView
+        }
+
+        return metadata.fileName
+    }
+
+    private var overlayButtonForegroundColor: Color {
+        colorScheme == .dark ? .white : .black
+    }
+
     // MARK: - Init
 
     /// Creates the media viewer view.
@@ -82,6 +98,13 @@ struct NCMediaViewerView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(Text(NSLocalizedString("_back_", comment: "")))
 
+            Text(title)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundStyle(overlayButtonForegroundColor)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
             Spacer()
 
             Button {
@@ -126,10 +149,6 @@ struct NCMediaViewerView: View {
             .first { $0.isKeyWindow }?
             .safeAreaInsets.top ?? 0
     }
-
-    private var overlayButtonForegroundColor: Color {
-        colorScheme == .dark ? .white : .black
-    }
 }
 
 // MARK: - Viewer Glass Button Modifier
@@ -138,11 +157,11 @@ private struct NCViewerGlassButtonModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
             content
-                .padding(5)
+                .padding(4)
                 .glassEffect(.regular.interactive(), in: .circle)
         } else {
             content
-                .padding(5)
+                .padding(4)
                 .background(.black.opacity(0.32))
                 .clipShape(Circle())
                 .shadow(color: .black.opacity(0.45), radius: 3, x: 0, y: 1)
