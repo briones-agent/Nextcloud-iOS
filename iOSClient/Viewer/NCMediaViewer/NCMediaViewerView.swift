@@ -4,6 +4,7 @@
 
 import SwiftUI
 import UIKit
+import NextcloudKit
 
 // MARK: - Media Viewer View
 
@@ -48,7 +49,7 @@ struct NCMediaViewerView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color.black
+            Color(uiColor: .systemBackground)
                 .ignoresSafeArea()
 
             NCMediaViewerPagingView(model: model)
@@ -56,7 +57,7 @@ struct NCMediaViewerView: View {
 
             topOverlayBar
         }
-        .background(Color.black)
+        .background(Color(uiColor: .systemBackground))
         .ignoresSafeArea()
         .statusBarHidden(true)
         .task {
@@ -213,7 +214,7 @@ final class NCMediaViewerPresenter {
         )
 
         let hostingController = UIHostingController(rootView: viewer)
-        hostingController.view.backgroundColor = .black
+        hostingController.view.backgroundColor = .systemBackground
         hostingController.view.frame = window.bounds
         hostingController.view.autoresizingMask = [
             .flexibleWidth,
@@ -243,16 +244,13 @@ final class NCMediaViewerPresenter {
     /// - Parameter animated: Whether dismissal should be animated.
     func dismiss(animated: Bool = true) {
         guard let hostingView else {
-            hostingController = nil
-            currentViewerTransitionSource = nil
+            cleanup()
             return
         }
 
         guard animated else {
             hostingView.removeFromSuperview()
-            hostingController = nil
-            self.hostingView = nil
-            currentViewerTransitionSource = nil
+            cleanup()
             return
         }
 
@@ -274,9 +272,7 @@ final class NCMediaViewerPresenter {
             hostingView.alpha = 0
         } completion: { [weak self] _ in
             hostingView.removeFromSuperview()
-            self?.hostingController = nil
-            self?.hostingView = nil
-            self?.currentViewerTransitionSource = nil
+            self?.cleanup()
         }
     }
 
@@ -294,7 +290,7 @@ final class NCMediaViewerPresenter {
         viewerView: UIView
     ) {
         let dimView = UIView(frame: window.bounds)
-        dimView.backgroundColor = .black
+        dimView.backgroundColor = .systemBackground
         dimView.alpha = 0
         dimView.autoresizingMask = [
             .flexibleWidth,
@@ -375,11 +371,17 @@ final class NCMediaViewerPresenter {
         } completion: { [weak self] _ in
             imageView.removeFromSuperview()
             viewerView.removeFromSuperview()
-
-            self?.hostingController = nil
-            self?.hostingView = nil
-            self?.currentViewerTransitionSource = nil
+            self?.cleanup()
         }
+    }
+
+    // MARK: - Cleanup
+
+    /// Clears the current overlay state.
+    private func cleanup() {
+        hostingController = nil
+        hostingView = nil
+        currentViewerTransitionSource = nil
     }
 
     // MARK: - Helpers
