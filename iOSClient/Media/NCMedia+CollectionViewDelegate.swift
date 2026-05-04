@@ -24,9 +24,17 @@ extension NCMedia: UICollectionViewDelegate {
             } else if let metadata = await self.database.getMetadataFromOcIdAsync(metadata.ocId) {
                 let image = utility.getImage(ocId: metadata.ocId, etag: metadata.etag, ext: global.previewExt1024, userId: metadata.userId, urlBase: metadata.urlBase)
                 let ocIds = dataSource.metadatas.map { $0.ocId }
+                var viewerTransitionSource: NCViewerTransitionSource?
 
-                if let vc = await NCViewer().getViewerController(metadata: metadata, ocIds: ocIds, image: image, delegate: self, viewerTransitionSource: nil) {
-                    self.navigationController?.pushViewController(vc, animated: true)
+                if let imageView = cell.imageItem,
+                   let image = imageView.image,
+                   let window = imageView.window {
+                    let sourceFrame = imageView.convert(imageView.bounds, to: window)
+                    viewerTransitionSource = NCViewerTransitionSource(image: image, sourceFrame: sourceFrame, cornerRadius: imageView.layer.cornerRadius)
+                }
+
+                if let vc = await NCViewer().getViewerController(metadata: metadata, ocIds: ocIds, image: image, delegate: self, viewerTransitionSource: viewerTransitionSource) {
+                    self.navigationController?.pushViewController(vc, animated: false)
                 }
             }
         }
