@@ -111,6 +111,8 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
             return localURL
         }
 
+        print("⬇️ MEDIA VIEWER FULL DOWNLOAD:", metadata.fileNameView, metadata.ocId)
+
         let results = await NCNetworking.shared.downloadFile(metadata: metadata)
 
         if let afError = results.afError {
