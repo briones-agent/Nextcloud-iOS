@@ -135,15 +135,14 @@ struct NCMediaViewerView: View {
 // MARK: - Viewer Glass Button Modifier
 
 private struct NCViewerGlassButtonModifier: ViewModifier {
-
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
             content
-                .padding(8)
+                .padding(5)
                 .glassEffect(.regular.interactive(), in: .circle)
         } else {
             content
-                .padding(8)
+                .padding(5)
                 .background(.black.opacity(0.32))
                 .clipShape(Circle())
                 .shadow(color: .black.opacity(0.45), radius: 3, x: 0, y: 1)
@@ -152,7 +151,6 @@ private struct NCViewerGlassButtonModifier: ViewModifier {
 }
 
 private extension View {
-
     func viewerGlassButton() -> some View {
         modifier(NCViewerGlassButtonModifier())
     }
@@ -166,7 +164,6 @@ private extension View {
 /// thumbnail-to-fullscreen opening and closing animations.
 @MainActor
 final class NCMediaViewerPresenter {
-
     // MARK: - Singleton
 
     static let shared = NCMediaViewerPresenter()
