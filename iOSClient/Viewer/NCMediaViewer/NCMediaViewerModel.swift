@@ -299,6 +299,11 @@ final class NCMediaViewerModel: ObservableObject {
         prefetchNeighborPages(around: index)
     }
 
+    /// Returns the page model for the currently selected index.
+    func selectedPageModel() -> NCMediaViewerPageModel? {
+        pageModel(at: selectedIndex)
+    }
+
     /// Loads the initially selected page if needed.
     func loadSelectedPageIfNeeded() async {
         await loadPageIfNeeded(index: selectedIndex)
