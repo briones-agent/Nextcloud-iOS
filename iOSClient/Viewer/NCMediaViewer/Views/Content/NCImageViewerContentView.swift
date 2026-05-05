@@ -114,10 +114,6 @@ struct NCImageViewerContentView: View {
     // MARK: - Loading
 
     /// Loads the best available image for the current URLs.
-    ///
-    /// The preview is decoded first when there is no current image.
-    /// The full image is decoded afterwards and replaces the preview only after
-    /// a successful decode.
     private func loadBestAvailableImage() async {
         if loadedIdentifier != identifier {
             currentImage = nil
