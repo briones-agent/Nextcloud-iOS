@@ -319,8 +319,11 @@ final class NCMediaViewerModel: ObservableObject {
 
         selectedIndex = index
 
-        await loadPageIfNeeded(index: index)
+        // Start neighbor prefetch immediately.
+        // Do not wait for the selected page full download to finish.
         prefetchNeighborPages(around: index)
+
+        await loadPageIfNeeded(index: index)
     }
 
     /// Returns the page model for the currently selected index.
@@ -332,8 +335,11 @@ final class NCMediaViewerModel: ObservableObject {
 
     /// Loads the initially selected page if needed.
     func loadSelectedPageIfNeeded() async {
-        await loadPageIfNeeded(index: selectedIndex)
+        // Start neighbor prefetch immediately.
+        // This prepares adjacent previews while the selected page is loading.
         prefetchNeighborPages(around: selectedIndex)
+
+        await loadPageIfNeeded(index: selectedIndex)
     }
 
     /// Loads a page if it still needs selected-page loading.
