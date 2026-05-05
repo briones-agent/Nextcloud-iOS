@@ -117,55 +117,63 @@ struct NCImageViewerContentView: View {
 
     /// Loads the best available image for the current URLs.
     ///
-    /// The full image has priority over the preview. This avoids decoding both
-    /// preview and full image when both URLs are already available during page reuse.
+    /// The preview is decoded first when there is no current image.
+    /// The full image is decoded afterwards and replaces the preview only after
+    /// a successful decode.
     private func loadBestAvailableImage() async {
-        if let fullURL {
-            guard loadedFullURL != fullURL else {
-                return
-            }
-
-            let image: UIImage?
-
-            if isGIF(fullURL) {
-                image = await decodeGIFImageIfPossible(url: fullURL)
-            } else if isSVG(fullURL) {
-                image = await decodeSVGImageIfPossible(url: fullURL)
-            } else {
-                image = await decodeImageIfPossible(url: fullURL)
-            }
-
-            if let image {
-                loadedFullURL = fullURL
-                failedMessage = nil
-                currentImage = image
-                return
-            }
-
-            if currentImage == nil {
-                failedMessage = imageDecodeFailedMessage(for: fullURL)
-            }
-        }
-
-        guard currentImage == nil else {
-            return
-        }
-
-        guard let previewURL else {
-            return
-        }
-
-        guard loadedPreviewURL != previewURL else {
-            return
-        }
-
-        guard let image = await decodeImageIfPossible(url: previewURL) else {
-            return
-        }
-
-        loadedPreviewURL = previewURL
         failedMessage = nil
-        currentImage = image
+
+        if let previewURL,
+           currentImage == nil,
+           loadedPreviewURL != previewURL {
+            if let previewImage = await decodeImageIfPossible(url: previewURL) {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                loadedPreviewURL = previewURL
+                failedMessage = nil
+                currentImage = previewImage
+            }
+        }
+
+        guard let fullURL else {
+            if currentImage == nil,
+               previewURL == nil {
+                failedMessage = nil
+            }
+
+            return
+        }
+
+        guard loadedFullURL != fullURL else {
+            return
+        }
+
+        let fullImage: UIImage?
+
+        if isGIF(fullURL) {
+            fullImage = await decodeGIFImageIfPossible(url: fullURL)
+        } else if isSVG(fullURL) {
+            fullImage = await decodeSVGImageIfPossible(url: fullURL)
+        } else {
+            fullImage = await decodeImageIfPossible(url: fullURL)
+        }
+
+        guard !Task.isCancelled else {
+            return
+        }
+
+        if let fullImage {
+            loadedFullURL = fullURL
+            failedMessage = nil
+            currentImage = fullImage
+            return
+        }
+
+        if currentImage == nil {
+            failedMessage = imageDecodeFailedMessage(for: fullURL)
+        }
     }
 
     /// Decodes a local standard image file.

@@ -10,9 +10,10 @@ import NextcloudKit
 /// Concrete media viewer loader for the Nextcloud app.
 ///
 /// This object is responsible for:
-/// - resolving metadata from `ocId`
+/// - resolving detached metadata from `ocId`
 /// - checking if the full media file exists locally
-/// - returning an optional preview file URL
+/// - returning a cached preview file URL without network access
+/// - downloading and caching a preview file when explicitly requested
 /// - downloading the full media file when needed
 ///
 /// It must always return detached `tableMetadata` objects.
@@ -52,25 +53,33 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
         return localURL
     }
 
-    /// Returns a local preview URL if available.
+    /// Returns a cached local preview URL if already available.
     ///
-    /// The loader first checks the local preview cache. If the preview is not
-    /// available, it requests one from the server and stores it using the existing
-    /// app preview cache pipeline.
+    /// This method only checks the local preview cache and never performs network
+    /// requests.
     ///
     /// - Parameter metadata: Detached metadata for the media file.
-    /// - Returns: Local preview URL if available.
-    func previewURL(for metadata: tableMetadata) async -> URL? {
-        var localPath = utilityFileSystem.getDirectoryProviderStorageImageOcId(
-            metadata.ocId,
-            etag: metadata.etag,
-            ext: global.previewExt1024,
-            userId: metadata.userId,
-            urlBase: metadata.urlBase
-        )
+    /// - Returns: Cached local preview URL if available.
+    func cachedPreviewURL(for metadata: tableMetadata) async -> URL? {
+        let localPath = previewLocalPath(for: metadata)
 
-        if isValidLocalFile(path: localPath) {
-            return URL(fileURLWithPath: localPath)
+        guard isValidLocalFile(path: localPath) else {
+            return nil
+        }
+
+        return URL(fileURLWithPath: localPath)
+    }
+
+    /// Downloads a preview and returns its local URL if available.
+    ///
+    /// This method can perform a network request and stores the preview using the
+    /// existing app preview cache pipeline.
+    ///
+    /// - Parameter metadata: Detached metadata for the media file.
+    /// - Returns: Local preview URL after download if available.
+    func downloadPreviewURL(for metadata: tableMetadata) async -> URL? {
+        if let cachedURL = await cachedPreviewURL(for: metadata) {
+            return cachedURL
         }
 
         let resultsDownloadPreview = await NextcloudKit.shared.downloadPreviewAsync(
@@ -87,19 +96,7 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
             )
         }
 
-        localPath = utilityFileSystem.getDirectoryProviderStorageImageOcId(
-            metadata.ocId,
-            etag: metadata.etag,
-            ext: global.previewExt1024,
-            userId: metadata.userId,
-            urlBase: metadata.urlBase
-        )
-
-        guard isValidLocalFile(path: localPath) else {
-            return nil
-        }
-
-        return URL(fileURLWithPath: localPath)
+        return await cachedPreviewURL(for: metadata)
     }
 
     /// Downloads the full media file if needed.
@@ -130,7 +127,7 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
         throw NCMediaViewerLoaderError.localFileUnavailable
     }
 
-    // MARK: - Private
+    // MARK: - Private Helpers
 
     /// Builds the expected full local file URL for a metadata object.
     ///
@@ -149,6 +146,20 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
         }
 
         return URL(fileURLWithPath: localPath)
+    }
+
+    /// Builds the expected local preview file path.
+    ///
+    /// - Parameter metadata: Detached metadata for the media file.
+    /// - Returns: Local preview file path.
+    private func previewLocalPath(for metadata: tableMetadata) -> String {
+        utilityFileSystem.getDirectoryProviderStorageImageOcId(
+            metadata.ocId,
+            etag: metadata.etag,
+            ext: global.previewExt1024,
+            userId: metadata.userId,
+            urlBase: metadata.urlBase
+        )
     }
 
     /// Checks whether a local file exists and has a non-zero size.
@@ -197,7 +208,8 @@ enum NCMediaViewerLoaderError: LocalizedError {
 /// - FileManager
 /// - NextcloudKit
 /// - thumbnail cache
-/// - download pipeline
+/// - preview download pipeline
+/// - full media download pipeline
 protocol NCMediaViewerLoading: Sendable {
     /// Resolves detached metadata from an `ocId`.
     ///
@@ -211,13 +223,21 @@ protocol NCMediaViewerLoading: Sendable {
     /// - Returns: Local full media URL if available.
     func localMediaURL(for metadata: tableMetadata) async -> URL?
 
-    /// Returns a local preview URL if available.
+    /// Returns a cached local preview URL if already available.
     ///
-    /// This can be a cached thumbnail or preview image.
+    /// This method must not perform network requests.
     ///
     /// - Parameter metadata: Detached metadata for the media file.
-    /// - Returns: Local preview URL if available.
-    func previewURL(for metadata: tableMetadata) async -> URL?
+    /// - Returns: Cached local preview URL if available.
+    func cachedPreviewURL(for metadata: tableMetadata) async -> URL?
+
+    /// Downloads a preview and returns its local URL if available.
+    ///
+    /// This method can perform network requests.
+    ///
+    /// - Parameter metadata: Detached metadata for the media file.
+    /// - Returns: Local preview URL after download if available.
+    func downloadPreviewURL(for metadata: tableMetadata) async -> URL?
 
     /// Downloads the full media file if needed.
     ///

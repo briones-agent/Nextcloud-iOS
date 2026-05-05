@@ -40,7 +40,6 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         collectionView.contentInsetAdjustmentBehavior = .never
         collectionView.dataSource = context.coordinator
         collectionView.delegate = context.coordinator
-        collectionView.prefetchDataSource = context.coordinator
 
         collectionView.register(
             NCMediaViewerPagingCell.self,
@@ -110,12 +109,10 @@ final class NCMediaViewerCollectionView: UICollectionView {
 /// It acts as:
 /// - collection view data source
 /// - collection view delegate flow layout
-/// - collection view prefetch data source
 @MainActor
 final class NCMediaViewerPagingCoordinator: NSObject,
                                             UICollectionViewDataSource,
-                                            UICollectionViewDelegateFlowLayout,
-                                            UICollectionViewDataSourcePrefetching {
+                                            UICollectionViewDelegateFlowLayout {
     var model: NCMediaViewerModel
     weak var collectionView: UICollectionView?
 
@@ -340,28 +337,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         Task {
             await model.displayPage(at: index)
-        }
-    }
-
-    // MARK: - UICollectionViewDataSourcePrefetching
-
-    func collectionView(
-        _ collectionView: UICollectionView,
-        prefetchItemsAt indexPaths: [IndexPath]
-    ) {
-        for indexPath in indexPaths {
-            Task {
-                await model.prefetchPageIfNeeded(index: indexPath.item)
-            }
-        }
-    }
-
-    func collectionView(
-        _ collectionView: UICollectionView,
-        cancelPrefetchingForItemsAt indexPaths: [IndexPath]
-    ) {
-        for indexPath in indexPaths {
-            model.cancelLoading(index: indexPath.item)
         }
     }
 }
