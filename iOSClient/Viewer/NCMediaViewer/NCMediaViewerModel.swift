@@ -426,6 +426,21 @@ final class NCMediaViewerModel: ObservableObject {
         loadingTasksByOcId[ocId] = nil
     }
 
+    /// Updates the selected index without starting full page loading.
+    ///
+    /// - Parameter index: Absolute page index inside the full `ocIds` array.
+    func setSelectedIndex(_ index: Int) {
+        guard ocIds.indices.contains(index) else {
+            return
+        }
+
+        guard selectedIndex != index else {
+            return
+        }
+
+        selectedIndex = index
+    }
+
     // MARK: - Selected Page Loading
 
     /// Loads metadata and media content for a selected or explicitly requested page.
@@ -647,6 +662,13 @@ final class NCMediaViewerModel: ObservableObject {
             ),
             for: ocId
         )
+    }
+
+    /// Prefetches a page preview without downloading the full media file.
+    ///
+    /// - Parameter index: Absolute page index inside the full `ocIds` array.
+    func prefetchVisiblePageIfNeeded(index: Int) async {
+        await prefetchPageIfNeeded(index: index)
     }
 
     // MARK: - Page Updates

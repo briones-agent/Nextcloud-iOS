@@ -317,6 +317,28 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         }
     }
 
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        let width = scrollView.bounds.width
+
+        guard width > 0 else {
+            return
+        }
+
+        let rawIndex = scrollView.contentOffset.x / width
+        let index = Int(round(rawIndex))
+
+        guard index >= 0,
+              index < model.numberOfPages else {
+            return
+        }
+
+        model.setSelectedIndex(index)
+
+        Task {
+            await model.prefetchVisiblePageIfNeeded(index: index)
+        }
+    }
+
     /// Updates the selected page index after paging has settled.
     ///
     /// - Parameter scrollView: Source scroll view.
