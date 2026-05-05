@@ -119,6 +119,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     private var didScrollToInitialIndex = false
     private var lastCollectionViewBoundsSize: CGSize = .zero
     private var cancellable: AnyCancellable?
+    private var lastVisibleIndex: Int?
 
     // MARK: - Init
 
@@ -332,6 +333,11 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             return
         }
 
+        guard lastVisibleIndex != index else {
+            return
+        }
+
+        lastVisibleIndex = index
         model.setSelectedIndex(index)
 
         Task {
