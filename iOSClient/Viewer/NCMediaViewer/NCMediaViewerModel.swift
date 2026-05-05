@@ -431,8 +431,8 @@ final class NCMediaViewerModel: ObservableObject {
     /// Loads metadata and media content for a selected or explicitly requested page.
     ///
     /// Loading order:
-    /// - Resolve metadata without showing a loading state.
-    /// - If the full local file exists, show it immediately.
+    /// - Resolve metadata.
+    /// - If the full local file exists, show it immediately while preserving any current preview.
     /// - Otherwise, resolve/show the preview.
     /// - Finally, download the full media file and replace the preview.
     ///
@@ -457,6 +457,8 @@ final class NCMediaViewerModel: ObservableObject {
 
         setMetadata(metadata, for: ocId)
 
+        var previewURL = currentPreviewURL(for: ocId)
+
         if let localURL = await loader.localMediaURL(for: metadata) {
             guard !Task.isCancelled else {
                 return
@@ -464,7 +466,7 @@ final class NCMediaViewerModel: ObservableObject {
 
             setReadyState(
                 metadata: metadata,
-                previewURL: nil,
+                previewURL: previewURL,
                 localURL: localURL,
                 for: ocId
             )
@@ -475,7 +477,7 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        let previewURL = await loader.previewURL(for: metadata)
+        previewURL = await loader.previewURL(for: metadata)
 
         guard !Task.isCancelled else {
             return
@@ -533,6 +535,7 @@ final class NCMediaViewerModel: ObservableObject {
             )
         }
     }
+
 
     // MARK: - Prefetch
 

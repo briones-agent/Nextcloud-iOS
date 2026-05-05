@@ -397,7 +397,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
 
         let view = AnyView(
             NCMediaViewerPageView(page: page)
-                .id(pageIdentity(for: page))
+                .id(page.ocId)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.ncViewerBackground(.system))
                 .ignoresSafeArea()
@@ -452,40 +452,5 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
 
         contentView.addSubview(hostingController.view)
         self.hostingController = hostingController
-    }
-
-    /// Builds a stable SwiftUI identity for the rendered page.
-    ///
-    /// The identity changes when the page changes or when the displayed media URL
-    /// changes. This prevents SwiftUI state from leaking between reused cells.
-    ///
-    /// - Parameter page: Page model rendered by the cell.
-    /// - Returns: Stable identity string for SwiftUI.
-    private func pageIdentity(for page: NCMediaViewerPageModel) -> String {
-        switch page.state {
-        case .image(let previewURL, let localURL, _):
-            return "\(page.ocId)|image|\(previewURL?.absoluteString ?? "nil")|\(localURL?.absoluteString ?? "nil")"
-
-        case .ready(let localURL, let previewURL):
-            return "\(page.ocId)|ready|\(previewURL?.absoluteString ?? "nil")|\(localURL.absoluteString)"
-
-        case .downloading(let previewURL, _):
-            return "\(page.ocId)|downloading|\(previewURL?.absoluteString ?? "nil")"
-
-        case .failed(let previewURL, _):
-            return "\(page.ocId)|failed|\(previewURL?.absoluteString ?? "nil")"
-
-        case .idle:
-            return "\(page.ocId)|idle"
-
-        case .loadingMetadata:
-            return "\(page.ocId)|loadingMetadata"
-
-        case .metadataMissing:
-            return "\(page.ocId)|metadataMissing"
-
-        case .checkingLocalFile:
-            return "\(page.ocId)|checkingLocalFile"
-        }
     }
 }
