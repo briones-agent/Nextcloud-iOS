@@ -347,6 +347,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 final class NCMediaViewerPagingCell: UICollectionViewCell {
     static let reuseIdentifier = "NCMediaViewerPagingCell"
 
+    private var currentOcId: String?
     private var hostingController: UIHostingController<AnyView>?
 
     // MARK: - Init
@@ -370,12 +371,13 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     override func prepareForReuse() {
         super.prepareForReuse()
 
-        hostingController?.rootView = AnyView(
-            Color.ncViewerBackground(.system)
-                .ignoresSafeArea()
-        )
+        currentOcId = nil
 
-        hostingController?.view.backgroundColor = .ncViewerBackground(.system)
+        hostingController?.view.removeFromSuperview()
+        hostingController = nil
+
+        backgroundColor = .ncViewerBackground(.system)
+        contentView.backgroundColor = .ncViewerBackground(.system)
     }
 
     override func layoutSubviews() {
@@ -395,10 +397,17 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
 
         let view = AnyView(
             NCMediaViewerPageView(page: page)
+                .id(pageIdentity(for: page))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.ncViewerBackground(.system))
                 .ignoresSafeArea()
         )
+
+        if currentOcId != page.ocId {
+            hostingController?.view.removeFromSuperview()
+            hostingController = nil
+            currentOcId = page.ocId
+        }
 
         if let hostingController {
             hostingController.rootView = view
@@ -408,6 +417,10 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
             let hostingController = UIHostingController(rootView: view)
             hostingController.view.backgroundColor = .ncViewerBackground(.system)
             hostingController.view.frame = contentView.bounds
+            hostingController.view.autoresizingMask = [
+                .flexibleWidth,
+                .flexibleHeight
+            ]
 
             contentView.addSubview(hostingController.view)
             self.hostingController = hostingController
@@ -419,22 +432,60 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         backgroundColor = .ncViewerBackground(.system)
         contentView.backgroundColor = .ncViewerBackground(.system)
 
+        currentOcId = nil
+
+        hostingController?.view.removeFromSuperview()
+        hostingController = nil
+
         let view = AnyView(
             Color.ncViewerBackground(.system)
                 .ignoresSafeArea()
         )
 
-        if let hostingController {
-            hostingController.rootView = view
-            hostingController.view.backgroundColor = .ncViewerBackground(.system)
-            hostingController.view.frame = contentView.bounds
-        } else {
-            let hostingController = UIHostingController(rootView: view)
-            hostingController.view.backgroundColor = .ncViewerBackground(.system)
-            hostingController.view.frame = contentView.bounds
+        let hostingController = UIHostingController(rootView: view)
+        hostingController.view.backgroundColor = .ncViewerBackground(.system)
+        hostingController.view.frame = contentView.bounds
+        hostingController.view.autoresizingMask = [
+            .flexibleWidth,
+            .flexibleHeight
+        ]
 
-            contentView.addSubview(hostingController.view)
-            self.hostingController = hostingController
+        contentView.addSubview(hostingController.view)
+        self.hostingController = hostingController
+    }
+
+    /// Builds a stable SwiftUI identity for the rendered page.
+    ///
+    /// The identity changes when the page changes or when the displayed media URL
+    /// changes. This prevents SwiftUI state from leaking between reused cells.
+    ///
+    /// - Parameter page: Page model rendered by the cell.
+    /// - Returns: Stable identity string for SwiftUI.
+    private func pageIdentity(for page: NCMediaViewerPageModel) -> String {
+        switch page.state {
+        case .image(let previewURL, let localURL, _):
+            return "\(page.ocId)|image|\(previewURL?.absoluteString ?? "nil")|\(localURL?.absoluteString ?? "nil")"
+
+        case .ready(let localURL, let previewURL):
+            return "\(page.ocId)|ready|\(previewURL?.absoluteString ?? "nil")|\(localURL.absoluteString)"
+
+        case .downloading(let previewURL, _):
+            return "\(page.ocId)|downloading|\(previewURL?.absoluteString ?? "nil")"
+
+        case .failed(let previewURL, _):
+            return "\(page.ocId)|failed|\(previewURL?.absoluteString ?? "nil")"
+
+        case .idle:
+            return "\(page.ocId)|idle"
+
+        case .loadingMetadata:
+            return "\(page.ocId)|loadingMetadata"
+
+        case .metadataMissing:
+            return "\(page.ocId)|metadataMissing"
+
+        case .checkingLocalFile:
+            return "\(page.ocId)|checkingLocalFile"
         }
     }
 }
