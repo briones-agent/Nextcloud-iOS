@@ -432,7 +432,8 @@ final class NCMediaViewerModel: ObservableObject {
     ///
     /// Loading order:
     /// - Resolve metadata.
-    /// - If the full local file exists, show it immediately while preserving any current preview.
+    /// - Preserve any preview already stored in the current page state.
+    /// - If the full local file exists, show it immediately.
     /// - Otherwise, resolve/show the preview.
     /// - Finally, download the full media file and replace the preview.
     ///
@@ -535,7 +536,6 @@ final class NCMediaViewerModel: ObservableObject {
             )
         }
     }
-
 
     // MARK: - Prefetch
 
