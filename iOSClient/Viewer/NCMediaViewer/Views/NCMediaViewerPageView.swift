@@ -107,6 +107,7 @@ struct NCMediaViewerPageView: View {
     ) -> some View {
         ZStack {
             NCImageViewerContentView(
+                identifier: page.ocId,
                 previewURL: previewURL,
                 fullURL: localURL,
                 backgroundStyle: backgroundStyle
@@ -158,6 +159,7 @@ struct NCMediaViewerPageView: View {
     @ViewBuilder
     private func previewOnlyView(previewURL: URL) -> some View {
         NCImageViewerContentView(
+            identifier: page.ocId,
             previewURL: previewURL,
             fullURL: nil,
             backgroundStyle: backgroundStyle
@@ -195,6 +197,7 @@ struct NCMediaViewerPageView: View {
         switch mediaKind(for: metadata) {
         case .image:
             NCImageViewerContentView(
+                identifier: page.ocId,
                 previewURL: previewURL,
                 fullURL: localURL,
                 backgroundStyle: style

@@ -63,6 +63,8 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
             return URL(fileURLWithPath: localPath)
         }
 
+        print("🖼️ MEDIA VIEWER PREVIEW DOWNLOAD:", metadata.fileNameView, metadata.ocId)
+
         let result = await NextcloudKit.shared.downloadPreviewAsync(
             fileId: metadata.fileId,
             etag: metadata.etag,

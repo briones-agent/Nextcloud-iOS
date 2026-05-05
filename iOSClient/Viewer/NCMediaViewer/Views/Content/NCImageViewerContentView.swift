@@ -15,6 +15,7 @@ import UIKit
 /// SVG files are rasterized into `UIImage` instances before rendering.
 /// All decoded images are rendered through the same zoom pipeline.
 struct NCImageViewerContentView: View {
+    let identifier: String
     let previewURL: URL?
     let fullURL: URL?
     let backgroundStyle: NCViewerBackgroundStyle
@@ -22,23 +23,20 @@ struct NCImageViewerContentView: View {
     @State private var currentImage: UIImage?
     @State private var loadedPreviewURL: URL?
     @State private var loadedFullURL: URL?
+    @State private var loadedIdentifier: String?
     @State private var failedMessage: String?
 
     private var taskIdentifier: String {
-        "\(previewURL?.absoluteString ?? "")|\(fullURL?.absoluteString ?? "")"
+        "\(identifier)|\(previewURL?.absoluteString ?? "")|\(fullURL?.absoluteString ?? "")"
     }
 
-    /// Creates an image viewer content view.
-    ///
-    /// - Parameters:
-    ///   - previewURL: Optional preview image URL.
-    ///   - fullURL: Optional full-size image URL.
-    ///   - backgroundStyle: Background style used behind the image.
     init(
+        identifier: String,
         previewURL: URL?,
         fullURL: URL?,
         backgroundStyle: NCViewerBackgroundStyle = .system
     ) {
+        self.identifier = identifier
         self.previewURL = previewURL
         self.fullURL = fullURL
         self.backgroundStyle = backgroundStyle
@@ -121,6 +119,14 @@ struct NCImageViewerContentView: View {
     /// The full image is decoded afterwards and replaces the preview only after
     /// a successful decode.
     private func loadBestAvailableImage() async {
+        if loadedIdentifier != identifier {
+            currentImage = nil
+            loadedPreviewURL = nil
+            loadedFullURL = nil
+            failedMessage = nil
+            loadedIdentifier = identifier
+        }
+
         failedMessage = nil
 
         if let previewURL,
@@ -138,11 +144,6 @@ struct NCImageViewerContentView: View {
         }
 
         guard let fullURL else {
-            if currentImage == nil,
-               previewURL == nil {
-                failedMessage = nil
-            }
-
             return
         }
 
