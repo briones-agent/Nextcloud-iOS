@@ -352,6 +352,15 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
             await model.displayPage(at: index)
         }
     }
+
+    // MARK: - UIScrollViewDelegate
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        NotificationCenter.default.post(
+            name: .ncMediaViewerStopLivePhotoPlayback,
+            object: nil
+        )
+    }
 }
 
 // MARK: - Media Viewer Paging Cell
@@ -466,4 +475,8 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         contentView.addSubview(hostingController.view)
         self.hostingController = hostingController
     }
+}
+
+extension Notification.Name {
+    static let ncMediaViewerStopLivePhotoPlayback = Notification.Name("ncMediaViewerStopLivePhotoPlayback")
 }
