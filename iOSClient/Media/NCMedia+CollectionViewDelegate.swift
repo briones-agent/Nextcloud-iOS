@@ -23,8 +23,8 @@ extension NCMedia: UICollectionViewDelegate {
                 tabBarSelect.selectCount = fileSelect.count
             } else if let metadata = await self.database.getMetadataFromOcIdAsync(metadata.ocId) {
                 let image = utility.getImage(ocId: metadata.ocId, etag: metadata.etag, ext: global.previewExt1024, userId: metadata.userId, urlBase: metadata.urlBase)
-                let ocIds = dataSource.metadatas.map { $0.ocId }
                 var viewerTransitionSource: NCViewerTransitionSource?
+                let ocIds = await self.database.getValidMetadataOcIdsAsync(dataSource.metadatas.map { $0.ocId })
 
                 if let imageView = cell.imageItem,
                    let image = imageView.image,
