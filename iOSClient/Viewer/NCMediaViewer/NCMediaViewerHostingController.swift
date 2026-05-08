@@ -11,29 +11,53 @@ import Combine
 /// UIKit hosting controller used by the media viewer.
 ///
 /// This controller embeds the SwiftUI media viewer and provides standard UIKit
-/// navigation items for the title, close button, and menu button.
+/// navigation items for the title, close button, and context menu button.
 @MainActor
 final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerView> {
     private let model: NCMediaViewerModel
     private let onClose: () -> Void
-    private let onMenu: () -> Void
+    private weak var contextMenuController: NCMainTabBarController?
 
     private var cancellables = Set<AnyCancellable>()
+
+    private lazy var moreNavigationItem = UIBarButtonItem(
+        image: NCImageCache.shared.getImageButtonMore(),
+        primaryAction: nil,
+        menu: UIMenu(title: "", children: [
+            UIDeferredMenuElement.uncached { [weak self] completion in
+                guard let self,
+                      let metadata = self.model.selectedMetadata else {
+                    completion([])
+                    return
+                }
+
+                if let menu = NCContextMenuViewer(
+                    metadata: metadata,
+                    controller: self.contextMenuController,
+                    webView: false,
+                    sender: self
+                ).viewMenu() {
+                    completion(menu.children)
+                } else {
+                    completion([])
+                }
+            }
+        ])
+    )
 
     /// Creates a media viewer hosting controller.
     ///
     /// - Parameters:
     ///   - model: Media viewer model used to render and page through media items.
     ///   - onClose: Closure called when the navigation bar close button is tapped.
-    ///   - onMenu: Closure called when the navigation bar menu button is tapped.
     init(
         model: NCMediaViewerModel,
-        onClose: @escaping () -> Void,
-        onMenu: @escaping () -> Void
+        contextMenuController: NCMainTabBarController?,
+        onClose: @escaping () -> Void
     ) {
         self.model = model
+        self.contextMenuController = contextMenuController
         self.onClose = onClose
-        self.onMenu = onMenu
 
         super.init(rootView: NCMediaViewerView(model: model))
 
@@ -66,12 +90,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
             action: #selector(closeButtonTapped)
         )
 
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            image: UIImage(systemName: "ellipsis"),
-            style: .plain,
-            target: self,
-            action: #selector(menuButtonTapped)
-        )
+        navigationItem.rightBarButtonItem = moreNavigationItem
     }
 
     /// Observes model changes and refreshes the navigation title.
@@ -93,8 +112,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
     /// Updates the navigation title using the currently selected page metadata.
     private func updateTitle() {
-        guard let page = model.selectedPageModel(),
-              let metadata = page.metadata else {
+        guard let metadata = model.selectedMetadata else {
             navigationItem.title = nil
             return
         }
@@ -107,10 +125,5 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     @objc
     private func closeButtonTapped() {
         onClose()
-    }
-
-    @objc
-    private func menuButtonTapped() {
-        onMenu()
     }
 }

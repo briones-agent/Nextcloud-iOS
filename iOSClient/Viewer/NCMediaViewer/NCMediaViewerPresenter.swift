@@ -15,7 +15,8 @@ import UIKit
 /// use a real navigation bar for title, close, and menu actions.
 ///
 /// When a transition source is provided, the presenter animates the visible
-/// thumbnail into the fullscreen viewer and animates it back on dismissal.
+/// thumbnail into the fullscreen viewer and animates the currently selected media
+/// item back into its matching thumbnail frame on dismissal.
 @MainActor
 final class NCMediaViewerPresenter {
     static let shared = NCMediaViewerPresenter()
@@ -38,13 +39,14 @@ final class NCMediaViewerPresenter {
     ///
     /// - Parameters:
     ///   - model: Media viewer model used to render and page through media items.
-    ///   - viewerTransitionSource: Optional thumbnail source used for opening and closing animations.
+    ///   - viewerTransitionSource: Optional thumbnail source used for the opening animation.
     ///   - sourceView: Optional view used to resolve the current window. When nil, the active foreground key window is used.
-    ///   - onMenu: Closure called when the navigation bar menu button is tapped.
+    ///   - closingTransitionSourceProvider: Optional provider used to resolve the current thumbnail source on dismissal.
     func show(
         model: NCMediaViewerModel,
         viewerTransitionSource: NCViewerTransitionSource?,
         from sourceView: UIView? = nil,
+        contextMenuController: NCMainTabBarController? = nil,
         closingTransitionSourceProvider: ((_ ocId: String) -> NCViewerTransitionSource?)? = nil
     ) {
         guard let window = sourceView?.window ?? activeWindow() else {
@@ -59,11 +61,9 @@ final class NCMediaViewerPresenter {
 
         let hostingController = NCMediaViewerHostingController(
             model: model,
+            contextMenuController: contextMenuController,
             onClose: { [weak self] in
                 self?.dismiss(animated: true)
-            },
-            onMenu: { [weak self] in
-                self?.showMenu()
             }
         )
 
@@ -139,59 +139,6 @@ final class NCMediaViewerPresenter {
         } completion: { [weak self] _ in
             viewerContainerView.removeFromSuperview()
             self?.cleanup()
-        }
-    }
-
-    /// Returns the best currently displayed image for the closing transition.
-    ///
-    /// The full local image is preferred when available.
-    /// If the full image is not available yet, the preview image is used.
-    /// If no current image can be resolved, the caller should fall back to the
-    /// original transition source image.
-    ///
-    /// - Returns: Current image suitable for the closing transition.
-    private func currentClosingImage() -> UIImage? {
-        guard let page = currentModel?.selectedPageModel() else {
-            return nil
-        }
-
-        switch page.state {
-        case .image(let previewURL, let localURL, _):
-            if let localURL,
-               let image = UIImage(contentsOfFile: localURL.path) {
-                return image
-            }
-
-            if let previewURL {
-                return UIImage(contentsOfFile: previewURL.path)
-            }
-
-            return nil
-
-        case .ready(let localURL, let previewURL):
-            if let image = UIImage(contentsOfFile: localURL.path) {
-                return image
-            }
-
-            if let previewURL {
-                return UIImage(contentsOfFile: previewURL.path)
-            }
-
-            return nil
-
-        case .downloading(let previewURL, _),
-             .failed(let previewURL, _):
-            guard let previewURL else {
-                return nil
-            }
-
-            return UIImage(contentsOfFile: previewURL.path)
-
-        case .idle,
-             .loadingMetadata,
-             .metadataMissing,
-             .checkingLocalFile:
-            return nil
         }
     }
 
@@ -283,13 +230,14 @@ final class NCMediaViewerPresenter {
 
     // MARK: - Closing Animation
 
-    /// Animates the fullscreen viewer back into the original thumbnail frame.
+    /// Animates the fullscreen viewer back into the current thumbnail frame.
     ///
     /// The real viewer is hidden immediately and replaced by a temporary transition
     /// image, avoiding double-image artifacts during the zoom-out animation.
     ///
     /// - Parameters:
-    ///   - viewerTransitionSource: Source thumbnail data used by the opening transition.
+    ///   - viewerTransitionSource: Current thumbnail data used as closing destination.
+    ///   - closingImage: Image currently displayed by the viewer, used during the closing transition.
     ///   - window: Window that contains the overlay transition views.
     ///   - viewerView: Real viewer container view to dismiss.
     private func animateClosing(
@@ -327,16 +275,74 @@ final class NCMediaViewerPresenter {
         }
     }
 
-    // MARK: - Menu
+    // MARK: - Closing Source
 
-    /// Shows the viewer menu for the currently selected media item.
-    private func showMenu() {
+    /// Returns the transition source for the currently selected media item.
+    ///
+    /// The source controller knows how to map the current `ocId` to the visible
+    /// thumbnail frame. If no current source can be resolved, the presenter falls
+    /// back to the original opening transition source.
+    ///
+    /// - Returns: Current transition source if available.
+    private func currentClosingTransitionSource() -> NCViewerTransitionSource? {
         guard let ocId = currentModel?.selectedOcId else {
-            return
+            return nil
         }
 
-        // Build and present the menu here.
-        // Use `ocId` to resolve the current item.
+        return closingTransitionSourceProvider?(ocId)
+    }
+
+    /// Returns the best currently displayed image for the closing transition.
+    ///
+    /// The full local image is preferred when available.
+    /// If the full image is not available yet, the preview image is used.
+    /// If no current image can be resolved, the caller should fall back to the
+    /// transition source image.
+    ///
+    /// - Returns: Current image suitable for the closing transition.
+    private func currentClosingImage() -> UIImage? {
+        guard let page = currentModel?.selectedPageModel() else {
+            return nil
+        }
+
+        switch page.state {
+        case .image(let previewURL, let localURL, _):
+            if let localURL,
+               let image = UIImage(contentsOfFile: localURL.path) {
+                return image
+            }
+
+            if let previewURL {
+                return UIImage(contentsOfFile: previewURL.path)
+            }
+
+            return nil
+
+        case .ready(let localURL, let previewURL):
+            if let image = UIImage(contentsOfFile: localURL.path) {
+                return image
+            }
+
+            if let previewURL {
+                return UIImage(contentsOfFile: previewURL.path)
+            }
+
+            return nil
+
+        case .downloading(let previewURL, _),
+             .failed(let previewURL, _):
+            guard let previewURL else {
+                return nil
+            }
+
+            return UIImage(contentsOfFile: previewURL.path)
+
+        case .idle,
+             .loadingMetadata,
+             .metadataMissing,
+             .checkingLocalFile:
+            return nil
+        }
     }
 
     // MARK: - Cleanup
@@ -395,20 +401,5 @@ final class NCMediaViewerPresenter {
             width: fittedSize.width,
             height: fittedSize.height
         )
-    }
-
-    /// Returns the transition source for the currently selected media item.
-    ///
-    /// The caller knows how to map the current `ocId` to the visible thumbnail frame.
-    /// If no current source can be resolved, the presenter falls back to the original
-    /// opening transition source.
-    ///
-    /// - Returns: Current transition source if available.
-    private func currentClosingTransitionSource() -> NCViewerTransitionSource? {
-        guard let ocId = currentModel?.selectedOcId else {
-            return nil
-        }
-
-        return closingTransitionSourceProvider?(ocId)
     }
 }

@@ -49,6 +49,7 @@ class NCViewer: NSObject {
                 model: model,
                 viewerTransitionSource: viewerTransitionSource,
                 from: delegate?.view,
+                contextMenuController: delegate?.tabBarController as? NCMainTabBarController,
                 closingTransitionSourceProvider: { ocId in
                     if let provider = delegate as? NCCollectionViewCommon {
                         return provider.viewerTransitionSource(for: ocId)
