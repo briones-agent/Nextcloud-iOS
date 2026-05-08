@@ -45,6 +45,16 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         ])
     )
 
+    private lazy var imageDetailNavigationItem = UIBarButtonItem(
+        image: NCUtility().loadImage(
+            named: "info.circle",
+            colors: [NCBrandColor.shared.iconImageColor]
+        ),
+        style: .plain,
+        target: self,
+        action: #selector(imageDetailButtonTapped)
+    )
+
     /// Creates a media viewer hosting controller.
     ///
     /// - Parameters:
@@ -90,7 +100,10 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
             action: #selector(closeButtonTapped)
         )
 
-        navigationItem.rightBarButtonItem = moreNavigationItem
+        navigationItem.rightBarButtonItems = [
+            moreNavigationItem,
+            imageDetailNavigationItem
+        ]
     }
 
     /// Observes model changes and refreshes the navigation title.
@@ -125,5 +138,15 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     @objc
     private func closeButtonTapped() {
         onClose()
+    }
+
+    @objc
+    private func imageDetailButtonTapped() {
+        guard let metadata = model.selectedMetadata else {
+            return
+        }
+
+        // Open or toggle the detail UI for the currently selected media.
+        // Use `metadata` here.
     }
 }
