@@ -186,6 +186,12 @@ final class NCMediaViewerModel: ObservableObject {
     /// The UIKit paging coordinator observes this value and refreshes visible cells.
     @Published private(set) var revision: Int = 0
 
+    /// Whether the viewer chrome is currently hidden.
+    ///
+    /// When hidden, the navigation bar is hidden and the viewer uses a black
+    /// background for a cleaner fullscreen media experience.
+    @Published private(set) var isChromeHidden = false
+
     // MARK: - Dependencies
 
     private let loader: NCMediaViewerLoading
@@ -439,6 +445,13 @@ final class NCMediaViewerModel: ObservableObject {
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     func prefetchVisiblePageIfNeeded(index: Int) async {
         await prefetchPageIfNeeded(index: index)
+    }
+
+    /// Toggles the media viewer chrome visibility.
+    ///
+    /// The chrome includes the navigation bar and the preferred page background.
+    func toggleChromeVisibility() {
+        isChromeHidden.toggle()
     }
 
     // MARK: - Selected Page Loading
