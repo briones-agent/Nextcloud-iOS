@@ -252,7 +252,13 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
                 continue
             }
 
-            cell.configure(page: page)
+            cell.configure(
+                page: page,
+                isChromeHidden: model.isChromeHidden,
+                onToggleChrome: { [weak model] in
+                    model?.toggleChromeVisibility()
+                }
+            )
         }
     }
 
@@ -273,7 +279,13 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
         }
 
         if let page = model.pageModel(at: indexPath.item) {
-            pagingCell.configure(page: page)
+            pagingCell.configure(
+                page: page,
+                isChromeHidden: model.isChromeHidden,
+                onToggleChrome: { [weak model] in
+                    model?.toggleChromeVisibility()
+                }
+            )
         } else {
             pagingCell.configureEmpty()
         }
@@ -413,16 +425,24 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     /// Configures the cell with a media viewer page.
     ///
     /// - Parameter page: Page model to render.
-    func configure(page: NCMediaViewerPageModel) {
+    func configure(page: NCMediaViewerPageModel, isChromeHidden: Bool, onToggleChrome: @escaping () -> Void) {
         backgroundColor = .ncViewerBackground(.system)
         contentView.backgroundColor = .ncViewerBackground(.system)
 
         let view = AnyView(
-            NCMediaViewerPageView(page: page)
-                .id(page.ocId)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.ncViewerBackground(.system))
-                .ignoresSafeArea()
+            NCMediaViewerPageView(
+                page: page,
+                isChromeHidden: isChromeHidden,
+                onToggleChrome: onToggleChrome
+            )
+            .id(page.ocId)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                Color.ncViewerBackground(
+                    isChromeHidden ? .black : .system
+                )
+            )
+            .ignoresSafeArea()
         )
 
         if currentOcId != page.ocId {

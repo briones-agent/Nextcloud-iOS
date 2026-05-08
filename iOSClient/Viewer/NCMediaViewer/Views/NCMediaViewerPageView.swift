@@ -24,6 +24,8 @@ struct NCMediaViewerPageView: View {
     // MARK: - Properties
 
     let page: NCMediaViewerPageModel
+    let isChromeHidden: Bool
+    let onToggleChrome: () -> Void
 
     // MARK: - Body
 
@@ -70,12 +72,23 @@ struct NCMediaViewerPageView: View {
         }
         .background(Color.ncViewerBackground(backgroundStyle))
         .ignoresSafeArea()
+        .contentShape(Rectangle())
+                .simultaneousGesture(
+                    TapGesture(count: 1)
+                        .onEnded {
+                            onToggleChrome()
+                        }
+                )
     }
 
     // MARK: - Computed Properties
 
     private var backgroundStyle: NCViewerBackgroundStyle {
-        ncViewerBackgroundStyle(for: page.metadata)
+        if isChromeHidden {
+            return .black
+        }
+
+        return ncViewerBackgroundStyle(for: page.metadata)
     }
 
     // MARK: - State Views

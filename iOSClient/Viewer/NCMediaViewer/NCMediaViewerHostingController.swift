@@ -120,6 +120,13 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
                 self?.updateTitle()
             }
             .store(in: &cancellables)
+
+        model.$isChromeHidden
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isHidden in
+                self?.setChromeHidden(isHidden, animated: true)
+            }
+            .store(in: &cancellables)
     }
 
     /// Updates the navigation title using the currently selected page metadata.
@@ -132,6 +139,31 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         navigationItem.title = !metadata.fileNameView.isEmpty
             ? metadata.fileNameView
             : metadata.fileName
+    }
+
+    /// Shows or hides the viewer chrome.
+    ///
+    /// - Parameters:
+    ///   - hidden: Whether the chrome should be hidden.
+    ///   - animated: Whether the transition should be animated.
+    private func setChromeHidden(
+        _ hidden: Bool,
+        animated: Bool
+    ) {
+        navigationController?.setNavigationBarHidden(
+            hidden,
+            animated: animated
+        )
+
+        UIView.animate(
+            withDuration: animated ? 0.2 : 0,
+            delay: 0,
+            options: [.curveEaseInOut]
+        ) {
+            self.view.backgroundColor = hidden
+                ? .black
+                : .ncViewerBackground(.system)
+        }
     }
 
     @objc
