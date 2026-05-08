@@ -465,6 +465,8 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LOAD PAGE \(index)", consoleOnly: true)
+
         let ocId = ocIds[index]
 
         let metadata = await resolvedMetadata(for: ocId)
@@ -482,7 +484,7 @@ final class NCMediaViewerModel: ObservableObject {
 
         var previewURL = currentPreviewURL(for: ocId)
 
-        if let localURL = await loader.localMediaURL(for: metadata) {
+        if let localURL = await loader.localMediaURL(for: metadata, index: index) {
             guard !Task.isCancelled else {
                 return
             }
@@ -500,7 +502,7 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        previewURL = await loader.previewURL(for: metadata)
+        previewURL = await loader.previewURL(for: metadata, index: index)
 
         guard !Task.isCancelled else {
             return
@@ -534,7 +536,7 @@ final class NCMediaViewerModel: ObservableObject {
                 )
             }
 
-            let downloadedURL = try await loader.downloadMedia(for: metadata)
+            let downloadedURL = try await loader.downloadMedia(for: metadata, index: index)
 
             guard !Task.isCancelled else {
                 return
@@ -637,6 +639,8 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LOAD PREFETCH \(index)", consoleOnly: true)
+
         let ocId = ocIds[index]
 
         let metadata = await resolvedMetadata(for: ocId)
@@ -651,7 +655,7 @@ final class NCMediaViewerModel: ObservableObject {
 
         setMetadata(metadata, for: ocId)
 
-        let previewURL = await loader.previewURL(for: metadata)
+        let previewURL = await loader.previewURL(for: metadata, index: index)
 
         guard !Task.isCancelled else {
             return
