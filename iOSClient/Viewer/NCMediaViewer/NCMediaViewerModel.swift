@@ -563,19 +563,21 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Prefetch
 
-    /// Prefetches neighbor pages around the selected index.
+    /// Prefetches nearby pages around the selected index.
     ///
-    /// Prefetch resolves metadata, preview and local availability only.
+    /// Prefetch resolves metadata and preview only.
     /// It never downloads the full media file.
     ///
     /// - Parameter index: Current selected absolute index.
     private func prefetchNeighborPages(around index: Int) {
-        let neighborIndexes = [
-            index - 1,
-            index + 1
-        ]
+        let prefetchRadius = 4
 
-        for neighborIndex in neighborIndexes where ocIds.indices.contains(neighborIndex) {
+        let neighborIndexes = (-prefetchRadius...prefetchRadius)
+            .map { index + $0 }
+            .filter { $0 != index }
+            .filter { ocIds.indices.contains($0) }
+
+        for neighborIndex in neighborIndexes {
             Task { [weak self] in
                 guard let self else {
                     return
