@@ -200,7 +200,9 @@ struct NCMediaViewerPageView: View {
     ) -> some View {
         if page.metadata?.isLivePhoto == true {
             NCLivePhotoViewerContentView(
-                imageURL: localURL ?? previewURL,
+                identifier: page.ocId,
+                previewURL: previewURL,
+                fullURL: localURL,
                 videoURL: livePhotoURL,
                 backgroundStyle: backgroundStyle,
                 topOverlayInset: livePhotoTopOverlayInset
