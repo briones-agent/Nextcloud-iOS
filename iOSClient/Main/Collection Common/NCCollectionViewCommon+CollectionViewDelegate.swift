@@ -174,11 +174,8 @@ extension NCCollectionViewCommon: UICollectionViewDelegate {
     /// - Parameter ocId: Nextcloud file identifier of the media item.
     /// - Returns: Transition source if the item can be resolved.
     func viewerTransitionSource(for ocId: String) -> NCViewerTransitionSource? {
-        guard let indexPath = dataSource.getIndexPathMetadata(ocId: ocId) else {
-            return nil
-        }
-
-        guard let window = collectionView.window else {
+        guard let indexPath = dataSource.getIndexPathMetadata(ocId: ocId),
+              let window = collectionView.window else {
             return nil
         }
 
