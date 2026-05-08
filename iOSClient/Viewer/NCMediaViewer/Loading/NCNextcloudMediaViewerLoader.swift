@@ -34,7 +34,7 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
     ///   - ocId: Nextcloud file identifier.
     ///   - account: Account used to scope the remote fileId lookup.
     /// - Returns: Detached metadata if available.
-    func metadata(for ocId: String, account: String) async -> tableMetadata? {
+    func metadata(for ocId: String, account: String, mediaSearch: Bool) async -> tableMetadata? {
         if let metadata = await database.getMetadataFromOcIdAsync(ocId) {
             return metadata
         }
@@ -53,7 +53,7 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
             return nil
         }
 
-        let metadata = await NCManageDatabaseCreateMetadata().convertFileToMetadataAsync(file)
+        let metadata = await NCManageDatabaseCreateMetadata().convertFileToMetadataAsync(file, mediaSearch: mediaSearch)
         await NCManageDatabase.shared.addMetadataAsync(metadata)
 
         return metadata
@@ -315,7 +315,7 @@ protocol NCMediaViewerLoading: Sendable {
     ///
     /// - Parameter ocId: Nextcloud file identifier.
     /// - Returns: Detached metadata if available.
-    func metadata(for ocId: String, account: String) async -> tableMetadata?
+    func metadata(for ocId: String, account: String, mediaSearch: Bool) async -> tableMetadata?
 
     /// - Parameters:
     ///   - metadata: Detached metadata for the media file.

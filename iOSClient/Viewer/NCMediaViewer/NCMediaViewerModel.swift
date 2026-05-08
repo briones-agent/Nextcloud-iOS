@@ -201,6 +201,8 @@ final class NCMediaViewerModel: ObservableObject {
     /// Session used to resolve account-scoped metadata fallback lookups.
     private let session: NCSession.Session
 
+    private let mediaSearch: Bool
+
     // MARK: - Source Data
 
     /// Full ordered media identifier list.
@@ -264,10 +266,12 @@ final class NCMediaViewerModel: ObservableObject {
     init(
         initialModel: NCMediaViewerInitialModel,
         session: NCSession.Session,
+        mediaSearch: Bool,
         loader: NCMediaViewerLoading
     ) {
         self.loader = loader
         self.session = session
+        self.mediaSearch = mediaSearch
         self.ocIds = initialModel.normalizedOcIds
         self.selectedIndex = initialModel.initialSelectedIndex
 
@@ -292,6 +296,7 @@ final class NCMediaViewerModel: ObservableObject {
         currentMetadata: tableMetadata,
         ocIds: [String],
         session: NCSession.Session,
+        mediaSearch: Bool,
         loader: NCMediaViewerLoading
     ) {
         let initialModel = NCMediaViewerInitialModel(
@@ -302,6 +307,7 @@ final class NCMediaViewerModel: ObservableObject {
         self.init(
             initialModel: initialModel,
             session: session,
+            mediaSearch: mediaSearch,
             loader: loader
         )
     }
@@ -724,7 +730,7 @@ final class NCMediaViewerModel: ObservableObject {
             return existingMetadata
         }
 
-        return await loader.metadata(for: ocId, account: session.account)
+        return await loader.metadata(for: ocId, account: session.account, mediaSearch: mediaSearch)
     }
 
     /// Returns the current state for an `ocId`.
