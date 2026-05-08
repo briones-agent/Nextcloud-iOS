@@ -63,11 +63,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     /// - Parameters:
     ///   - model: Media viewer model used to render and page through media items.
     ///   - onClose: Closure called when the navigation bar close button is tapped.
-    init(
-        model: NCMediaViewerModel,
-        contextMenuController: NCMainTabBarController?,
-        onClose: @escaping () -> Void
-    ) {
+    init(model: NCMediaViewerModel, contextMenuController: NCMainTabBarController?, onClose: @escaping () -> Void) {
         self.model = model
         self.contextMenuController = contextMenuController
         self.onClose = onClose
@@ -190,12 +186,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     ///   - index: Page index associated with the metadata.
     ///   - exif: EXIF information resolved for the selected media.
     ///   - animated: Whether presentation should be animated.
-    private func presentDetailView(
-        metadata: tableMetadata,
-        index: Int,
-        exif: ExifData,
-        animated: Bool
-    ) {
+    private func presentDetailView(metadata: tableMetadata, index: Int, exif: ExifData, animated: Bool) {
         let detailView = NCImageViewerDetailView(
             metadata: metadata,
             exif: exif,

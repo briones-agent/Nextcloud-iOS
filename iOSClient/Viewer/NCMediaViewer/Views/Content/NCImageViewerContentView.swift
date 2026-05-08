@@ -30,12 +30,7 @@ struct NCImageViewerContentView: View {
         "\(identifier)|\(previewURL?.absoluteString ?? "")|\(fullURL?.absoluteString ?? "")"
     }
 
-    init(
-        identifier: String,
-        previewURL: URL?,
-        fullURL: URL?,
-        backgroundStyle: NCViewerBackgroundStyle = .system
-    ) {
+    init(identifier: String, previewURL: URL?, fullURL: URL?, backgroundStyle: NCViewerBackgroundStyle = .system) {
         self.identifier = identifier
         self.previewURL = previewURL
         self.fullURL = fullURL
@@ -48,11 +43,8 @@ struct NCImageViewerContentView: View {
                 .ignoresSafeArea()
 
             if let currentImage {
-                NCImageZoomView(
-                    image: currentImage,
-                    backgroundStyle: backgroundStyle
-                )
-                .ignoresSafeArea()
+                NCImageZoomView(image: currentImage, backgroundStyle: backgroundStyle)
+                    .ignoresSafeArea()
             } else if let failedMessage {
                 failedView(failedMessage)
             } else {
