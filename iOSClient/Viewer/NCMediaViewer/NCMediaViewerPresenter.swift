@@ -25,6 +25,8 @@ final class NCMediaViewerPresenter {
     private var currentViewerTransitionSource: NCViewerTransitionSource?
     private weak var currentModel: NCMediaViewerModel?
 
+    private var closingTransitionSourceProvider: ((_ ocId: String) -> NCViewerTransitionSource?)?
+
     private let openingAnimationDuration: TimeInterval = 0.28
     private let closingAnimationDuration: TimeInterval = 0.24
 
@@ -43,7 +45,8 @@ final class NCMediaViewerPresenter {
         model: NCMediaViewerModel,
         viewerTransitionSource: NCViewerTransitionSource?,
         from sourceView: UIView? = nil,
-        onMenu: @escaping () -> Void = {}
+        onMenu: @escaping () -> Void = {},
+        closingTransitionSourceProvider: ((_ ocId: String) -> NCViewerTransitionSource?)? = nil
     ) {
         guard let window = sourceView?.window ?? activeWindow() else {
             return
@@ -53,6 +56,7 @@ final class NCMediaViewerPresenter {
 
         currentViewerTransitionSource = viewerTransitionSource
         currentModel = model
+        self.closingTransitionSourceProvider = closingTransitionSourceProvider
 
         let hostingController = NCMediaViewerHostingController(
             model: model,
@@ -108,12 +112,16 @@ final class NCMediaViewerPresenter {
             return
         }
 
-        if let viewerTransitionSource = currentViewerTransitionSource,
+        if let openingTransitionSource = currentViewerTransitionSource,
            let window = viewerContainerView.window {
-            let closingImage = currentClosingImage() ?? viewerTransitionSource.image
+            let closingTransitionSource = currentClosingTransitionSource()
+                ?? openingTransitionSource
+
+            let closingImage = currentClosingImage()
+                ?? closingTransitionSource.image
 
             animateClosing(
-                viewerTransitionSource: viewerTransitionSource,
+                viewerTransitionSource: closingTransitionSource,
                 closingImage: closingImage,
                 in: window,
                 viewerView: viewerContainerView
@@ -326,6 +334,7 @@ final class NCMediaViewerPresenter {
         viewerContainerView = nil
         currentViewerTransitionSource = nil
         currentModel = nil
+        closingTransitionSourceProvider = nil
     }
 
     // MARK: - Helpers
@@ -373,5 +382,20 @@ final class NCMediaViewerPresenter {
             width: fittedSize.width,
             height: fittedSize.height
         )
+    }
+
+    /// Returns the transition source for the currently selected media item.
+    ///
+    /// The caller knows how to map the current `ocId` to the visible thumbnail frame.
+    /// If no current source can be resolved, the presenter falls back to the original
+    /// opening transition source.
+    ///
+    /// - Returns: Current transition source if available.
+    private func currentClosingTransitionSource() -> NCViewerTransitionSource? {
+        guard let ocId = currentModel?.selectedPageModel()?.ocId else {
+            return nil
+        }
+
+        return closingTransitionSourceProvider?(ocId)
     }
 }
