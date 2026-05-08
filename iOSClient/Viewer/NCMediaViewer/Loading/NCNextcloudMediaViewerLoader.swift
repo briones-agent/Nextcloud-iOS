@@ -54,6 +54,7 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
         }
 
         let metadata = await NCManageDatabaseCreateMetadata().convertFileToMetadataAsync(file)
+        await NCManageDatabase.shared.addMetadataAsync(metadata)
 
         return metadata
     }
