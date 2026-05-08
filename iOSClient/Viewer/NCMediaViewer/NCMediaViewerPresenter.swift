@@ -23,6 +23,7 @@ final class NCMediaViewerPresenter {
     private var navigationController: UINavigationController?
     private weak var viewerContainerView: UIView?
     private var currentViewerTransitionSource: NCViewerTransitionSource?
+    private weak var currentModel: NCMediaViewerModel?
 
     private let openingAnimationDuration: TimeInterval = 0.28
     private let closingAnimationDuration: TimeInterval = 0.24
@@ -51,6 +52,7 @@ final class NCMediaViewerPresenter {
         dismiss(animated: false)
 
         currentViewerTransitionSource = viewerTransitionSource
+        currentModel = model
 
         let hostingController = NCMediaViewerHostingController(
             model: model,
@@ -108,8 +110,11 @@ final class NCMediaViewerPresenter {
 
         if let viewerTransitionSource = currentViewerTransitionSource,
            let window = viewerContainerView.window {
+            let closingImage = currentClosingImage() ?? viewerTransitionSource.image
+
             animateClosing(
                 viewerTransitionSource: viewerTransitionSource,
+                closingImage: closingImage,
                 in: window,
                 viewerView: viewerContainerView
             )
@@ -125,6 +130,59 @@ final class NCMediaViewerPresenter {
         } completion: { [weak self] _ in
             viewerContainerView.removeFromSuperview()
             self?.cleanup()
+        }
+    }
+
+    /// Returns the best currently displayed image for the closing transition.
+    ///
+    /// The full local image is preferred when available.
+    /// If the full image is not available yet, the preview image is used.
+    /// If no current image can be resolved, the caller should fall back to the
+    /// original transition source image.
+    ///
+    /// - Returns: Current image suitable for the closing transition.
+    private func currentClosingImage() -> UIImage? {
+        guard let page = currentModel?.selectedPageModel() else {
+            return nil
+        }
+
+        switch page.state {
+        case .image(let previewURL, let localURL, _):
+            if let localURL,
+               let image = UIImage(contentsOfFile: localURL.path) {
+                return image
+            }
+
+            if let previewURL {
+                return UIImage(contentsOfFile: previewURL.path)
+            }
+
+            return nil
+
+        case .ready(let localURL, let previewURL):
+            if let image = UIImage(contentsOfFile: localURL.path) {
+                return image
+            }
+
+            if let previewURL {
+                return UIImage(contentsOfFile: previewURL.path)
+            }
+
+            return nil
+
+        case .downloading(let previewURL, _),
+             .failed(let previewURL, _):
+            guard let previewURL else {
+                return nil
+            }
+
+            return UIImage(contentsOfFile: previewURL.path)
+
+        case .idle,
+             .loadingMetadata,
+             .metadataMissing,
+             .checkingLocalFile:
+            return nil
         }
     }
 
@@ -227,15 +285,16 @@ final class NCMediaViewerPresenter {
     ///   - viewerView: Real viewer container view to dismiss.
     private func animateClosing(
         viewerTransitionSource: NCViewerTransitionSource,
+        closingImage: UIImage,
         in window: UIWindow,
         viewerView: UIView
     ) {
         let startFrame = aspectFitFrame(
-            imageSize: viewerTransitionSource.image.size,
+            imageSize: closingImage.size,
             containerSize: window.bounds.size
         )
 
-        let imageView = UIImageView(image: viewerTransitionSource.image)
+        let imageView = UIImageView(image: closingImage)
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
         imageView.frame = startFrame
@@ -266,6 +325,7 @@ final class NCMediaViewerPresenter {
         navigationController = nil
         viewerContainerView = nil
         currentViewerTransitionSource = nil
+        currentModel = nil
     }
 
     // MARK: - Helpers
