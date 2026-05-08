@@ -26,10 +26,36 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
 
     /// Resolves detached metadata from an `ocId`.
     ///
-    /// - Parameter ocId: Nextcloud file identifier.
+    /// The primary lookup uses the local Realm database.
+    /// If the metadata is not available locally, the numeric fileId is extracted
+    /// from the `ocId` and the file is resolved from the server.
+    ///
+    /// - Parameters:
+    ///   - ocId: Nextcloud file identifier.
+    ///   - account: Account used to scope the remote fileId lookup.
     /// - Returns: Detached metadata if available.
-    func metadata(for ocId: String) async -> tableMetadata? {
-        await database.getMetadataFromOcIdAsync(ocId)
+    func metadata(for ocId: String, account: String) async -> tableMetadata? {
+        if let metadata = await database.getMetadataFromOcIdAsync(ocId) {
+            return metadata
+        }
+
+        guard let fileId = NCUtilityFileSystem().extractFileId(from: ocId) else {
+            return nil
+        }
+
+        let resultsFile = await NextcloudKit.shared.getFileFromFileIdAsync(
+            fileId: fileId,
+            account: account
+        )
+
+        guard resultsFile.error == .success,
+              let file = resultsFile.file else {
+            return nil
+        }
+
+        let metadata = await NCManageDatabaseCreateMetadata().convertFileToMetadataAsync(file)
+
+        return metadata
     }
 
     /// Returns a local preview URL.
@@ -288,7 +314,7 @@ protocol NCMediaViewerLoading: Sendable {
     ///
     /// - Parameter ocId: Nextcloud file identifier.
     /// - Returns: Detached metadata if available.
-    func metadata(for ocId: String) async -> tableMetadata?
+    func metadata(for ocId: String, account: String) async -> tableMetadata?
 
     /// - Parameters:
     ///   - metadata: Detached metadata for the media file.

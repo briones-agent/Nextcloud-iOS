@@ -68,6 +68,7 @@ private extension NCMediaViewerView {
             ocIds: [
                 metadata.ocId
             ],
+            session: NCSession().getSession(account: ""),
             loader: NCMediaViewerLoader()
         )
 

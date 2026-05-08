@@ -196,6 +196,11 @@ final class NCMediaViewerModel: ObservableObject {
 
     private let loader: NCMediaViewerLoading
 
+    // MARK: - Source Context
+
+    /// Session used to resolve account-scoped metadata fallback lookups.
+    private let session: NCSession.Session
+
     // MARK: - Source Data
 
     /// Full ordered media identifier list.
@@ -254,9 +259,15 @@ final class NCMediaViewerModel: ObservableObject {
     ///
     /// - Parameters:
     ///   - initialModel: Initial viewer model containing current metadata and ordered ocIds.
+    ///   - session: Current Nextcloud session used for account-scoped metadata fallback lookups.
     ///   - loader: Loader used to resolve metadata, local URLs, previews, and downloads.
-    init(initialModel: NCMediaViewerInitialModel, loader: NCMediaViewerLoading) {
+    init(
+        initialModel: NCMediaViewerInitialModel,
+        session: NCSession.Session,
+        loader: NCMediaViewerLoading
+    ) {
         self.loader = loader
+        self.session = session
         self.ocIds = initialModel.normalizedOcIds
         self.selectedIndex = initialModel.initialSelectedIndex
 
@@ -275,11 +286,24 @@ final class NCMediaViewerModel: ObservableObject {
     /// - Parameters:
     ///   - currentMetadata: Detached metadata of the initially opened media.
     ///   - ocIds: Ordered list of image/audio/video ocIds.
+    ///   - session: Current Nextcloud session used for account-scoped metadata fallback lookups.
     ///   - loader: Loader used to resolve metadata, local URLs, previews, and downloads.
-    convenience init(currentMetadata: tableMetadata, ocIds: [String], loader: NCMediaViewerLoading) {
-        let initialModel = NCMediaViewerInitialModel(currentMetadata: currentMetadata, ocIds: ocIds)
+    convenience init(
+        currentMetadata: tableMetadata,
+        ocIds: [String],
+        session: NCSession.Session,
+        loader: NCMediaViewerLoading
+    ) {
+        let initialModel = NCMediaViewerInitialModel(
+            currentMetadata: currentMetadata,
+            ocIds: ocIds
+        )
 
-        self.init(initialModel: initialModel, loader: loader)
+        self.init(
+            initialModel: initialModel,
+            session: session,
+            loader: loader
+        )
     }
 
     deinit {
@@ -700,7 +724,7 @@ final class NCMediaViewerModel: ObservableObject {
             return existingMetadata
         }
 
-        return await loader.metadata(for: ocId)
+        return await loader.metadata(for: ocId, account: session.account)
     }
 
     /// Returns the current state for an `ocId`.
