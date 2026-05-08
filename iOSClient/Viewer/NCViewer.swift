@@ -52,6 +52,8 @@ class NCViewer: NSObject {
                 closingTransitionSourceProvider: { ocId in
                     if let provider = delegate as? NCCollectionViewCommon {
                         return provider.viewerTransitionSource(for: ocId)
+                    } else if let provider = delegate as? NCMedia {
+                        return provider.viewerTransitionSource(for: ocId)
                     } else {
                         return nil
                     }
