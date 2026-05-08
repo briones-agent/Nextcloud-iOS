@@ -201,7 +201,9 @@ struct NCMediaViewerPageView: View {
         if page.metadata?.isLivePhoto == true {
             NCLivePhotoViewerContentView(
                 imageURL: localURL ?? previewURL,
-                videoURL: livePhotoURL
+                videoURL: livePhotoURL,
+                backgroundStyle: backgroundStyle,
+                topOverlayInset: livePhotoTopOverlayInset
             )
             .background(Color.ncViewerBackground(backgroundStyle))
         } else {
@@ -314,6 +316,17 @@ struct NCMediaViewerPageView: View {
     }
 
     // MARK: - Helpers
+
+    private var livePhotoTopOverlayInset: CGFloat {
+        let windowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+
+        let window = windowScene?.windows.first { $0.isKeyWindow }
+        let safeTop = window?.safeAreaInsets.top ?? 0
+
+        return safeTop + 44 + 8
+    }
 
     private func downloadText(_ progress: Double?) -> String {
         guard let progress else {

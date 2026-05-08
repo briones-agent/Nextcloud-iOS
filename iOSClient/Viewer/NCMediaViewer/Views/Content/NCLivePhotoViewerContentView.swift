@@ -18,6 +18,7 @@ struct NCLivePhotoViewerContentView: View {
     let imageURL: URL?
     let videoURL: URL?
     let backgroundStyle: NCViewerBackgroundStyle
+    let topOverlayInset: CGFloat
 
     @State private var livePhoto: PHLivePhoto?
     @State private var failedMessage: String?
@@ -26,11 +27,13 @@ struct NCLivePhotoViewerContentView: View {
     init(
         imageURL: URL?,
         videoURL: URL?,
-        backgroundStyle: NCViewerBackgroundStyle = .system
+        backgroundStyle: NCViewerBackgroundStyle = .system,
+        topOverlayInset: CGFloat = 0
     ) {
         self.imageURL = imageURL
         self.videoURL = videoURL
         self.backgroundStyle = backgroundStyle
+        self.topOverlayInset = topOverlayInset
     }
 
     var body: some View {
@@ -71,29 +74,40 @@ struct NCLivePhotoViewerContentView: View {
         )
     }
 
-    /// Badge shown on top of Live Photo content.
+    /// Badge shown below the navigation bar on the leading side.
     private var livePhotoBadge: some View {
-        VStack {
-            HStack {
-                Spacer()
+        GeometryReader { proxy in
+            let isLandscape = proxy.size.width > proxy.size.height
+            let topInset = isLandscape ? max(topOverlayInset, 76) : topOverlayInset
 
-                HStack(spacing: 6) {
-                    Image(systemName: "livephoto")
-                        .font(.system(size: 15, weight: .semibold))
+            VStack {
+                HStack {
+                    HStack(spacing: 5) {
+                        Image(systemName: "livephoto")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.gray)
 
-                    Text("LIVE")
-                        .font(.system(size: 12, weight: .semibold))
+                        Text("LIVE")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.gray)
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.white.opacity(0.72))
+                    .overlay(
+                        Capsule()
+                            .stroke(.gray.opacity(0.22), lineWidth: 1)
+                    )
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
+                    .padding(.leading, 12)
+                    .padding(.top, topInset)
+
+                    Spacer()
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(.black.opacity(0.45))
-                .clipShape(Capsule())
-                .padding(.top, 58)
-                .padding(.trailing, 14)
-            }
 
-            Spacer()
+                Spacer()
+            }
         }
         .allowsHitTesting(false)
     }
