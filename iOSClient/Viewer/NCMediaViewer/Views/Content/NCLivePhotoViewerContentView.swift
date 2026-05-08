@@ -74,7 +74,8 @@ struct NCLivePhotoViewerContentView: View {
     private var livePhotoBadge: some View {
         GeometryReader { proxy in
             let isLandscape = proxy.size.width > proxy.size.height
-            let topInset = isLandscape ? max(topOverlayInset, 76) : topOverlayInset
+            let isPad = UIDevice.current.userInterfaceIdiom == .pad
+            let topInset = isLandscape && !isPad ? max(topOverlayInset, 76) : topOverlayInset
 
             VStack {
                 HStack {
