@@ -24,7 +24,7 @@ extension NCMedia: UICollectionViewDelegate {
             } else if let metadata = await self.database.getMetadataFromOcIdAsync(metadata.ocId) {
                 let image = utility.getImage(ocId: metadata.ocId, etag: metadata.etag, ext: global.previewExt1024, userId: metadata.userId, urlBase: metadata.urlBase)
                 var viewerTransitionSource: NCViewerTransitionSource?
-                let ocIds = await self.database.getValidMetadataOcIdsAsync(dataSource.metadatas.map { $0.ocId })
+                let ocIds = dataSource.metadatas.map { $0.ocId }
 
                 if let imageView = cell.imageItem,
                    let image = imageView.image,
