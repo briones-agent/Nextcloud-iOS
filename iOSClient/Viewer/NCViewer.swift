@@ -45,7 +45,18 @@ class NCViewer: NSObject {
             let mediaOcIds = ocIds ?? [metadata.ocId]
             let model = NCMediaViewerModel(currentMetadata: metadata, ocIds: mediaOcIds, loader: NCMediaViewerLoader())
 
-            NCMediaViewerPresenter.shared.show(model: model, viewerTransitionSource: viewerTransitionSource, from: delegate?.view)
+            NCMediaViewerPresenter.shared.show(
+                model: model,
+                viewerTransitionSource: viewerTransitionSource,
+                from: delegate?.view,
+                closingTransitionSourceProvider: { ocId in
+                    if let provider = delegate as? NCCollectionViewCommon {
+                        return provider.viewerTransitionSource(for: ocId)
+                    } else {
+                        return nil
+                    }
+                }
+            )
         }
 
         // DOCUMENTS
