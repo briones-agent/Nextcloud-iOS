@@ -44,12 +44,8 @@ struct NCLivePhotoViewerContentView: View {
             stillImageView
 
             if isPlayingLivePhoto, let livePhoto {
-                NCLivePhotoViewRepresentable(
-                    livePhoto: livePhoto,
-                    backgroundStyle: backgroundStyle,
-                    isPlaying: $isPlayingLivePhoto
-                )
-                .ignoresSafeArea()
+                NCLivePhotoViewRepresentable(livePhoto: livePhoto, backgroundStyle: backgroundStyle,isPlaying: $isPlayingLivePhoto)
+                    .ignoresSafeArea()
             }
 
             livePhotoBadge
@@ -212,11 +208,7 @@ struct NCLivePhotoViewerContentView: View {
             return
         }
 
-        let resourceURLs = [
-            imageURL,
-            videoURL
-        ]
-
+        let resourceURLs = [imageURL, videoURL]
         let loadedLivePhoto = await requestLivePhoto(resourceURLs: resourceURLs)
 
         guard !Task.isCancelled else {
@@ -242,37 +234,15 @@ struct NCLivePhotoViewerContentView: View {
     @MainActor
     private func requestLivePhoto(resourceURLs: [URL]) async -> PHLivePhoto? {
         guard resourceURLs.count >= 2 else {
-            nkLog(
-                tag: NCGlobal.shared.logTagViewer,
-                emoji: .debug,
-                message: "LIVE PHOTO failure: missing resources \(resourceURLs.count)",
-                consoleOnly: true
-            )
             return nil
         }
-
-        nkLog(
-            tag: NCGlobal.shared.logTagViewer,
-            emoji: .debug,
-            message: """
-            LIVE PHOTO request
-            image: \(resourceURLs[0].lastPathComponent)
-            video: \(resourceURLs[1].lastPathComponent)
-            image exists: \(FileManager.default.fileExists(atPath: resourceURLs[0].path))
-            video exists: \(FileManager.default.fileExists(atPath: resourceURLs[1].path))
-            """,
-            consoleOnly: true
-        )
 
         return await withCheckedContinuation { continuation in
             final class ResumeBox {
                 private var didResume = false
                 private let lock = NSLock()
 
-                func resumeOnce(
-                    _ continuation: CheckedContinuation<PHLivePhoto?, Never>,
-                    returning livePhoto: PHLivePhoto?
-                ) {
+                func resumeOnce(_ continuation: CheckedContinuation<PHLivePhoto?, Never>, returning livePhoto: PHLivePhoto?) {
                     lock.lock()
                     defer { lock.unlock() }
 
@@ -287,21 +257,9 @@ struct NCLivePhotoViewerContentView: View {
 
             let resumeBox = ResumeBox()
 
-            PHLivePhoto.request(
-                withResourceFileURLs: resourceURLs,
-                placeholderImage: nil,
-                targetSize: .zero,
-                contentMode: .aspectFit
-            ) { livePhoto, info in
+            PHLivePhoto.request(withResourceFileURLs: resourceURLs, placeholderImage: nil, targetSize: .zero, contentMode: .aspectFit) { livePhoto, info in
                 if let cancelled = info[PHLivePhotoInfoCancelledKey] as? Bool,
                    cancelled {
-                    nkLog(
-                        tag: NCGlobal.shared.logTagViewer,
-                        emoji: .debug,
-                        message: "LIVE PHOTO cancelled",
-                        consoleOnly: true
-                    )
-
                     resumeBox.resumeOnce(
                         continuation,
                         returning: nil
@@ -309,14 +267,7 @@ struct NCLivePhotoViewerContentView: View {
                     return
                 }
 
-                if let error = info[PHLivePhotoInfoErrorKey] as? Error {
-                    nkLog(
-                        tag: NCGlobal.shared.logTagViewer,
-                        emoji: .debug,
-                        message: "LIVE PHOTO error: \(error.localizedDescription)",
-                        consoleOnly: true
-                    )
-
+                if info[PHLivePhotoInfoErrorKey] != nil {
                     resumeBox.resumeOnce(
                         continuation,
                         returning: nil
@@ -327,31 +278,12 @@ struct NCLivePhotoViewerContentView: View {
                 let isDegraded = (info[PHLivePhotoInfoIsDegradedKey] as? Bool) == true
 
                 if isDegraded {
-                    nkLog(
-                        tag: NCGlobal.shared.logTagViewer,
-                        emoji: .debug,
-                        message: "LIVE PHOTO degraded callback ignored",
-                        consoleOnly: true
-                    )
                     return
                 }
 
                 guard let livePhoto else {
-                    nkLog(
-                        tag: NCGlobal.shared.logTagViewer,
-                        emoji: .debug,
-                        message: "LIVE PHOTO callback without livePhoto",
-                        consoleOnly: true
-                    )
                     return
                 }
-
-                nkLog(
-                    tag: NCGlobal.shared.logTagViewer,
-                    emoji: .debug,
-                    message: "LIVE PHOTO ready non-degraded",
-                    consoleOnly: true
-                )
 
                 resumeBox.resumeOnce(
                     continuation,
@@ -412,10 +344,7 @@ private struct NCLivePhotoViewRepresentable: UIViewRepresentable {
             self.isPlaying = isPlaying
         }
 
-        func livePhotoView(
-            _ livePhotoView: PHLivePhotoView,
-            didEndPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle
-        ) {
+        func livePhotoView(_ livePhotoView: PHLivePhotoView, didEndPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle) {
             isPlaying.wrappedValue = false
         }
     }
