@@ -73,12 +73,21 @@ struct NCMediaViewerPageView: View {
         .background(Color.ncViewerBackground(backgroundStyle))
         .ignoresSafeArea()
         .contentShape(Rectangle())
-                .simultaneousGesture(
-                    TapGesture(count: 1)
-                        .onEnded {
-                            onToggleChrome()
-                        }
+        .gesture(
+            TapGesture(count: 2)
+                .exclusively(
+                    before: TapGesture(count: 1)
                 )
+                .onEnded { value in
+                    switch value {
+                    case .first:
+                        break
+
+                    case .second:
+                        onToggleChrome()
+                    }
+                }
+        )
     }
 
     // MARK: - Computed Properties
