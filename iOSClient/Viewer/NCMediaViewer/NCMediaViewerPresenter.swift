@@ -41,6 +41,7 @@ final class NCMediaViewerPresenter {
     ///   - model: Media viewer model used to render and page through media items.
     ///   - viewerTransitionSource: Optional thumbnail source used for the opening animation.
     ///   - sourceView: Optional view used to resolve the current window. When nil, the active foreground key window is used.
+    ///   - contextMenuController: Controller used by the viewer context menu.
     ///   - closingTransitionSourceProvider: Optional provider used to resolve the current thumbnail source on dismissal.
     func show(
         model: NCMediaViewerModel,
@@ -306,7 +307,7 @@ final class NCMediaViewerPresenter {
         }
 
         switch page.state {
-        case .image(let previewURL, let localURL, _):
+        case .image(let previewURL, let localURL, _, _):
             if let localURL,
                let image = UIImage(contentsOfFile: localURL.path) {
                 return image

@@ -126,6 +126,94 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
         throw NCMediaViewerLoaderError.localFileUnavailable
     }
 
+    /// Returns the local Live Photo paired media URL if available.
+    ///
+    /// - Parameters:
+    ///   - metadata: Detached metadata for the main Live Photo image.
+    ///   - index: Page index used for debug logs.
+    /// - Returns: Local paired Live Photo media URL if available.
+    func localLivePhotoURL(for metadata: tableMetadata, index: Int) async -> URL? {
+        guard metadata.isLivePhoto else {
+            return nil
+        }
+
+        guard let livePhotoMetadata = database.getMetadataLivePhoto(metadata: metadata) else {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE metadata missing \(index)", consoleOnly: true)
+            return nil
+        }
+
+        let localPath = fullLocalPath(for: livePhotoMetadata)
+
+        guard isValidLocalFile(path: localPath) else {
+            return nil
+        }
+
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE local \(index)", consoleOnly: true)
+
+        return URL(fileURLWithPath: localPath)
+    }
+
+    /// Downloads the Live Photo paired media if needed.
+    ///
+    /// This method is optional by design. If the paired media cannot be found or
+    /// downloaded, the viewer should continue to behave like a normal image viewer.
+    ///
+    /// - Parameters:
+    ///   - metadata: Detached metadata for the main Live Photo image.
+    ///   - index: Page index used for debug logs.
+    /// - Returns: Local paired Live Photo media URL if available.
+    func downloadLivePhotoMedia(for metadata: tableMetadata, index: Int) async -> URL? {
+        guard metadata.isLivePhoto else {
+            return nil
+        }
+
+        if let localURL = await localLivePhotoURL(for: metadata, index: index) {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE resolve \(index)", consoleOnly: true)
+            return localURL
+        }
+
+        guard NCNetworking.shared.isOnline else {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE offline \(index)", consoleOnly: true)
+            return nil
+        }
+
+        guard let livePhotoMetadata = database.getMetadataLivePhoto(metadata: metadata) else {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE metadata missing \(index)", consoleOnly: true)
+            return nil
+        }
+
+        guard !utilityFileSystem.fileProviderStorageExists(livePhotoMetadata) else {
+            return await localLivePhotoURL(for: metadata, index: index)
+        }
+
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE network request \(index)", consoleOnly: true)
+
+        guard let downloadMetadata = await database.setMetadataSessionInWaitDownloadAsync(
+            ocId: livePhotoMetadata.ocId,
+            session: NCNetworking.shared.sessionDownload,
+            selector: ""
+        ) else {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE session error \(index)", consoleOnly: true)
+            return nil
+        }
+
+        let result = await NCNetworking.shared.downloadFile(metadata: downloadMetadata)
+
+        if result.afError != nil || result.nkError != .success {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE error \(index)", consoleOnly: true)
+            return nil
+        }
+
+        if let localURL = await localLivePhotoURL(for: metadata, index: index) {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE ready \(index)", consoleOnly: true)
+            return localURL
+        }
+
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE unavailable after download \(index)", consoleOnly: true)
+
+        return nil
+    }
+
     // MARK: - Private Helpers
 
     /// Builds the expected full local file path.
@@ -202,9 +290,9 @@ protocol NCMediaViewerLoading: Sendable {
     /// - Returns: Detached metadata if available.
     func metadata(for ocId: String) async -> tableMetadata?
 
-    /// Returns the local full media URL if the file is already available.
-    ///
-    /// - Parameter metadata: Detached metadata for the media file.
+    /// - Parameters:
+    ///   - metadata: Detached metadata for the media file.
+    ///   - index: Page index used for debug logs.
     /// - Returns: Local full media URL if available.
     func localMediaURL(for metadata: tableMetadata, index: Int) async -> URL?
 
@@ -221,4 +309,20 @@ protocol NCMediaViewerLoading: Sendable {
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Local full media URL after completion.
     func downloadMedia(for metadata: tableMetadata, index: Int) async throws -> URL
+
+    /// Returns the local Live Photo paired media URL if available.
+    ///
+    /// - Parameters:
+    ///   - metadata: Detached metadata for the main Live Photo image.
+    ///   - index: Page index used for debug logs.
+    /// - Returns: Local paired Live Photo media URL if available.
+    func localLivePhotoURL(for metadata: tableMetadata, index: Int) async -> URL?
+
+    /// Downloads the Live Photo paired media if needed.
+    ///
+    /// - Parameters:
+    ///   - metadata: Detached metadata for the main Live Photo image.
+    ///   - index: Page index used for debug logs.
+    /// - Returns: Local paired Live Photo media URL if available.
+    func downloadLivePhotoMedia(for metadata: tableMetadata, index: Int) async -> URL?
 }

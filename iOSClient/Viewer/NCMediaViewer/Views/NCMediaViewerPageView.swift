@@ -33,17 +33,20 @@ struct NCMediaViewerPageView: View {
                 .ignoresSafeArea()
 
             switch page.state {
-            case .idle, .loadingMetadata, .checkingLocalFile:
+            case .idle,
+                 .loadingMetadata,
+                 .checkingLocalFile:
                 Color.ncViewerBackground(backgroundStyle)
                     .ignoresSafeArea()
 
             case .metadataMissing:
                 metadataMissingView
 
-            case .image(let previewURL, let localURL, _):
+            case .image(let previewURL, let localURL, let livePhotoURL, _):
                 imageStateView(
                     previewURL: previewURL,
-                    localURL: localURL
+                    localURL: localURL,
+                    livePhotoURL: livePhotoURL
                 )
 
             case .downloading(let previewURL, let progress):
@@ -53,15 +56,10 @@ struct NCMediaViewerPageView: View {
                 )
 
             case .ready(let localURL, let previewURL):
-                if let metadata = page.metadata {
-                    readyView(
-                        metadata: metadata,
-                        localURL: localURL,
-                        previewURL: previewURL
-                    )
-                } else {
-                    metadataMissingView
-                }
+                readyStateView(
+                    localURL: localURL,
+                    previewURL: previewURL
+                )
 
             case .failed(let previewURL, let message):
                 failedStateView(
@@ -103,13 +101,14 @@ struct NCMediaViewerPageView: View {
     @ViewBuilder
     private func imageStateView(
         previewURL: URL?,
-        localURL: URL?
+        localURL: URL?,
+        livePhotoURL: URL?
     ) -> some View {
         ZStack {
-            NCImageViewerContentView(
-                identifier: page.ocId,
+            imageContentView(
                 previewURL: previewURL,
-                fullURL: localURL,
+                localURL: localURL,
+                livePhotoURL: livePhotoURL,
                 backgroundStyle: backgroundStyle
             )
 
@@ -137,6 +136,42 @@ struct NCMediaViewerPageView: View {
     }
 
     @ViewBuilder
+    private func readyStateView(
+        localURL: URL,
+        previewURL: URL?
+    ) -> some View {
+        if let metadata = page.metadata {
+            let style = ncViewerBackgroundStyle(for: metadata)
+
+            switch mediaKind(for: metadata) {
+            case .image:
+                imageContentView(
+                    previewURL: previewURL,
+                    localURL: localURL,
+                    livePhotoURL: nil,
+                    backgroundStyle: style
+                )
+
+            case .video:
+                NCVideoViewerPlaceholderView(
+                    metadata: metadata,
+                    localURL: localURL
+                )
+                .background(Color.ncViewerBackground(style))
+
+            case .audio:
+                NCAudioViewerPlaceholderView(
+                    metadata: metadata,
+                    localURL: localURL
+                )
+                .background(Color.ncViewerBackground(style))
+            }
+        } else {
+            metadataMissingView
+        }
+    }
+
+    @ViewBuilder
     private func failedStateView(
         previewURL: URL?,
         message: String
@@ -152,6 +187,29 @@ struct NCMediaViewerPageView: View {
             failedOverlay(
                 fileName: displayFileName(from: page.metadata),
                 message: message
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func imageContentView(
+        previewURL: URL?,
+        localURL: URL?,
+        livePhotoURL: URL?,
+        backgroundStyle: NCViewerBackgroundStyle
+    ) -> some View {
+        if page.metadata?.isLivePhoto == true {
+            NCLivePhotoViewerContentView(
+                imageURL: localURL ?? previewURL,
+                videoURL: livePhotoURL
+            )
+            .background(Color.ncViewerBackground(backgroundStyle))
+        } else {
+            NCImageViewerContentView(
+                identifier: page.ocId,
+                previewURL: previewURL,
+                fullURL: localURL,
+                backgroundStyle: backgroundStyle
             )
         }
     }
@@ -184,39 +242,6 @@ struct NCMediaViewerPageView: View {
         .padding(16)
         .background(.black.opacity(0.45))
         .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    @ViewBuilder
-    private func readyView(
-        metadata: tableMetadata,
-        localURL: URL,
-        previewURL: URL?
-    ) -> some View {
-        let style = ncViewerBackgroundStyle(for: metadata)
-
-        switch mediaKind(for: metadata) {
-        case .image:
-            NCImageViewerContentView(
-                identifier: page.ocId,
-                previewURL: previewURL,
-                fullURL: localURL,
-                backgroundStyle: style
-            )
-
-        case .video:
-            NCVideoViewerPlaceholderView(
-                metadata: metadata,
-                localURL: localURL
-            )
-            .background(Color.ncViewerBackground(style))
-
-        case .audio:
-            NCAudioViewerPlaceholderView(
-                metadata: metadata,
-                localURL: localURL
-            )
-            .background(Color.ncViewerBackground(style))
-        }
     }
 
     private func failedOverlay(fileName: String?, message: String) -> some View {
