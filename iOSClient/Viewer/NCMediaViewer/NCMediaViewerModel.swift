@@ -224,6 +224,17 @@ final class NCMediaViewerModel: ObservableObject {
         selectedIndex
     }
 
+    /// Current selected media ocId.
+    ///
+    /// - Returns: The ocId for the currently selected page if available.
+    var selectedOcId: String? {
+        guard ocIds.indices.contains(selectedIndex) else {
+            return nil
+        }
+
+        return ocIds[selectedIndex]
+    }
+
     // MARK: - Init
 
     /// Creates a media viewer model.

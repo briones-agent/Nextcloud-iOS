@@ -45,7 +45,6 @@ final class NCMediaViewerPresenter {
         model: NCMediaViewerModel,
         viewerTransitionSource: NCViewerTransitionSource?,
         from sourceView: UIView? = nil,
-        onMenu: @escaping () -> Void = {},
         closingTransitionSourceProvider: ((_ ocId: String) -> NCViewerTransitionSource?)? = nil
     ) {
         guard let window = sourceView?.window ?? activeWindow() else {
@@ -63,7 +62,9 @@ final class NCMediaViewerPresenter {
             onClose: { [weak self] in
                 self?.dismiss(animated: true)
             },
-            onMenu: onMenu
+            onMenu: { [weak self] in
+                self?.showMenu()
+            }
         )
 
         let navigationController = UINavigationController(
@@ -326,6 +327,18 @@ final class NCMediaViewerPresenter {
         }
     }
 
+    // MARK: - Menu
+
+    /// Shows the viewer menu for the currently selected media item.
+    private func showMenu() {
+        guard let ocId = currentModel?.selectedOcId else {
+            return
+        }
+
+        // Build and present the menu here.
+        // Use `ocId` to resolve the current item.
+    }
+
     // MARK: - Cleanup
 
     /// Clears retained presenter state after the viewer has been removed.
@@ -392,7 +405,7 @@ final class NCMediaViewerPresenter {
     ///
     /// - Returns: Current transition source if available.
     private func currentClosingTransitionSource() -> NCViewerTransitionSource? {
-        guard let ocId = currentModel?.selectedPageModel()?.ocId else {
+        guard let ocId = currentModel?.selectedOcId else {
             return nil
         }
 
