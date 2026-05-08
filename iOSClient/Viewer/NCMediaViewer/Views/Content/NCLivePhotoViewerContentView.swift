@@ -21,6 +21,7 @@ struct NCLivePhotoViewerContentView: View {
 
     @State private var livePhoto: PHLivePhoto?
     @State private var failedMessage: String?
+    @State private var isPlayingLivePhoto = false
 
     init(
         imageURL: URL?,
@@ -37,23 +38,95 @@ struct NCLivePhotoViewerContentView: View {
             Color.ncViewerBackground(backgroundStyle)
                 .ignoresSafeArea()
 
-            if let livePhoto {
+            stillImageView
+
+            if isPlayingLivePhoto, let livePhoto {
                 NCLivePhotoViewRepresentable(
                     livePhoto: livePhoto,
-                    backgroundStyle: backgroundStyle
+                    backgroundStyle: backgroundStyle,
+                    isPlaying: $isPlayingLivePhoto
                 )
                 .ignoresSafeArea()
-            } else if let failedMessage {
-                failedView(failedMessage)
-            } else {
-                ProgressView()
-                    .tint(progressTintColor)
+            }
+
+            livePhotoBadge
+
+            if let failedMessage {
+                failedOverlay(failedMessage)
             }
         }
         .background(Color.ncViewerBackground(backgroundStyle))
         .task(id: taskIdentifier) {
             await loadLivePhotoIfNeeded()
         }
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.25)
+                .onEnded { _ in
+                    guard livePhoto != nil else {
+                        return
+                    }
+
+                    isPlayingLivePhoto = true
+                }
+        )
+    }
+
+    /// Badge shown on top of Live Photo content.
+    private var livePhotoBadge: some View {
+        VStack {
+            HStack {
+                Spacer()
+
+                HStack(spacing: 6) {
+                    Image(systemName: "livephoto")
+                        .font(.system(size: 15, weight: .semibold))
+
+                    Text("LIVE")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(.black.opacity(0.45))
+                .clipShape(Capsule())
+                .padding(.top, 58)
+                .padding(.trailing, 14)
+            }
+
+            Spacer()
+        }
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private var stillImageView: some View {
+        if let imageURL {
+            NCImageViewerContentView(
+                identifier: imageURL.absoluteString,
+                previewURL: nil,
+                fullURL: imageURL,
+                backgroundStyle: backgroundStyle
+            )
+        } else {
+            Color.ncViewerBackground(backgroundStyle)
+                .ignoresSafeArea()
+        }
+    }
+
+    private func failedOverlay(_ message: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: "livephoto.slash")
+                .font(.system(size: 24, weight: .regular))
+
+            Text(message)
+                .font(.caption)
+                .multilineTextAlignment(.center)
+        }
+        .foregroundStyle(primaryForegroundStyle)
+        .padding(12)
+        .background(.black.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding()
     }
 
     private var taskIdentifier: String {
@@ -148,16 +221,34 @@ struct NCLivePhotoViewerContentView: View {
     /// Requests a `PHLivePhoto` from the provided photo and video resource URLs.
     ///
     /// The Photos framework can invoke the result handler more than once.
-    /// This wrapper guarantees that the Swift continuation is resumed only once.
+    /// This wrapper waits for the non-degraded Live Photo and resumes the continuation only once.
     ///
     /// - Parameter resourceURLs: Local resource URLs required to build the Live Photo.
-    /// - Returns: A `PHLivePhoto` when the request succeeds, otherwise `nil`.
+    /// - Returns: A playable `PHLivePhoto` when the request succeeds, otherwise `nil`.
     @MainActor
     private func requestLivePhoto(resourceURLs: [URL]) async -> PHLivePhoto? {
         guard resourceURLs.count >= 2 else {
-            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE PHOTO failure: missing resources \(resourceURLs.count)", consoleOnly: true)
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "LIVE PHOTO failure: missing resources \(resourceURLs.count)",
+                consoleOnly: true
+            )
             return nil
         }
+
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: """
+            LIVE PHOTO request
+            image: \(resourceURLs[0].lastPathComponent)
+            video: \(resourceURLs[1].lastPathComponent)
+            image exists: \(FileManager.default.fileExists(atPath: resourceURLs[0].path))
+            video exists: \(FileManager.default.fileExists(atPath: resourceURLs[1].path))
+            """,
+            consoleOnly: true
+        )
 
         return await withCheckedContinuation { continuation in
             final class ResumeBox {
@@ -190,6 +281,13 @@ struct NCLivePhotoViewerContentView: View {
             ) { livePhoto, info in
                 if let cancelled = info[PHLivePhotoInfoCancelledKey] as? Bool,
                    cancelled {
+                    nkLog(
+                        tag: NCGlobal.shared.logTagViewer,
+                        emoji: .debug,
+                        message: "LIVE PHOTO cancelled",
+                        consoleOnly: true
+                    )
+
                     resumeBox.resumeOnce(
                         continuation,
                         returning: nil
@@ -197,17 +295,49 @@ struct NCLivePhotoViewerContentView: View {
                     return
                 }
 
-                if info[PHLivePhotoInfoErrorKey] != nil {
+                if let error = info[PHLivePhotoInfoErrorKey] as? Error {
+                    nkLog(
+                        tag: NCGlobal.shared.logTagViewer,
+                        emoji: .debug,
+                        message: "LIVE PHOTO error: \(error.localizedDescription)",
+                        consoleOnly: true
+                    )
+
                     resumeBox.resumeOnce(
                         continuation,
                         returning: nil
+                    )
+                    return
+                }
+
+                let isDegraded = (info[PHLivePhotoInfoIsDegradedKey] as? Bool) == true
+
+                if isDegraded {
+                    nkLog(
+                        tag: NCGlobal.shared.logTagViewer,
+                        emoji: .debug,
+                        message: "LIVE PHOTO degraded callback ignored",
+                        consoleOnly: true
                     )
                     return
                 }
 
                 guard let livePhoto else {
+                    nkLog(
+                        tag: NCGlobal.shared.logTagViewer,
+                        emoji: .debug,
+                        message: "LIVE PHOTO callback without livePhoto",
+                        consoleOnly: true
+                    )
                     return
                 }
+
+                nkLog(
+                    tag: NCGlobal.shared.logTagViewer,
+                    emoji: .debug,
+                    message: "LIVE PHOTO ready non-degraded",
+                    consoleOnly: true
+                )
 
                 resumeBox.resumeOnce(
                     continuation,
@@ -221,16 +351,28 @@ struct NCLivePhotoViewerContentView: View {
 // MARK: - Live Photo View Representable
 
 /// UIKit wrapper for `PHLivePhotoView`.
+///
+/// The wrapper installs a long-press gesture directly on `PHLivePhotoView`.
+/// Playback starts when the gesture begins and stops when the gesture ends,
+/// matching the native Live Photo interaction.
 private struct NCLivePhotoViewRepresentable: UIViewRepresentable {
     let livePhoto: PHLivePhoto
     let backgroundStyle: NCViewerBackgroundStyle
+    @Binding var isPlaying: Bool
 
     func makeUIView(context: Context) -> PHLivePhotoView {
         let view = PHLivePhotoView()
         view.backgroundColor = .ncViewerBackground(backgroundStyle)
         view.contentMode = .scaleAspectFit
+        view.clipsToBounds = true
         view.livePhoto = livePhoto
         view.isMuted = false
+        view.delegate = context.coordinator
+
+        DispatchQueue.main.async {
+            view.startPlayback(with: .full)
+        }
+
         return view
     }
 
@@ -239,6 +381,28 @@ private struct NCLivePhotoViewRepresentable: UIViewRepresentable {
 
         if view.livePhoto !== livePhoto {
             view.livePhoto = livePhoto
+        }
+
+        view.delegate = context.coordinator
+        context.coordinator.isPlaying = $isPlaying
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isPlaying: $isPlaying)
+    }
+
+    final class Coordinator: NSObject, PHLivePhotoViewDelegate {
+        var isPlaying: Binding<Bool>
+
+        init(isPlaying: Binding<Bool>) {
+            self.isPlaying = isPlaying
+        }
+
+        func livePhotoView(
+            _ livePhotoView: PHLivePhotoView,
+            didEndPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle
+        ) {
+            isPlaying.wrappedValue = false
         }
     }
 }
