@@ -28,7 +28,7 @@ enum NCMediaViewerPageState {
     ///
     /// The same image view remains mounted while the page moves from preview
     /// to full image. This avoids flickering caused by replacing SwiftUI view branches.
-    case image(previewURL: URL?, localURL: URL?, progress: Double?)
+    case image(previewURL: URL?, localURL: URL?, livePhotoURL: URL?, progress: Double?)
 
     /// Remote media state with an optional preview and optional download progress.
     ///
@@ -512,11 +512,12 @@ final class NCMediaViewerModel: ObservableObject {
                 return
             }
 
-            setReadyState(
+            await setReadyState(
                 metadata: metadata,
                 previewURL: previewURL,
                 localURL: localURL,
-                for: ocId
+                for: ocId,
+                index: index
             )
             return
         }
@@ -525,7 +526,9 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        previewURL = await loader.previewURL(for: metadata, index: index)
+        if previewURL == nil {
+            previewURL = await loader.previewURL(for: metadata, index: index)
+        }
 
         guard !Task.isCancelled else {
             return
@@ -536,6 +539,7 @@ final class NCMediaViewerModel: ObservableObject {
                 .image(
                     previewURL: previewURL,
                     localURL: nil,
+                    livePhotoURL: nil,
                     progress: nil
                 ),
                 for: ocId
@@ -565,11 +569,12 @@ final class NCMediaViewerModel: ObservableObject {
                 return
             }
 
-            setReadyState(
+            await setReadyState(
                 metadata: metadata,
                 previewURL: previewURL,
                 localURL: downloadedURL,
-                for: ocId
+                for: ocId,
+                index: index
             )
         } catch is CancellationError {
             return
@@ -694,6 +699,7 @@ final class NCMediaViewerModel: ObservableObject {
             .image(
                 previewURL: previewURL,
                 localURL: nil,
+                livePhotoURL: nil,
                 progress: nil
             ),
             for: ocId
@@ -732,7 +738,7 @@ final class NCMediaViewerModel: ObservableObject {
         }
 
         switch page.state {
-        case .image(let previewURL, _, _):
+        case .image(let previewURL, _, _, _):
             return previewURL
 
         case .downloading(let previewURL, _):
@@ -779,17 +785,31 @@ final class NCMediaViewerModel: ObservableObject {
     ///   - previewURL: Optional local preview URL.
     ///   - localURL: Local full media URL.
     ///   - ocId: Page file identifier.
+    ///   - index: Page index used for debug logs.
     private func setReadyState(
         metadata: tableMetadata,
         previewURL: URL?,
         localURL: URL,
-        for ocId: String
-    ) {
+        for ocId: String,
+        index: Int
+    ) async {
         if isImage(metadata) {
+            let livePhotoURL: URL?
+
+            if metadata.isLivePhoto {
+                livePhotoURL = await loader.downloadLivePhotoMedia(
+                    for: metadata,
+                    index: index
+                )
+            } else {
+                livePhotoURL = nil
+            }
+
             setState(
                 .image(
                     previewURL: previewURL,
                     localURL: localURL,
+                    livePhotoURL: livePhotoURL,
                     progress: nil
                 ),
                 for: ocId
@@ -888,13 +908,13 @@ private extension NCMediaViewerPageState {
         case .idle:
             return true
 
-        case .image(_, nil, _):
+        case .image(_, nil, _, _):
             return true
 
         case .downloading:
             return true
 
-        case .image(_, .some, _),
+        case .image(_, .some, _, _),
              .loadingMetadata,
              .metadataMissing,
              .checkingLocalFile,

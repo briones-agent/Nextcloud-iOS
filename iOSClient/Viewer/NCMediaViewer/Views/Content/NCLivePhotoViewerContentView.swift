@@ -6,6 +6,7 @@ import SwiftUI
 import UIKit
 import Photos
 import PhotosUI
+import NextcloudKit
 
 // MARK: - Live Photo Viewer Content View
 
@@ -103,21 +104,24 @@ struct NCLivePhotoViewerContentView: View {
         .padding(24)
     }
 
-    /// Loads a `PHLivePhoto` from local image and video resources.
+    /// Loads the Live Photo only when both still image and paired video resources are available.
+    ///
+    /// Missing resources are not treated as a visual failure because the viewer can
+    /// still render the still image through the normal image pipeline.
     private func loadLivePhotoIfNeeded() async {
         guard livePhoto == nil else {
             return
         }
 
+        failedMessage = nil
+
         guard let imageURL,
               let videoURL else {
-            failedMessage = "Missing Live Photo resources."
             return
         }
 
         guard FileManager.default.fileExists(atPath: imageURL.path),
               FileManager.default.fileExists(atPath: videoURL.path) else {
-            failedMessage = "Live Photo resource files do not exist."
             return
         }
 
@@ -128,6 +132,10 @@ struct NCLivePhotoViewerContentView: View {
 
         let loadedLivePhoto = await requestLivePhoto(resourceURLs: resourceURLs)
 
+        guard !Task.isCancelled else {
+            return
+        }
+
         guard let loadedLivePhoto else {
             failedMessage = "PHLivePhoto could not load these resources."
             return
@@ -137,12 +145,43 @@ struct NCLivePhotoViewerContentView: View {
         livePhoto = loadedLivePhoto
     }
 
-    /// Requests a `PHLivePhoto` from local resource URLs.
+    /// Requests a `PHLivePhoto` from the provided photo and video resource URLs.
     ///
-    /// - Parameter resourceURLs: Local image and paired video URLs.
-    /// - Returns: Loaded Live Photo if Photos can build it.
+    /// The Photos framework can invoke the result handler more than once.
+    /// This wrapper guarantees that the Swift continuation is resumed only once.
+    ///
+    /// - Parameter resourceURLs: Local resource URLs required to build the Live Photo.
+    /// - Returns: A `PHLivePhoto` when the request succeeds, otherwise `nil`.
+    @MainActor
     private func requestLivePhoto(resourceURLs: [URL]) async -> PHLivePhoto? {
-        await withCheckedContinuation { continuation in
+        guard resourceURLs.count >= 2 else {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LIVE PHOTO failure: missing resources \(resourceURLs.count)", consoleOnly: true)
+            return nil
+        }
+
+        return await withCheckedContinuation { continuation in
+            final class ResumeBox {
+                private var didResume = false
+                private let lock = NSLock()
+
+                func resumeOnce(
+                    _ continuation: CheckedContinuation<PHLivePhoto?, Never>,
+                    returning livePhoto: PHLivePhoto?
+                ) {
+                    lock.lock()
+                    defer { lock.unlock() }
+
+                    guard !didResume else {
+                        return
+                    }
+
+                    didResume = true
+                    continuation.resume(returning: livePhoto)
+                }
+            }
+
+            let resumeBox = ResumeBox()
+
             PHLivePhoto.request(
                 withResourceFileURLs: resourceURLs,
                 placeholderImage: nil,
@@ -151,16 +190,29 @@ struct NCLivePhotoViewerContentView: View {
             ) { livePhoto, info in
                 if let cancelled = info[PHLivePhotoInfoCancelledKey] as? Bool,
                    cancelled {
-                    continuation.resume(returning: nil)
+                    resumeBox.resumeOnce(
+                        continuation,
+                        returning: nil
+                    )
                     return
                 }
 
                 if info[PHLivePhotoInfoErrorKey] != nil {
-                    continuation.resume(returning: nil)
+                    resumeBox.resumeOnce(
+                        continuation,
+                        returning: nil
+                    )
                     return
                 }
 
-                continuation.resume(returning: livePhoto)
+                guard let livePhoto else {
+                    return
+                }
+
+                resumeBox.resumeOnce(
+                    continuation,
+                    returning: livePhoto
+                )
             }
         }
     }
