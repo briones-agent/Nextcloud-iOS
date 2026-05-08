@@ -32,22 +32,6 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
         await database.getMetadataFromOcIdAsync(ocId)
     }
 
-    /// Returns the local full media URL if the file is already available.
-    ///
-    /// This method never performs network requests.
-    ///
-    /// - Parameter metadata: Detached metadata for the media file.
-    /// - Returns: Local full media URL if available.
-    func localMediaURL(for metadata: tableMetadata) async -> URL? {
-        let localPath = fullLocalPath(for: metadata)
-
-        guard isValidLocalFile(path: localPath) else {
-            return nil
-        }
-
-        return URL(fileURLWithPath: localPath)
-    }
-
     /// Returns a local preview URL.
     ///
     /// This method first checks the local preview cache. If no preview exists,
@@ -56,14 +40,15 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
     ///
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Local preview URL if available.
-    func previewURL(for metadata: tableMetadata) async -> URL? {
+    func previewURL(for metadata: tableMetadata, index: Int) async -> URL? {
         let localPath = previewLocalPath(for: metadata)
 
         if isValidLocalFile(path: localPath) {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "PREVIEW local \(index)", consoleOnly: true)
             return URL(fileURLWithPath: localPath)
         }
 
-        print("🖼️ MEDIA VIEWER PREVIEW DOWNLOAD:", metadata.fileNameView, metadata.ocId)
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "PREVIEW request \(index)", consoleOnly: true)
 
         let result = await NextcloudKit.shared.downloadPreviewAsync(
             fileId: metadata.fileId,
@@ -80,8 +65,29 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
         }
 
         guard isValidLocalFile(path: localPath) else {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "PREVIEW failed \(index)", consoleOnly: true)
             return nil
         }
+
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "PREVIEW ready \(index)", consoleOnly: true)
+
+        return URL(fileURLWithPath: localPath)
+    }
+
+    /// Returns the local full media URL if the file is already available.
+    ///
+    /// This method never performs network requests.
+    ///
+    /// - Parameter metadata: Detached metadata for the media file.
+    /// - Returns: Local full media URL if available.
+    func localMediaURL(for metadata: tableMetadata, index: Int) async -> URL? {
+        let localPath = fullLocalPath(for: metadata)
+
+        guard isValidLocalFile(path: localPath) else {
+            return nil
+        }
+
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "FULL local \(index)", consoleOnly: true)
 
         return URL(fileURLWithPath: localPath)
     }
@@ -90,24 +96,32 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
     ///
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Local full media URL after completion.
-    func downloadMedia(for metadata: tableMetadata) async throws -> URL {
-        if let localURL = await localMediaURL(for: metadata) {
+    func downloadMedia(for metadata: tableMetadata, index: Int) async throws -> URL {
+        if let localURL = await localMediaURL(for: metadata, index: index) {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "FULL resolve \(index)", consoleOnly: true)
             return localURL
         }
+
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "FULL network request \(index)", consoleOnly: true)
 
         let result = await NCNetworking.shared.downloadFile(metadata: metadata)
 
         if let afError = result.afError {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "FULL error \(index)", consoleOnly: true)
             throw afError
         }
 
         if result.nkError != .success {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "FULL error \(index)", consoleOnly: true)
             throw result.nkError
         }
 
-        if let localURL = await localMediaURL(for: metadata) {
+        if let localURL = await localMediaURL(for: metadata, index: index) {
+            nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "FULL ready \(index)", consoleOnly: true)
             return localURL
         }
+
+        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "FULL unavailable after download \(index)", consoleOnly: true)
 
         throw NCMediaViewerLoaderError.localFileUnavailable
     }
@@ -192,7 +206,7 @@ protocol NCMediaViewerLoading: Sendable {
     ///
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Local full media URL if available.
-    func localMediaURL(for metadata: tableMetadata) async -> URL?
+    func localMediaURL(for metadata: tableMetadata, index: Int) async -> URL?
 
     /// Returns a local preview URL.
     ///
@@ -200,11 +214,11 @@ protocol NCMediaViewerLoading: Sendable {
     ///
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Local preview URL if available.
-    func previewURL(for metadata: tableMetadata) async -> URL?
+    func previewURL(for metadata: tableMetadata, index: Int) async -> URL?
 
     /// Downloads the full media file if needed.
     ///
     /// - Parameter metadata: Detached metadata for the media file.
     /// - Returns: Local full media URL after completion.
-    func downloadMedia(for metadata: tableMetadata) async throws -> URL
+    func downloadMedia(for metadata: tableMetadata, index: Int) async throws -> URL
 }
