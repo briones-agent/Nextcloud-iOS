@@ -13,10 +13,13 @@ import Combine
 /// This controller embeds the SwiftUI media viewer and provides standard UIKit
 /// navigation items for the title, close button, and context menu button.
 @MainActor
-final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerView> {
+final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerView>, UIAdaptivePresentationControllerDelegate {
     private let model: NCMediaViewerModel
     private let onClose: () -> Void
     private weak var contextMenuController: NCMainTabBarController?
+
+    private var detailHostingController: UIHostingController<NCImageViewerDetailView>?
+    private var isShowingDetail = false
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -142,11 +145,117 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
     @objc
     private func imageDetailButtonTapped() {
+        openDetail(animated: true)
+    }
+
+    // MARK: -
+
+    /// Opens or closes the media detail panel for the currently selected media item.
+    ///
+    /// - Parameter animated: Whether the presentation should be animated.
+    private func openDetail(animated: Bool = true) {
+        guard !isShowingDetail else {
+            closeDetail(animated: animated)
+            return
+        }
+
         guard let metadata = model.selectedMetadata else {
             return
         }
 
-        // Open or toggle the detail UI for the currently selected media.
-        // Use `metadata` here.
+        let index = model.selectedIndex
+
+        isShowingDetail = true
+
+        NCUtility().getExif(metadata: metadata) { [weak self] exif in
+            Task { @MainActor in
+                guard let self else {
+                    return
+                }
+
+                self.presentDetailView(
+                    metadata: metadata,
+                    index: index,
+                    exif: exif,
+                    animated: animated
+                )
+            }
+        }
+    }
+
+    /// Presents the SwiftUI media detail panel.
+    ///
+    /// - Parameters:
+    ///   - metadata: Current selected media metadata.
+    ///   - index: Page index associated with the metadata.
+    ///   - exif: EXIF information resolved for the selected media.
+    ///   - animated: Whether presentation should be animated.
+    private func presentDetailView(
+        metadata: tableMetadata,
+        index: Int,
+        exif: ExifData,
+        animated: Bool
+    ) {
+        let detailView = NCImageViewerDetailView(
+            metadata: metadata,
+            exif: exif,
+            onDownloadFullResolution: { [weak self] in
+                self?.downloadFullResolution(metadata: metadata)
+            }
+        )
+
+        let hostingController = UIHostingController(rootView: detailView)
+        hostingController.view.backgroundColor = .ncViewerBackground(.system)
+        hostingController.modalPresentationStyle = .pageSheet
+
+        if let sheet = hostingController.sheetPresentationController {
+            sheet.detents = [
+                .medium(),
+                .large()
+            ]
+
+            sheet.prefersGrabberVisible = true
+            sheet.prefersScrollingExpandsWhenScrolledToEdge = true
+            sheet.preferredCornerRadius = 20
+        }
+
+        detailHostingController = hostingController
+        hostingController.presentationController?.delegate = self
+
+        present(hostingController, animated: animated)
+    }
+
+    /// Closes the media detail panel.
+    ///
+    /// - Parameter animated: Whether dismissal should be animated.
+    /// Closes the media detail panel.
+    ///
+    /// - Parameter animated: Whether dismissal should be animated.
+    private func closeDetail(animated: Bool = true) {
+        guard let detailHostingController else {
+            isShowingDetail = false
+            return
+        }
+
+        detailHostingController.dismiss(animated: animated) { [weak self] in
+            self?.detailHostingController = nil
+            self?.isShowingDetail = false
+        }
+    }
+
+    /// Resets the detail state when the sheet is dismissed interactively.
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        detailHostingController = nil
+        isShowingDetail = false
+    }
+
+    /// Downloads the full-resolution media file for the detail panel action.
+    ///
+    /// - Parameter metadata: Current selected media metadata.
+    private func downloadFullResolution(metadata: tableMetadata) {
+        let index = model.selectedIndex
+        Task {
+            _ = try? await NCMediaViewerLoader().downloadMedia(for: metadata, index: index)
+        }
     }
 }
