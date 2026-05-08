@@ -235,6 +235,18 @@ final class NCMediaViewerModel: ObservableObject {
         return ocIds[selectedIndex]
     }
 
+    /// Current selected page metadata.
+    ///
+    /// - Returns: Detached metadata for the currently selected page if available.
+    var selectedMetadata: tableMetadata? {
+        guard ocIds.indices.contains(selectedIndex) else {
+            return nil
+        }
+
+        let ocId = ocIds[selectedIndex]
+        return cachedPagesByOcId[ocId]?.metadata
+    }
+
     // MARK: - Init
 
     /// Creates a media viewer model.
