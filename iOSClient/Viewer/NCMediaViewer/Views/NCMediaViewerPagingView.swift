@@ -110,9 +110,7 @@ final class NCMediaViewerCollectionView: UICollectionView {
 /// - collection view data source
 /// - collection view delegate flow layout
 @MainActor
-final class NCMediaViewerPagingCoordinator: NSObject,
-                                            UICollectionViewDataSource,
-                                            UICollectionViewDelegateFlowLayout {
+final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
     var model: NCMediaViewerModel
     weak var collectionView: UICollectionView?
 
@@ -260,17 +258,11 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - UICollectionViewDataSource
 
-    func collectionView(
-        _ collectionView: UICollectionView,
-        numberOfItemsInSection section: Int
-    ) -> Int {
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         model.numberOfPages
     }
 
-    func collectionView(
-        _ collectionView: UICollectionView,
-        cellForItemAt indexPath: IndexPath
-    ) -> UICollectionViewCell {
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(
             withReuseIdentifier: NCMediaViewerPagingCell.reuseIdentifier,
             for: indexPath
@@ -291,11 +283,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - UICollectionViewDelegateFlowLayout
 
-    func collectionView(
-        _ collectionView: UICollectionView,
-        layout collectionViewLayout: UICollectionViewLayout,
-        sizeForItemAt indexPath: IndexPath
-    ) -> CGSize {
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
         collectionView.bounds.size
     }
 
@@ -309,10 +297,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         updateSelectedIndexFromScrollView(scrollView)
     }
 
-    func scrollViewDidEndDragging(
-        _ scrollView: UIScrollView,
-        willDecelerate decelerate: Bool
-    ) {
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         if !decelerate {
             updateSelectedIndexFromScrollView(scrollView)
         }

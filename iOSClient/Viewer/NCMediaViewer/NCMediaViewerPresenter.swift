@@ -43,13 +43,11 @@ final class NCMediaViewerPresenter {
     ///   - sourceView: Optional view used to resolve the current window. When nil, the active foreground key window is used.
     ///   - contextMenuController: Controller used by the viewer context menu.
     ///   - closingTransitionSourceProvider: Optional provider used to resolve the current thumbnail source on dismissal.
-    func show(
-        model: NCMediaViewerModel,
-        viewerTransitionSource: NCViewerTransitionSource?,
-        from sourceView: UIView? = nil,
-        contextMenuController: NCMainTabBarController? = nil,
-        closingTransitionSourceProvider: ((_ ocId: String) -> NCViewerTransitionSource?)? = nil
-    ) {
+    func show(model: NCMediaViewerModel,
+              viewerTransitionSource: NCViewerTransitionSource?,
+              from sourceView: UIView? = nil,
+              contextMenuController: NCMainTabBarController? = nil,
+              closingTransitionSourceProvider: ((_ ocId: String) -> NCViewerTransitionSource?)? = nil) {
         guard let window = sourceView?.window ?? activeWindow() else {
             return
         }
@@ -185,11 +183,7 @@ final class NCMediaViewerPresenter {
     ///   - viewerTransitionSource: Source thumbnail data.
     ///   - window: Window that contains the overlay transition views.
     ///   - viewerView: Real viewer container view to reveal at the end.
-    private func animateOpening(
-        viewerTransitionSource: NCViewerTransitionSource,
-        in window: UIWindow,
-        viewerView: UIView
-    ) {
+    private func animateOpening(viewerTransitionSource: NCViewerTransitionSource, in window: UIWindow,viewerView: UIView) {
         let dimView = UIView(frame: window.bounds)
         dimView.backgroundColor = .ncViewerBackground(.system)
         dimView.alpha = 0
@@ -241,12 +235,7 @@ final class NCMediaViewerPresenter {
     ///   - closingImage: Image currently displayed by the viewer, used during the closing transition.
     ///   - window: Window that contains the overlay transition views.
     ///   - viewerView: Real viewer container view to dismiss.
-    private func animateClosing(
-        viewerTransitionSource: NCViewerTransitionSource,
-        closingImage: UIImage,
-        in window: UIWindow,
-        viewerView: UIView
-    ) {
+    private func animateClosing(viewerTransitionSource: NCViewerTransitionSource, closingImage: UIImage, in window: UIWindow, viewerView: UIView) {
         let startFrame = aspectFitFrame(
             imageSize: closingImage.size,
             containerSize: window.bounds.size
@@ -376,10 +365,7 @@ final class NCMediaViewerPresenter {
     ///   - imageSize: Source image size.
     ///   - containerSize: Window size.
     /// - Returns: Aspect-fit destination frame.
-    private func aspectFitFrame(
-        imageSize: CGSize,
-        containerSize: CGSize
-    ) -> CGRect {
+    private func aspectFitFrame(imageSize: CGSize, containerSize: CGSize) -> CGRect {
         guard imageSize.width > 0,
               imageSize.height > 0,
               containerSize.width > 0,

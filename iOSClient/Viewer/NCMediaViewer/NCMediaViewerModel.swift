@@ -72,12 +72,7 @@ struct NCMediaViewerPageModel: Identifiable {
     ///   - ocId: Nextcloud file identifier.
     ///   - metadata: Detached metadata if already available.
     ///   - state: Initial page state.
-    init(
-        index: Int,
-        ocId: String,
-        metadata: tableMetadata? = nil,
-        state: NCMediaViewerPageState = .idle
-    ) {
+    init(index: Int, ocId: String, metadata: tableMetadata? = nil, state: NCMediaViewerPageState = .idle) {
         self.id = ocId
         self.index = index
         self.ocId = ocId
@@ -254,10 +249,7 @@ final class NCMediaViewerModel: ObservableObject {
     /// - Parameters:
     ///   - initialModel: Initial viewer model containing current metadata and ordered ocIds.
     ///   - loader: Loader used to resolve metadata, local URLs, previews, and downloads.
-    init(
-        initialModel: NCMediaViewerInitialModel,
-        loader: NCMediaViewerLoading
-    ) {
+    init(initialModel: NCMediaViewerInitialModel, loader: NCMediaViewerLoading) {
         self.loader = loader
         self.ocIds = initialModel.normalizedOcIds
         self.selectedIndex = initialModel.initialSelectedIndex
@@ -278,20 +270,10 @@ final class NCMediaViewerModel: ObservableObject {
     ///   - currentMetadata: Detached metadata of the initially opened media.
     ///   - ocIds: Ordered list of image/audio/video ocIds.
     ///   - loader: Loader used to resolve metadata, local URLs, previews, and downloads.
-    convenience init(
-        currentMetadata: tableMetadata,
-        ocIds: [String],
-        loader: NCMediaViewerLoading
-    ) {
-        let initialModel = NCMediaViewerInitialModel(
-            currentMetadata: currentMetadata,
-            ocIds: ocIds
-        )
+    convenience init(currentMetadata: tableMetadata, ocIds: [String], loader: NCMediaViewerLoading) {
+        let initialModel = NCMediaViewerInitialModel(currentMetadata: currentMetadata, ocIds: ocIds)
 
-        self.init(
-            initialModel: initialModel,
-            loader: loader
-        )
+        self.init(initialModel: initialModel, loader: loader)
     }
 
     deinit {
@@ -318,12 +300,7 @@ final class NCMediaViewerModel: ObservableObject {
             return cachedPage
         }
 
-        let page = NCMediaViewerPageModel(
-            index: index,
-            ocId: ocId,
-            metadata: nil,
-            state: .idle
-        )
+        let page = NCMediaViewerPageModel(index: index, ocId: ocId, metadata: nil, state: .idle)
 
         cachedPagesByOcId[ocId] = page
         return page
@@ -401,18 +378,11 @@ final class NCMediaViewerModel: ObservableObject {
             await self.loadPage(index: index)
         }
 
-        loadingTasksByOcId[ocId] = NCMediaViewerLoadingTask(
-            identifier: identifier,
-            kind: .selected,
-            task: task
-        )
+        loadingTasksByOcId[ocId] = NCMediaViewerLoadingTask(identifier: identifier, kind: .selected, task: task)
 
         await task.value
 
-        clearLoadingTaskIfCurrent(
-            ocId: ocId,
-            identifier: identifier
-        )
+        clearLoadingTaskIfCurrent(ocId: ocId, identifier: identifier)
     }
 
     /// Reloads a failed or missing page.
