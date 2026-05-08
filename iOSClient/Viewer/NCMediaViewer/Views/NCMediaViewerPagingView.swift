@@ -35,8 +35,9 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         collectionView.isPagingEnabled = true
         collectionView.showsHorizontalScrollIndicator = false
         collectionView.showsVerticalScrollIndicator = false
-        collectionView.alwaysBounceHorizontal = true
+        collectionView.alwaysBounceHorizontal = model.numberOfPages > 1
         collectionView.alwaysBounceVertical = false
+        collectionView.isScrollEnabled = model.numberOfPages > 1
         collectionView.contentInsetAdjustmentBehavior = .never
         collectionView.dataSource = context.coordinator
         collectionView.delegate = context.coordinator
@@ -62,6 +63,8 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
     func updateUIView(_ collectionView: NCMediaViewerCollectionView, context: Context) {
         context.coordinator.model = model
         collectionView.backgroundColor = .ncViewerBackground(.system)
+        collectionView.isScrollEnabled = model.numberOfPages > 1
+        collectionView.alwaysBounceHorizontal = model.numberOfPages > 1
 
         if let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
             let itemSize = collectionView.bounds.size
