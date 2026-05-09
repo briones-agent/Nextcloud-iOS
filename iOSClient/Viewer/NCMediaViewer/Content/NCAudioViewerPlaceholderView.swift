@@ -4,6 +4,7 @@
 
 import SwiftUI
 import AVFoundation
+import NextcloudKit
 
 // MARK: - Audio Viewer View
 
@@ -13,19 +14,15 @@ import AVFoundation
 /// - file title
 /// - play / pause button
 /// - loop button
+/// - restart button
 /// - elapsed and duration labels
 /// - seek slider
 /// - automatic cleanup when the view disappears
 struct NCAudioViewerPlaceholderView: View {
-
-    // MARK: - Properties
-
     let metadata: tableMetadata
     let localURL: URL
 
     @StateObject private var model = NCAudioViewerModel()
-
-    // MARK: - Body
 
     var body: some View {
         VStack(spacing: 28) {
@@ -87,7 +84,7 @@ struct NCAudioViewerPlaceholderView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    model.seek(to: 0)
+                    model.restart()
                 } label: {
                     Image(systemName: "backward.end.circle")
                         .font(.system(size: 38, weight: .regular))
@@ -156,8 +153,8 @@ struct NCAudioViewerPlaceholderView: View {
 
 /// Lightweight audio playback model backed by `AVPlayer`.
 ///
-/// The model observes playback time and duration, exposes SwiftUI-friendly state,
-/// and performs cleanup when playback is stopped or the view disappears.
+/// The model observes playback time and item completion, exposes SwiftUI-friendly
+/// state, and performs cleanup when playback is stopped or the view disappears.
 @MainActor
 final class NCAudioViewerModel: ObservableObject {
 
@@ -172,6 +169,7 @@ final class NCAudioViewerModel: ObservableObject {
 
     private var player: AVPlayer?
     private var timeObserver: Any?
+    private var endObserver: NSObjectProtocol?
     private var currentURL: URL?
 
     // MARK: - Public API
@@ -188,19 +186,25 @@ final class NCAudioViewerModel: ObservableObject {
 
         currentURL = url
 
+        configureAudioSession()
+
         let asset = AVURLAsset(url: url)
         let item = AVPlayerItem(asset: asset)
         let player = AVPlayer(playerItem: item)
 
+        player.actionAtItemEnd = .pause
+
         self.player = player
 
-        if let duration = try? await asset.load(.duration) {
-            self.duration = duration.seconds.isFinite ? duration.seconds : 0
+        if let duration = try? await asset.load(.duration),
+           duration.seconds.isFinite {
+            self.duration = duration.seconds
         } else {
             self.duration = 0
         }
 
         addTimeObserver(to: player)
+        addEndObserver(for: item, player: player)
     }
 
     /// Toggles audio playback.
@@ -210,22 +214,31 @@ final class NCAudioViewerModel: ObservableObject {
         }
 
         if isPlaying {
-            player.pause()
-            isPlaying = false
-        } else {
-            if duration > 0,
-               currentTime >= duration - 0.2 {
-                seek(to: 0)
-            }
-
-            player.play()
-            isPlaying = true
+            pause()
+            return
         }
+
+        if duration > 0,
+           currentTime >= duration - 0.2 {
+            seek(to: 0)
+        }
+
+        player.play()
+        isPlaying = true
     }
 
     /// Toggles loop playback.
     func toggleLoop() {
         isLoopEnabled.toggle()
+    }
+
+    /// Restarts playback from the beginning.
+    func restart() {
+        seek(to: 0)
+
+        if isPlaying {
+            player?.play()
+        }
     }
 
     /// Seeks to a specific playback time.
@@ -255,6 +268,12 @@ final class NCAudioViewerModel: ObservableObject {
         )
     }
 
+    /// Pauses playback without releasing the player.
+    func pause() {
+        player?.pause()
+        isPlaying = false
+    }
+
     /// Stops playback and releases the player.
     func stop() {
         if let player {
@@ -266,21 +285,41 @@ final class NCAudioViewerModel: ObservableObject {
             player.removeTimeObserver(timeObserver)
         }
 
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+        }
+
         timeObserver = nil
+        endObserver = nil
         player = nil
         currentURL = nil
+
         isPlaying = false
         currentTime = 0
         duration = 0
     }
 
-    /// Pauses playback without releasing the player.
-    func pause() {
-        player?.pause()
-        isPlaying = false
-    }
-
     // MARK: - Private
+
+    /// Configures the audio session for media playback.
+    private func configureAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(
+                .playback,
+                mode: .default,
+                options: []
+            )
+
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .error,
+                message: "AUDIO session error: \(error.localizedDescription)",
+                consoleOnly: true
+            )
+        }
+    }
 
     /// Adds a periodic time observer to update SwiftUI playback state.
     ///
@@ -301,19 +340,46 @@ final class NCAudioViewerModel: ObservableObject {
 
             Task { @MainActor in
                 self.currentTime = time.seconds.isFinite ? time.seconds : 0
+            }
+        }
+    }
 
-                guard self.duration > 0,
-                      self.currentTime >= self.duration - 0.2 else {
-                    return
-                }
+    /// Observes the end of playback and restarts the item when loop is enabled.
+    ///
+    /// - Parameters:
+    ///   - item: Player item to observe.
+    ///   - player: Player that owns the item.
+    private func addEndObserver(
+        for item: AVPlayerItem,
+        player: AVPlayer
+    ) {
+        endObserver = NotificationCenter.default.addObserver(
+            forName: AVPlayerItem.didPlayToEndTimeNotification,
+            object: item,
+            queue: .main
+        ) { [weak self, weak player] _ in
+            guard let self,
+                  let player else {
+                return
+            }
 
+            Task { @MainActor in
                 if self.isLoopEnabled {
-                    self.seek(to: 0)
-                    self.player?.play()
-                    self.isPlaying = true
+                    self.currentTime = 0
+
+                    player.seek(
+                        to: .zero,
+                        toleranceBefore: .zero,
+                        toleranceAfter: .zero
+                    ) { _ in
+                        Task { @MainActor in
+                            player.play()
+                            self.isPlaying = true
+                        }
+                    }
                 } else {
-                    self.isPlaying = false
                     self.currentTime = self.duration
+                    self.isPlaying = false
                 }
             }
         }
