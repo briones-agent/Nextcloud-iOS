@@ -2518,6 +2518,15 @@
 			path = NCViewerDirectEditing;
 			sourceTree = "<group>";
 		};
+		F749ED342FAF0EE200CE8DFA /* Model - View */ = {
+			isa = PBXGroup;
+			children = (
+				F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */,
+				F7CDB5B82FA33CA300F72306 /* NCMediaViewerModel.swift */,
+			);
+			path = "Model - View";
+			sourceTree = "<group>";
+		};
 		F74D3DB81BAC1941000BAE4B /* Networking */ = {
 			isa = PBXGroup;
 			children = (
@@ -3150,8 +3159,7 @@
 			children = (
 				F7EDBB512FA8CACA00098C42 /* NCMediaViewerHostingController.swift */,
 				F7EDBB5B2FA8DBE600098C42 /* NCMediaViewerPresenter.swift */,
-				F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */,
-				F7CDB5B82FA33CA300F72306 /* NCMediaViewerModel.swift */,
+				F749ED342FAF0EE200CE8DFA /* Model - View */,
 				F7CDB5CE2FA33DED00F72306 /* Loading */,
 				F7CDB5D02FA33E3500F72306 /* Views */,
 				F7EDBB592FA8D09E00098C42 /* Helpers */,
