@@ -182,7 +182,7 @@ struct NCMediaViewerPageView: View {
                 .background(Color.ncViewerBackground(backgroundStyle))
 
             case .audio:
-                NCAudioViewerPlaceholderView(
+                NCAudioViewerContentView(
                     metadata: metadata,
                     localURL: localURL,
                     canGoPrevious: canGoPrevious,
