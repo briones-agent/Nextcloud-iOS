@@ -184,8 +184,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     ///
     /// Audio and video use black because their player surfaces are dark.
     /// Images use the viewer background style unless chrome is hidden.
-    /// If metadata is temporarily unavailable, the last applied background color is reused
-    /// to avoid white flashes during paging or cell reuse.
+    /// If metadata is temporarily unavailable, the default viewer system background is used.
     private func backgroundColor(for page: NCMediaViewerPageModel?) -> UIColor {
         guard !model.isChromeHidden else {
             return .black
@@ -312,18 +311,20 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - Page Navigation
 
-    /// Moves the media viewer to a page relative to the current selected index.
+    /// Moves the media viewer to a page relative to the source page index.
     ///
     /// This is used by inline media controls, for example audio previous/next buttons.
     ///
     /// - Parameters:
+    ///   - sourceIndex: Page index that generated the navigation command.
     ///   - offset: Relative page offset. Use `-1` for previous and `1` for next.
     ///   - shouldAutoPlay: Whether the target audio page should start playback automatically.
     private func moveToPage(
+        from sourceIndex: Int,
         offset: Int,
         shouldAutoPlay: Bool
     ) {
-        let targetIndex = model.selectedIndex + offset
+        let targetIndex = sourceIndex + offset
 
         guard targetIndex >= 0,
               targetIndex < model.numberOfPages else {
@@ -377,12 +378,14 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             },
             onPreviousPage: { [weak self] shouldAutoPlay in
                 self?.moveToPage(
+                    from: page.index,
                     offset: -1,
                     shouldAutoPlay: shouldAutoPlay
                 )
             },
             onNextPage: { [weak self] shouldAutoPlay in
                 self?.moveToPage(
+                    from: page.index,
                     offset: 1,
                     shouldAutoPlay: shouldAutoPlay
                 )

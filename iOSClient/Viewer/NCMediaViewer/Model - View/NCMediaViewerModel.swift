@@ -72,7 +72,12 @@ struct NCMediaViewerPageModel: Identifiable {
     ///   - ocId: Nextcloud file identifier.
     ///   - metadata: Detached metadata if already available.
     ///   - state: Initial page state.
-    init(index: Int, ocId: String, metadata: tableMetadata? = nil, state: NCMediaViewerPageState = .idle) {
+    init(
+        index: Int,
+        ocId: String,
+        metadata: tableMetadata? = nil,
+        state: NCMediaViewerPageState = .idle
+    ) {
         self.id = ocId
         self.index = index
         self.ocId = ocId
@@ -168,7 +173,7 @@ private struct NCMediaViewerLoadingTask {
 /// - request preview URLs
 /// - check local media availability
 /// - start full media downloads through the loader only for selected pages
-/// - prefetch previous and next pages without downloading full media
+/// - prefetch nearby pages without downloading full media
 /// - update page states
 ///
 /// It does not render UI and does not directly access Realm, FileManager,
@@ -204,6 +209,7 @@ final class NCMediaViewerModel: ObservableObject {
     /// Session used to resolve account-scoped metadata fallback lookups.
     private let session: NCSession.Session
 
+    /// Whether metadata fallback should use the media search path.
     private let mediaSearch: Bool
 
     // MARK: - Source Data
@@ -265,6 +271,10 @@ final class NCMediaViewerModel: ObservableObject {
     ///
     /// - Parameter ocId: Target page ocId.
     func requestAutoPlay(ocId: String) {
+        guard autoPlayTargetOcId != ocId else {
+            return
+        }
+
         autoPlayTargetOcId = ocId
         revision &+= 1
     }
@@ -288,6 +298,7 @@ final class NCMediaViewerModel: ObservableObject {
     /// - Parameters:
     ///   - initialModel: Initial viewer model containing current metadata and ordered ocIds.
     ///   - session: Current Nextcloud session used for account-scoped metadata fallback lookups.
+    ///   - mediaSearch: Whether metadata fallback should use the media search path.
     ///   - loader: Loader used to resolve metadata, local URLs, previews, and downloads.
     init(
         initialModel: NCMediaViewerInitialModel,
@@ -317,6 +328,7 @@ final class NCMediaViewerModel: ObservableObject {
     ///   - currentMetadata: Detached metadata of the initially opened media.
     ///   - ocIds: Ordered list of image/audio/video ocIds.
     ///   - session: Current Nextcloud session used for account-scoped metadata fallback lookups.
+    ///   - mediaSearch: Whether metadata fallback should use the media search path.
     ///   - loader: Loader used to resolve metadata, local URLs, previews, and downloads.
     convenience init(
         currentMetadata: tableMetadata,
@@ -362,7 +374,12 @@ final class NCMediaViewerModel: ObservableObject {
             return cachedPage
         }
 
-        let page = NCMediaViewerPageModel(index: index, ocId: ocId, metadata: nil, state: .idle)
+        let page = NCMediaViewerPageModel(
+            index: index,
+            ocId: ocId,
+            metadata: nil,
+            state: .idle
+        )
 
         cachedPagesByOcId[ocId] = page
         return page
@@ -440,11 +457,18 @@ final class NCMediaViewerModel: ObservableObject {
             await self.loadPage(index: index)
         }
 
-        loadingTasksByOcId[ocId] = NCMediaViewerLoadingTask(identifier: identifier, kind: .selected, task: task)
+        loadingTasksByOcId[ocId] = NCMediaViewerLoadingTask(
+            identifier: identifier,
+            kind: .selected,
+            task: task
+        )
 
         await task.value
 
-        clearLoadingTaskIfCurrent(ocId: ocId, identifier: identifier)
+        clearLoadingTaskIfCurrent(
+            ocId: ocId,
+            identifier: identifier
+        )
     }
 
     /// Reloads a failed or missing page.
@@ -527,7 +551,12 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LOAD PAGE \(index)", consoleOnly: true)
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "LOAD PAGE \(index)",
+            consoleOnly: true
+        )
 
         let ocId = ocIds[index]
 
@@ -602,7 +631,10 @@ final class NCMediaViewerModel: ObservableObject {
                 )
             }
 
-            let downloadedURL = try await loader.downloadMedia(for: metadata, index: index)
+            let downloadedURL = try await loader.downloadMedia(
+                for: metadata,
+                index: index
+            )
 
             guard !Task.isCancelled else {
                 return
@@ -708,7 +740,12 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LOAD PREFETCH \(index)", consoleOnly: true)
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "LOAD PREFETCH \(index)",
+            consoleOnly: true
+        )
 
         let ocId = ocIds[index]
 
@@ -724,7 +761,10 @@ final class NCMediaViewerModel: ObservableObject {
 
         setMetadata(metadata, for: ocId)
 
-        let previewURL = await loader.previewURL(for: metadata, index: index)
+        let previewURL = await loader.previewURL(
+            for: metadata,
+            index: index
+        )
 
         guard !Task.isCancelled else {
             return
@@ -756,7 +796,11 @@ final class NCMediaViewerModel: ObservableObject {
             return existingMetadata
         }
 
-        return await loader.metadata(for: ocId, account: session.account, mediaSearch: mediaSearch)
+        return await loader.metadata(
+            for: ocId,
+            account: session.account,
+            mediaSearch: mediaSearch
+        )
     }
 
     /// Returns the current state for an `ocId`.
