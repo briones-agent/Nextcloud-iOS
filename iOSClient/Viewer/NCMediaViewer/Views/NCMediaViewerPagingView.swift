@@ -273,8 +273,13 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     ///
     /// This is used by inline media controls, for example audio previous/next buttons.
     ///
-    /// - Parameter offset: Relative page offset. Use `-1` for previous and `1` for next.
-    private func moveToPage(offset: Int) {
+    /// - Parameters:
+    ///   - offset: Relative page offset. Use `-1` for previous and `1` for next.
+    ///   - shouldAutoPlay: Whether the target audio page should start playback automatically.
+    private func moveToPage(
+        offset: Int,
+        shouldAutoPlay: Bool
+    ) {
         let targetIndex = model.selectedIndex + offset
 
         guard targetIndex >= 0,
@@ -286,6 +291,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             name: .ncMediaViewerStopPlayback,
             object: nil
         )
+
+        if shouldAutoPlay {
+            model.requestAutoPlay(at: targetIndex)
+        }
 
         model.setSelectedIndex(targetIndex)
 
@@ -314,14 +323,24 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             isChromeHidden: model.isChromeHidden,
             canGoPrevious: page.index > 0,
             canGoNext: page.index < model.numberOfPages - 1,
+            shouldAutoPlay: model.autoPlayTargetIndex == page.index,
             onToggleChrome: { [weak model] in
                 model?.toggleChromeVisibility()
             },
-            onPreviousPage: { [weak self] in
-                self?.moveToPage(offset: -1)
+            onPreviousPage: { [weak self] shouldAutoPlay in
+                self?.moveToPage(
+                    offset: -1,
+                    shouldAutoPlay: shouldAutoPlay
+                )
             },
-            onNextPage: { [weak self] in
-                self?.moveToPage(offset: 1)
+            onNextPage: { [weak self] shouldAutoPlay in
+                self?.moveToPage(
+                    offset: 1,
+                    shouldAutoPlay: shouldAutoPlay
+                )
+            },
+            onAutoPlayConsumed: { [weak model] in
+                model?.clearAutoPlayIfNeeded(for: page.index)
             }
         )
     }
@@ -501,17 +520,21 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     ///   - isChromeHidden: Whether viewer chrome is currently hidden.
     ///   - canGoPrevious: Whether the page can navigate to a previous item.
     ///   - canGoNext: Whether the page can navigate to a next item.
+    ///   - shouldAutoPlay: Whether hosted audio content should start playback automatically.
     ///   - onToggleChrome: Callback used by image pages to show or hide chrome.
     ///   - onPreviousPage: Callback used by inline controls to move to previous page.
     ///   - onNextPage: Callback used by inline controls to move to next page.
+    ///   - onAutoPlayConsumed: Callback invoked after the hosted page consumes the auto-play request.
     func configure(
         page: NCMediaViewerPageModel,
         isChromeHidden: Bool,
         canGoPrevious: Bool,
         canGoNext: Bool,
+        shouldAutoPlay: Bool,
         onToggleChrome: @escaping () -> Void,
-        onPreviousPage: @escaping () -> Void,
-        onNextPage: @escaping () -> Void
+        onPreviousPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
+        onNextPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
+        onAutoPlayConsumed: @escaping () -> Void
     ) {
         backgroundColor = .ncViewerBackground(.system)
         contentView.backgroundColor = .ncViewerBackground(.system)
@@ -523,8 +546,10 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
                 onToggleChrome: onToggleChrome,
                 canGoPrevious: canGoPrevious,
                 canGoNext: canGoNext,
+                shouldAutoPlay: shouldAutoPlay,
                 onPreviousPage: onPreviousPage,
-                onNextPage: onNextPage
+                onNextPage: onNextPage,
+                onAutoPlayConsumed: onAutoPlayConsumed
             )
             .id(page.ocId)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
