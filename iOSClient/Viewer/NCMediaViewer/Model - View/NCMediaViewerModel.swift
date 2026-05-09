@@ -121,9 +121,9 @@ struct NCMediaViewerInitialModel {
     var normalizedOcIds: [String] {
         if ocIds.contains(currentMetadata.ocId) {
             return ocIds
-        } else {
-            return [currentMetadata.ocId] + ocIds
         }
+
+        return [currentMetadata.ocId] + ocIds
     }
 
     /// Returns the initial selected index.
@@ -134,36 +134,12 @@ struct NCMediaViewerInitialModel {
     }
 }
 
-// MARK: - Loading Task Kind
-
-/// Describes which loader owns a running page task.
-private enum NCMediaViewerLoadingTaskKind {
-    /// Task started because the page became selected.
-    case selected
-
-    /// Task started by neighbor prefetch.
-    case prefetch
-}
-
-// MARK: - Loading Task
-
-/// Stores a running media viewer loading task.
-///
-/// The identifier prevents an old cancelled task from removing a newer task
-/// stored under the same `ocId`.
-private struct NCMediaViewerLoadingTask {
-    let identifier: UUID
-    let kind: NCMediaViewerLoadingTaskKind
-    let task: Task<Void, Never>
-}
-
 // MARK: - Media Viewer Model
 
 /// Model for the media viewer.
 ///
-/// This model is optimized for very large media lists.
-/// It stores the full ordered `ocIds` array, but creates page models lazily only
-/// when the pager asks for them.
+/// This model stores the full ordered `ocIds` array, creates page models lazily,
+/// and loads only the selected page.
 ///
 /// Responsibilities:
 /// - keep the current selected index
@@ -173,7 +149,6 @@ private struct NCMediaViewerLoadingTask {
 /// - request preview URLs
 /// - check local media availability
 /// - start full media downloads through the loader only for selected pages
-/// - prefetch nearby pages without downloading full media
 /// - update page states
 ///
 /// It does not render UI and does not directly access Realm, FileManager,
@@ -196,9 +171,6 @@ final class NCMediaViewerModel: ObservableObject {
     /// When hidden, the navigation bar is hidden and the viewer uses a black
     /// background for a cleaner fullscreen media experience.
     @Published private(set) var isChromeHidden = false
-
-    /// Page ocId that should auto-start playback after navigation.
-    @Published private(set) var autoPlayTargetOcId: String?
 
     // MARK: - Dependencies
 
@@ -223,11 +195,6 @@ final class NCMediaViewerModel: ObservableObject {
     ///
     /// Pages are created lazily when the pager asks for a specific index.
     private var cachedPagesByOcId: [String: NCMediaViewerPageModel] = [:]
-
-    // MARK: - Running Tasks
-
-    /// Running selected or prefetch loading tasks keyed by `ocId`.
-    private var loadingTasksByOcId: [String: NCMediaViewerLoadingTask] = [:]
 
     // MARK: - Public Read-Only Access
 
@@ -262,33 +229,6 @@ final class NCMediaViewerModel: ObservableObject {
 
         let ocId = ocIds[selectedIndex]
         return cachedPagesByOcId[ocId]?.metadata
-    }
-
-    /// Requests automatic playback for a target page.
-    ///
-    /// The request is stored by `ocId` instead of index so it survives page reloads,
-    /// download state changes, and page model reconstruction.
-    ///
-    /// - Parameter ocId: Target page ocId.
-    func requestAutoPlay(ocId: String) {
-        guard autoPlayTargetOcId != ocId else {
-            return
-        }
-
-        autoPlayTargetOcId = ocId
-        revision &+= 1
-    }
-
-    /// Clears the automatic playback request if it matches the provided page.
-    ///
-    /// - Parameter ocId: Page ocId that consumed auto-play.
-    func clearAutoPlayIfNeeded(for ocId: String) {
-        guard autoPlayTargetOcId == ocId else {
-            return
-        }
-
-        autoPlayTargetOcId = nil
-        revision &+= 1
     }
 
     // MARK: - Init
@@ -350,11 +290,6 @@ final class NCMediaViewerModel: ObservableObject {
         )
     }
 
-    deinit {
-        loadingTasksByOcId.values.forEach { $0.task.cancel() }
-        loadingTasksByOcId.removeAll()
-    }
-
     // MARK: - Public API
 
     /// Returns the page model for an absolute index.
@@ -387,20 +322,14 @@ final class NCMediaViewerModel: ObservableObject {
 
     /// Handles page display from the UIKit pager.
     ///
-    /// When a page becomes selected, a running prefetch task for that page is
-    /// cancelled and replaced by selected-page loading.
+    /// This method loads the requested page.
+    /// It does not update `selectedIndex`; page selection is owned by the paging coordinator.
     ///
     /// - Parameter index: Absolute page index currently displayed.
     func displayPage(at index: Int) async {
         guard ocIds.indices.contains(index) else {
             return
         }
-
-        selectedIndex = index
-
-        // Start neighbor prefetch immediately.
-        // Do not wait for the selected page full download to finish.
-        prefetchNeighborPages(around: index)
 
         await loadPageIfNeeded(index: index)
     }
@@ -414,17 +343,10 @@ final class NCMediaViewerModel: ObservableObject {
 
     /// Loads the initially selected page if needed.
     func loadSelectedPageIfNeeded() async {
-        // Start neighbor prefetch immediately.
-        // This prepares adjacent previews while the selected page is loading.
-        prefetchNeighborPages(around: selectedIndex)
-
         await loadPageIfNeeded(index: selectedIndex)
     }
 
     /// Loads a page if it still needs selected-page loading.
-    ///
-    /// Prefetched pages can already have a preview, but selected-page loading
-    /// must still run to check or download the full media file.
     ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     func loadPageIfNeeded(index: Int) async {
@@ -438,37 +360,7 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        if loadingTasksByOcId[ocId]?.kind == .selected {
-            return
-        }
-
-        if loadingTasksByOcId[ocId]?.kind == .prefetch {
-            loadingTasksByOcId[ocId]?.task.cancel()
-            loadingTasksByOcId[ocId] = nil
-        }
-
-        let identifier = UUID()
-
-        let task = Task { [weak self] in
-            guard let self else {
-                return
-            }
-
-            await self.loadPage(index: index)
-        }
-
-        loadingTasksByOcId[ocId] = NCMediaViewerLoadingTask(
-            identifier: identifier,
-            kind: .selected,
-            task: task
-        )
-
-        await task.value
-
-        clearLoadingTaskIfCurrent(
-            ocId: ocId,
-            identifier: identifier
-        )
+        await loadPage(index: index)
     }
 
     /// Reloads a failed or missing page.
@@ -481,9 +373,6 @@ final class NCMediaViewerModel: ObservableObject {
 
         let ocId = ocIds[index]
 
-        loadingTasksByOcId[ocId]?.task.cancel()
-        loadingTasksByOcId[ocId] = nil
-
         updatePage(ocId: ocId) { page in
             page.state = .idle
         }
@@ -493,16 +382,11 @@ final class NCMediaViewerModel: ObservableObject {
 
     /// Cancels loading for a specific page.
     ///
+    /// Kept as a no-op while selected-page loading is intentionally simplified.
+    ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     func cancelLoading(index: Int) {
-        guard ocIds.indices.contains(index) else {
-            return
-        }
-
-        let ocId = ocIds[index]
-
-        loadingTasksByOcId[ocId]?.task.cancel()
-        loadingTasksByOcId[ocId] = nil
+        // No-op in the simplified model.
     }
 
     /// Updates the selected index without starting full page loading.
@@ -522,9 +406,11 @@ final class NCMediaViewerModel: ObservableObject {
 
     /// Prefetches a page preview without downloading the full media file.
     ///
+    /// Kept as a no-op while paging and audio navigation are being stabilized.
+    ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     func prefetchVisiblePageIfNeeded(index: Int) async {
-        await prefetchPageIfNeeded(index: index)
+        // No-op in the simplified model.
     }
 
     /// Toggles the media viewer chrome visibility.
@@ -559,7 +445,6 @@ final class NCMediaViewerModel: ObservableObject {
         )
 
         let ocId = ocIds[index]
-
         let metadata = await resolvedMetadata(for: ocId)
 
         guard !Task.isCancelled else {
@@ -595,7 +480,10 @@ final class NCMediaViewerModel: ObservableObject {
         }
 
         if previewURL == nil {
-            previewURL = await loader.previewURL(for: metadata, index: index)
+            previewURL = await loader.previewURL(
+                for: metadata,
+                index: index
+            )
         }
 
         guard !Task.isCancelled else {
@@ -612,8 +500,14 @@ final class NCMediaViewerModel: ObservableObject {
                 ),
                 for: ocId
             )
-        } else if pageState(for: ocId).isIdle {
-            setState(.loadingMetadata, for: ocId)
+        } else {
+            setState(
+                .downloading(
+                    previewURL: previewURL,
+                    progress: nil
+                ),
+                for: ocId
+            )
         }
 
         guard !Task.isCancelled else {
@@ -621,16 +515,6 @@ final class NCMediaViewerModel: ObservableObject {
         }
 
         do {
-            if !isImage(metadata) {
-                setState(
-                    .downloading(
-                        previewURL: previewURL,
-                        progress: nil
-                    ),
-                    for: ocId
-                )
-            }
-
             let downloadedURL = try await loader.downloadMedia(
                 for: metadata,
                 index: index
@@ -658,131 +542,6 @@ final class NCMediaViewerModel: ObservableObject {
                 for: ocId
             )
         }
-    }
-
-    // MARK: - Prefetch
-
-    /// Prefetches nearby pages around the selected index.
-    ///
-    /// Prefetch resolves metadata and preview only.
-    /// It never downloads the full media file.
-    ///
-    /// - Parameter index: Current selected absolute index.
-    private func prefetchNeighborPages(around index: Int) {
-        let prefetchRadius = 4
-
-        let neighborIndexes = (-prefetchRadius...prefetchRadius)
-            .map { index + $0 }
-            .filter { $0 != index }
-            .filter { ocIds.indices.contains($0) }
-
-        for neighborIndex in neighborIndexes {
-            Task { [weak self] in
-                guard let self else {
-                    return
-                }
-
-                await self.prefetchPageIfNeeded(index: neighborIndex)
-            }
-        }
-    }
-
-    /// Prefetches one page if it has not started loading yet.
-    ///
-    /// - Parameter index: Absolute page index inside the full `ocIds` array.
-    private func prefetchPageIfNeeded(index: Int) async {
-        guard ocIds.indices.contains(index) else {
-            return
-        }
-
-        let ocId = ocIds[index]
-
-        guard pageState(for: ocId).isIdle else {
-            return
-        }
-
-        guard loadingTasksByOcId[ocId] == nil else {
-            return
-        }
-
-        let identifier = UUID()
-
-        let task = Task { [weak self] in
-            guard let self else {
-                return
-            }
-
-            await self.loadPageForPrefetch(index: index)
-        }
-
-        loadingTasksByOcId[ocId] = NCMediaViewerLoadingTask(
-            identifier: identifier,
-            kind: .prefetch,
-            task: task
-        )
-
-        await task.value
-
-        clearLoadingTaskIfCurrent(
-            ocId: ocId,
-            identifier: identifier
-        )
-    }
-
-    /// Loads a page for neighbor prefetch.
-    ///
-    /// Prefetch resolves and stores the preview only.
-    /// It never downloads the full media file.
-    ///
-    /// - Parameter index: Absolute page index inside the full `ocIds` array.
-    private func loadPageForPrefetch(index: Int) async {
-        guard ocIds.indices.contains(index) else {
-            return
-        }
-
-        nkLog(
-            tag: NCGlobal.shared.logTagViewer,
-            emoji: .debug,
-            message: "LOAD PREFETCH \(index)",
-            consoleOnly: true
-        )
-
-        let ocId = ocIds[index]
-
-        let metadata = await resolvedMetadata(for: ocId)
-
-        guard !Task.isCancelled else {
-            return
-        }
-
-        guard let metadata else {
-            return
-        }
-
-        setMetadata(metadata, for: ocId)
-
-        let previewURL = await loader.previewURL(
-            for: metadata,
-            index: index
-        )
-
-        guard !Task.isCancelled else {
-            return
-        }
-
-        guard isImage(metadata), let previewURL else {
-            return
-        }
-
-        setState(
-            .image(
-                previewURL: previewURL,
-                localURL: nil,
-                livePhotoURL: nil,
-                progress: nil
-            ),
-            for: ocId
-        )
     }
 
     // MARK: - Page Updates
@@ -934,25 +693,6 @@ final class NCMediaViewerModel: ObservableObject {
         revision &+= 1
     }
 
-    /// Clears a loading task only if it is still the current task for the page.
-    ///
-    /// This prevents an older cancelled task from removing a newer task stored
-    /// under the same `ocId`.
-    ///
-    /// - Parameters:
-    ///   - ocId: Page file identifier.
-    ///   - identifier: Task identifier to validate.
-    private func clearLoadingTaskIfCurrent(
-        ocId: String,
-        identifier: UUID
-    ) {
-        guard loadingTasksByOcId[ocId]?.identifier == identifier else {
-            return
-        }
-
-        loadingTasksByOcId[ocId] = nil
-    }
-
     /// Returns whether the metadata represents an image.
     ///
     /// - Parameter metadata: Detached metadata.
@@ -965,27 +705,7 @@ final class NCMediaViewerModel: ObservableObject {
 // MARK: - NCMediaViewerPageState Helpers
 
 private extension NCMediaViewerPageState {
-    /// Returns true when the page has not started loading yet.
-    var isIdle: Bool {
-        switch self {
-        case .idle:
-            return true
-
-        case .loadingMetadata,
-             .metadataMissing,
-             .checkingLocalFile,
-             .image,
-             .downloading,
-             .ready,
-             .failed:
-            return false
-        }
-    }
-
     /// Returns true when selected-page loading should continue.
-    ///
-    /// A prefetched page can already have a preview but still needs selected-page
-    /// loading to download the full media file.
     var needsSelectedPageLoading: Bool {
         switch self {
         case .idle:

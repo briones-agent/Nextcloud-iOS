@@ -26,13 +26,10 @@ struct NCMediaViewerPageView: View {
     let page: NCMediaViewerPageModel
     let isChromeHidden: Bool
     let onToggleChrome: () -> Void
-
     let canGoPrevious: Bool
     let canGoNext: Bool
-    let shouldAutoPlay: Bool
-    let onPreviousPage: (_ shouldAutoPlay: Bool) -> Void
-    let onNextPage: (_ shouldAutoPlay: Bool) -> Void
-    let onAutoPlayConsumed: () -> Void
+    let onPreviousPage: () -> Void
+    let onNextPage: () -> Void
 
     // MARK: - Body
 
@@ -187,10 +184,8 @@ struct NCMediaViewerPageView: View {
                     localURL: localURL,
                     canGoPrevious: canGoPrevious,
                     canGoNext: canGoNext,
-                    shouldAutoPlay: shouldAutoPlay,
                     onPrevious: onPreviousPage,
-                    onNext: onNextPage,
-                    onAutoPlayConsumed: onAutoPlayConsumed
+                    onNext: onNextPage
                 )
                 .background(Color.black)
             }
@@ -282,7 +277,10 @@ struct NCMediaViewerPageView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private func failedOverlay(fileName: String?, message: String) -> some View {
+    private func failedOverlay(
+        fileName: String?,
+        message: String
+    ) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "icloud.slash")
                 .font(.system(size: 44, weight: .regular))

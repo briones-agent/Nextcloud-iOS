@@ -5,7 +5,6 @@
 import SwiftUI
 import UIKit
 import Combine
-import NextcloudKit
 
 // MARK: - Media Viewer Paging View
 
@@ -56,7 +55,6 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
 
         DispatchQueue.main.async {
             context.coordinator.scrollToInitialIndexIfNeeded(animated: false)
-            context.coordinator.updateCollectionBackground()
         }
 
         return collectionView
@@ -67,8 +65,8 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         context: Context
     ) {
         context.coordinator.model = model
-        context.coordinator.updateCollectionBackground()
 
+        collectionView.backgroundColor = .black
         collectionView.isScrollEnabled = model.numberOfPages > 1
         collectionView.alwaysBounceHorizontal = model.numberOfPages > 1
 
@@ -128,7 +126,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     private var didScrollToInitialIndex = false
     private var lastCollectionViewBoundsSize: CGSize = .zero
     private var cancellable: AnyCancellable?
-    private var lastVisibleIndex: Int?
 
     // MARK: - Init
 
@@ -140,7 +137,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.refreshVisibleCells()
-                self?.updateCollectionBackground()
             }
     }
 
@@ -178,43 +174,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         }
     }
 
-    // MARK: - Background
-
-    /// Returns the UIKit background color for the given page.
-    ///
-    /// Audio and video use black because their player surfaces are dark.
-    /// Images use the viewer background style unless chrome is hidden.
-    /// If metadata is temporarily unavailable, the default viewer system background is used.
-    private func backgroundColor(for page: NCMediaViewerPageModel?) -> UIColor {
-        guard !model.isChromeHidden else {
-            return .black
-        }
-
-        guard let metadata = page?.metadata else {
-            return UIColor.ncViewerBackground(.system)
-        }
-
-        switch metadata.classFile {
-        case NKTypeClassFile.audio.rawValue,
-             NKTypeClassFile.video.rawValue:
-            return .black
-
-        default:
-            return UIColor.ncViewerBackground(
-                ncViewerBackgroundStyle(for: metadata)
-            )
-        }
-    }
-
-    /// Applies the current page background to the collection view.
-    func updateCollectionBackground(for index: Int? = nil) {
-        let pageIndex = index ?? model.selectedIndex
-        let page = model.pageModel(at: pageIndex)
-        let color = backgroundColor(for: page)
-
-        collectionView?.backgroundColor = color
-    }
-
     // MARK: - Initial Scroll
 
     /// Scrolls to the initial selected page once.
@@ -249,8 +208,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         )
 
         didScrollToInitialIndex = true
-        lastVisibleIndex = index
-        updateCollectionBackground(for: index)
     }
 
     /// Scrolls to the current selected index.
@@ -282,9 +239,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             at: .centeredHorizontally,
             animated: animated
         )
-
-        lastVisibleIndex = index
-        updateCollectionBackground(for: index)
     }
 
     // MARK: - Visible Cell Refresh
@@ -311,20 +265,14 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - Page Navigation
 
-    /// Moves the media viewer to a page relative to the source page index.
+    /// Moves the media viewer to a page relative to the current selected index.
     ///
-    /// This is used by inline media controls, for example audio previous/next buttons.
+    /// This method validates the target before stopping playback, so pressing
+    /// previous on the first item or next on the last item does not stop audio.
     ///
-    /// - Parameters:
-    ///   - sourceIndex: Page index that generated the navigation command.
-    ///   - offset: Relative page offset. Use `-1` for previous and `1` for next.
-    ///   - shouldAutoPlay: Whether the target audio page should start playback automatically.
-    private func moveToPage(
-        from sourceIndex: Int,
-        offset: Int,
-        shouldAutoPlay: Bool
-    ) {
-        let targetIndex = sourceIndex + offset
+    /// - Parameter offset: Relative page offset. Use `-1` for previous and `1` for next.
+    private func moveToPage(offset: Int) {
+        let targetIndex = model.selectedIndex + offset
 
         guard targetIndex >= 0,
               targetIndex < model.numberOfPages else {
@@ -336,13 +284,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             object: nil
         )
 
-        if shouldAutoPlay,
-           let targetPage = model.pageModel(at: targetIndex) {
-            model.requestAutoPlay(ocId: targetPage.ocId)
-        }
-
         model.setSelectedIndex(targetIndex)
-        updateCollectionBackground(for: targetIndex)
 
         collectionView?.scrollToItem(
             at: IndexPath(item: targetIndex, section: 0),
@@ -364,34 +306,19 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         cell: NCMediaViewerPagingCell,
         page: NCMediaViewerPageModel
     ) {
-        let pageBackgroundColor = backgroundColor(for: page)
-
         cell.configure(
             page: page,
             isChromeHidden: model.isChromeHidden,
-            backgroundColor: pageBackgroundColor,
             canGoPrevious: page.index > 0,
             canGoNext: page.index < model.numberOfPages - 1,
-            shouldAutoPlay: model.autoPlayTargetOcId == page.ocId,
             onToggleChrome: { [weak model] in
                 model?.toggleChromeVisibility()
             },
-            onPreviousPage: { [weak self] shouldAutoPlay in
-                self?.moveToPage(
-                    from: page.index,
-                    offset: -1,
-                    shouldAutoPlay: shouldAutoPlay
-                )
+            onPreviousPage: { [weak self] in
+                self?.moveToPage(offset: -1)
             },
-            onNextPage: { [weak self] shouldAutoPlay in
-                self?.moveToPage(
-                    from: page.index,
-                    offset: 1,
-                    shouldAutoPlay: shouldAutoPlay
-                )
-            },
-            onAutoPlayConsumed: { [weak model] in
-                model?.clearAutoPlayIfNeeded(for: page.ocId)
+            onNextPage: { [weak self] in
+                self?.moveToPage(offset: 1)
             }
         )
     }
@@ -424,9 +351,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
                 page: page
             )
         } else {
-            pagingCell.configureEmpty(
-                backgroundColor: backgroundColor(for: nil)
-            )
+            pagingCell.configureEmpty()
         }
 
         return pagingCell
@@ -449,34 +374,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             name: .ncMediaViewerStopPlayback,
             object: nil
         )
-    }
-
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        let width = scrollView.bounds.width
-
-        guard width > 0 else {
-            return
-        }
-
-        let rawIndex = scrollView.contentOffset.x / width
-        let index = Int(round(rawIndex))
-
-        guard index >= 0,
-              index < model.numberOfPages else {
-            return
-        }
-
-        guard lastVisibleIndex != index else {
-            return
-        }
-
-        lastVisibleIndex = index
-        model.setSelectedIndex(index)
-        updateCollectionBackground(for: index)
-
-        Task {
-            await model.prefetchVisiblePageIfNeeded(index: index)
-        }
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
@@ -514,7 +411,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             return
         }
 
-        updateCollectionBackground(for: index)
+        model.setSelectedIndex(index)
 
         Task {
             await model.displayPage(at: index)
@@ -536,16 +433,16 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     override init(frame: CGRect) {
         super.init(frame: frame)
 
-        backgroundColor = UIColor.ncViewerBackground(.system)
-        contentView.backgroundColor = UIColor.ncViewerBackground(.system)
+        backgroundColor = .black
+        contentView.backgroundColor = .black
         contentView.clipsToBounds = true
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
 
-        backgroundColor = UIColor.ncViewerBackground(.system)
-        contentView.backgroundColor = UIColor.ncViewerBackground(.system)
+        backgroundColor = .black
+        contentView.backgroundColor = .black
         contentView.clipsToBounds = true
     }
 
@@ -557,8 +454,8 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         hostingController?.view.removeFromSuperview()
         hostingController = nil
 
-        backgroundColor = UIColor.ncViewerBackground(.system)
-        contentView.backgroundColor = UIColor.ncViewerBackground(.system)
+        backgroundColor = .black
+        contentView.backgroundColor = .black
     }
 
     override func layoutSubviews() {
@@ -574,28 +471,22 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     /// - Parameters:
     ///   - page: Page model to render.
     ///   - isChromeHidden: Whether viewer chrome is currently hidden.
-    ///   - backgroundColor: Background color matching the currently rendered page.
     ///   - canGoPrevious: Whether the page can navigate to a previous item.
     ///   - canGoNext: Whether the page can navigate to a next item.
-    ///   - shouldAutoPlay: Whether hosted audio content should start playback automatically.
     ///   - onToggleChrome: Callback used by image pages to show or hide chrome.
     ///   - onPreviousPage: Callback used by inline controls to move to previous page.
     ///   - onNextPage: Callback used by inline controls to move to next page.
-    ///   - onAutoPlayConsumed: Callback invoked after the hosted page consumes the auto-play request.
     func configure(
         page: NCMediaViewerPageModel,
         isChromeHidden: Bool,
-        backgroundColor: UIColor,
         canGoPrevious: Bool,
         canGoNext: Bool,
-        shouldAutoPlay: Bool,
         onToggleChrome: @escaping () -> Void,
-        onPreviousPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
-        onNextPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
-        onAutoPlayConsumed: @escaping () -> Void
+        onPreviousPage: @escaping () -> Void,
+        onNextPage: @escaping () -> Void
     ) {
-        self.backgroundColor = backgroundColor
-        contentView.backgroundColor = backgroundColor
+        backgroundColor = .black
+        contentView.backgroundColor = .black
 
         let view = AnyView(
             NCMediaViewerPageView(
@@ -604,14 +495,12 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
                 onToggleChrome: onToggleChrome,
                 canGoPrevious: canGoPrevious,
                 canGoNext: canGoNext,
-                shouldAutoPlay: shouldAutoPlay,
                 onPreviousPage: onPreviousPage,
-                onNextPage: onNextPage,
-                onAutoPlayConsumed: onAutoPlayConsumed
+                onNextPage: onNextPage
             )
             .id(page.ocId)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(backgroundColor))
+            .background(Color.black)
             .ignoresSafeArea()
         )
 
@@ -623,11 +512,11 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
 
         if let hostingController {
             hostingController.rootView = view
-            hostingController.view.backgroundColor = backgroundColor
+            hostingController.view.backgroundColor = .black
             hostingController.view.frame = contentView.bounds
         } else {
             let hostingController = UIHostingController(rootView: view)
-            hostingController.view.backgroundColor = backgroundColor
+            hostingController.view.backgroundColor = .black
             hostingController.view.frame = contentView.bounds
             hostingController.view.autoresizingMask = [
                 .flexibleWidth,
@@ -640,11 +529,9 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     }
 
     /// Configures the cell as an empty page.
-    ///
-    /// - Parameter backgroundColor: Background color to apply to the empty page.
-    func configureEmpty(backgroundColor: UIColor = .black) {
-        self.backgroundColor = backgroundColor
-        contentView.backgroundColor = backgroundColor
+    func configureEmpty() {
+        backgroundColor = .black
+        contentView.backgroundColor = .black
 
         currentOcId = nil
 
@@ -652,12 +539,12 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         hostingController = nil
 
         let view = AnyView(
-            Color(backgroundColor)
+            Color.black
                 .ignoresSafeArea()
         )
 
         let hostingController = UIHostingController(rootView: view)
-        hostingController.view.backgroundColor = backgroundColor
+        hostingController.view.backgroundColor = .black
         hostingController.view.frame = contentView.bounds
         hostingController.view.autoresizingMask = [
             .flexibleWidth,

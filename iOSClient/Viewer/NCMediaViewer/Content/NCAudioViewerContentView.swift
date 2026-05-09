@@ -5,7 +5,6 @@
 import SwiftUI
 import AVFoundation
 import NextcloudKit
-import MediaPlayer
 
 // MARK: - Audio Viewer View
 
@@ -25,10 +24,8 @@ struct NCAudioViewerContentView: View {
     let localURL: URL
     let canGoPrevious: Bool
     let canGoNext: Bool
-    let shouldAutoPlay: Bool
-    let onPrevious: (_ shouldAutoPlay: Bool) -> Void
-    let onNext: (_ shouldAutoPlay: Bool) -> Void
-    let onAutoPlayConsumed: () -> Void
+    let onPrevious: () -> Void
+    let onNext: () -> Void
 
     @StateObject private var model = NCAudioViewerModel()
 
@@ -37,19 +34,15 @@ struct NCAudioViewerContentView: View {
         localURL: URL,
         canGoPrevious: Bool = false,
         canGoNext: Bool = false,
-        shouldAutoPlay: Bool = false,
-        onPrevious: @escaping (_ shouldAutoPlay: Bool) -> Void = { _ in },
-        onNext: @escaping (_ shouldAutoPlay: Bool) -> Void = { _ in },
-        onAutoPlayConsumed: @escaping () -> Void = {}
+        onPrevious: @escaping () -> Void = {},
+        onNext: @escaping () -> Void = {}
     ) {
         self.metadata = metadata
         self.localURL = localURL
         self.canGoPrevious = canGoPrevious
         self.canGoNext = canGoNext
-        self.shouldAutoPlay = shouldAutoPlay
         self.onPrevious = onPrevious
         self.onNext = onNext
-        self.onAutoPlayConsumed = onAutoPlayConsumed
     }
 
     var body: some View {
@@ -94,10 +87,7 @@ struct NCAudioViewerContentView: View {
 
             HStack(spacing: 28) {
                 Button {
-                    let shouldAutoPlay = model.isPlaying
-
-                    model.pause()
-                    onPrevious(shouldAutoPlay)
+                    onPrevious()
                 } label: {
                     Image(systemName: "backward.end.circle")
                         .font(.system(size: 38, weight: .regular))
@@ -116,11 +106,7 @@ struct NCAudioViewerContentView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    if model.isPlaying {
-                        model.pause()
-                    } else {
-                        model.play()
-                    }
+                    model.togglePlayback()
                 } label: {
                     Image(systemName: model.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                         .font(.system(size: 72, weight: .regular))
@@ -139,10 +125,7 @@ struct NCAudioViewerContentView: View {
                 .disabled(model.duration <= 0)
 
                 Button {
-                    let shouldAutoPlay = model.isPlaying
-
-                    model.pause()
-                    onNext(shouldAutoPlay)
+                    onNext()
                 } label: {
                     Image(systemName: "forward.end.circle")
                         .font(.system(size: 38, weight: .regular))
@@ -155,18 +138,7 @@ struct NCAudioViewerContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
         .task(id: localURL) {
-            await model.load(
-                url: localURL,
-                title: displayFileName,
-                artist: metadata.contentType.isEmpty ? nil : metadata.contentType,
-                onPrevious: onPrevious,
-                onNext: onNext
-            )
-
-            consumeAutoPlayIfNeeded()
-        }
-        .onChange(of: shouldAutoPlay) { _, _ in
-            consumeAutoPlayIfNeeded()
+            await model.load(url: localURL)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             model.pause()
@@ -198,20 +170,6 @@ struct NCAudioViewerContentView: View {
         }
 
         return metadata.fileName
-    }
-
-    /// Starts playback when this page receives an auto-play request.
-    @MainActor
-    private func consumeAutoPlayIfNeeded() {
-        guard shouldAutoPlay else {
-            return
-        }
-
-        guard model.play() else {
-            return
-        }
-
-        onAutoPlayConsumed()
     }
 
     private func formatTime(_ seconds: Double) -> String {
@@ -254,48 +212,22 @@ final class NCAudioViewerModel: ObservableObject {
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private var currentURL: URL?
-    private var nowPlayingTitle: String = "Audio"
-    private var nowPlayingArtist: String?
-    private var onPreviousCommand: ((_ shouldAutoPlay: Bool) -> Void)?
-    private var onNextCommand: ((_ shouldAutoPlay: Bool) -> Void)?
 
     // MARK: - Public API
 
     /// Loads a local audio file.
     ///
-    /// - Parameters:
-    ///   - url: Local audio file URL.
-    ///   - title: Display title used for Now Playing.
-    ///   - artist: Optional secondary text used for Now Playing.
-    ///   - onPrevious: Callback used by previous-track remote command.
-    ///   - onNext: Callback used by next-track remote command.
-    func load(
-        url: URL,
-        title: String,
-        artist: String? = nil,
-        onPrevious: ((_ shouldAutoPlay: Bool) -> Void)? = nil,
-        onNext: ((_ shouldAutoPlay: Bool) -> Void)? = nil
-    ) async {
-        nowPlayingTitle = title
-        nowPlayingArtist = artist
-        onPreviousCommand = onPrevious
-        onNextCommand = onNext
-
+    /// - Parameter url: Local audio file URL.
+    func load(url: URL) async {
         guard currentURL != url else {
-            updateNowPlayingInfo()
             return
         }
 
         stop()
 
         currentURL = url
-        nowPlayingTitle = title
-        nowPlayingArtist = artist
-        onPreviousCommand = onPrevious
-        onNextCommand = onNext
 
         configureAudioSession()
-        configureRemoteCommands()
 
         let asset = AVURLAsset(url: url)
         let item = AVPlayerItem(asset: asset)
@@ -314,12 +246,18 @@ final class NCAudioViewerModel: ObservableObject {
 
         addTimeObserver(to: player)
         addEndObserver(for: item, player: player)
-        updateNowPlayingInfo()
+    }
+
+    /// Toggles audio playback.
+    func togglePlayback() {
+        if isPlaying {
+            pause()
+        } else {
+            play()
+        }
     }
 
     /// Starts audio playback.
-    ///
-    /// - Returns: True when playback was started.
     @discardableResult
     func play() -> Bool {
         guard let player else {
@@ -333,23 +271,14 @@ final class NCAudioViewerModel: ObservableObject {
 
         player.play()
         isPlaying = true
-        updateNowPlayingInfo()
 
         return true
     }
 
-    /// Toggles audio playback.
-    func togglePlayback() {
-        if isPlaying {
-            pause()
-        } else {
-            play()
-        }
-    }
-
-    /// Toggles loop playback.
-    func toggleLoop() {
-        isLoopEnabled.toggle()
+    /// Pauses playback without releasing the player.
+    func pause() {
+        player?.pause()
+        isPlaying = false
     }
 
     /// Restarts playback from the beginning.
@@ -358,8 +287,12 @@ final class NCAudioViewerModel: ObservableObject {
 
         if isPlaying {
             player?.play()
-            updateNowPlayingInfo()
         }
+    }
+
+    /// Toggles loop playback.
+    func toggleLoop() {
+        isLoopEnabled.toggle()
     }
 
     /// Seeks to a specific playback time.
@@ -376,7 +309,6 @@ final class NCAudioViewerModel: ObservableObject {
         )
 
         currentTime = clampedSeconds
-        updateNowPlayingInfo()
 
         let time = CMTime(
             seconds: clampedSeconds,
@@ -390,18 +322,9 @@ final class NCAudioViewerModel: ObservableObject {
         )
     }
 
-    /// Pauses playback without releasing the player.
-    func pause() {
-        player?.pause()
-        isPlaying = false
-        updateNowPlayingInfo()
-    }
-
     /// Stops playback and releases the player.
     func stop() {
-        if let player {
-            player.pause()
-        }
+        player?.pause()
 
         if let timeObserver,
            let player {
@@ -416,22 +339,10 @@ final class NCAudioViewerModel: ObservableObject {
         endObserver = nil
         player = nil
         currentURL = nil
-        onPreviousCommand = nil
-        onNextCommand = nil
 
         isPlaying = false
         currentTime = 0
         duration = 0
-
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-
-        let commandCenter = MPRemoteCommandCenter.shared()
-        commandCenter.playCommand.removeTarget(nil)
-        commandCenter.pauseCommand.removeTarget(nil)
-        commandCenter.togglePlayPauseCommand.removeTarget(nil)
-        commandCenter.changePlaybackPositionCommand.removeTarget(nil)
-        commandCenter.previousTrackCommand.removeTarget(nil)
-        commandCenter.nextTrackCommand.removeTarget(nil)
     }
 
     // MARK: - Private
@@ -456,110 +367,6 @@ final class NCAudioViewerModel: ObservableObject {
         }
     }
 
-    /// Configures Lock Screen, Control Center, and headset remote commands.
-    private func configureRemoteCommands() {
-        let commandCenter = MPRemoteCommandCenter.shared()
-
-        commandCenter.playCommand.removeTarget(nil)
-        commandCenter.pauseCommand.removeTarget(nil)
-        commandCenter.togglePlayPauseCommand.removeTarget(nil)
-        commandCenter.changePlaybackPositionCommand.removeTarget(nil)
-        commandCenter.previousTrackCommand.removeTarget(nil)
-        commandCenter.nextTrackCommand.removeTarget(nil)
-
-        commandCenter.playCommand.isEnabled = true
-        commandCenter.pauseCommand.isEnabled = true
-        commandCenter.togglePlayPauseCommand.isEnabled = true
-        commandCenter.changePlaybackPositionCommand.isEnabled = true
-        commandCenter.previousTrackCommand.isEnabled = true
-        commandCenter.nextTrackCommand.isEnabled = true
-
-        commandCenter.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                _ = self?.play()
-            }
-
-            return .success
-        }
-
-        commandCenter.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                self?.pause()
-            }
-
-            return .success
-        }
-
-        commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                self?.togglePlayback()
-            }
-
-            return .success
-        }
-
-        commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let event = event as? MPChangePlaybackPositionCommandEvent else {
-                return .commandFailed
-            }
-
-            Task { @MainActor in
-                self?.seek(to: event.positionTime)
-            }
-
-            return .success
-        }
-
-        commandCenter.previousTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                guard let self else {
-                    return
-                }
-
-                let shouldAutoPlay = self.isPlaying
-
-                self.pause()
-                self.onPreviousCommand?(shouldAutoPlay)
-            }
-
-            return .success
-        }
-
-        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                guard let self else {
-                    return
-                }
-
-                let shouldAutoPlay = self.isPlaying
-
-                self.pause()
-                self.onNextCommand?(shouldAutoPlay)
-            }
-
-            return .success
-        }
-    }
-
-    /// Updates the system Now Playing information shown on Lock Screen and Control Center.
-    private func updateNowPlayingInfo() {
-        var info: [String: Any] = [
-            MPMediaItemPropertyTitle: nowPlayingTitle,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
-        ]
-
-        if duration > 0 {
-            info[MPMediaItemPropertyPlaybackDuration] = duration
-        }
-
-        if let nowPlayingArtist {
-            info[MPMediaItemPropertyArtist] = nowPlayingArtist
-        }
-
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-    }
-
     /// Adds a periodic time observer to update SwiftUI playback state.
     ///
     /// - Parameter player: Player to observe.
@@ -579,7 +386,6 @@ final class NCAudioViewerModel: ObservableObject {
 
             Task { @MainActor in
                 self.currentTime = time.seconds.isFinite ? time.seconds : 0
-                self.updateNowPlayingInfo()
             }
         }
     }
@@ -615,13 +421,11 @@ final class NCAudioViewerModel: ObservableObject {
                         Task { @MainActor in
                             player.play()
                             self.isPlaying = true
-                            self.updateNowPlayingInfo()
                         }
                     }
                 } else {
                     self.currentTime = self.duration
                     self.isPlaying = false
-                    self.updateNowPlayingInfo()
                 }
             }
         }
