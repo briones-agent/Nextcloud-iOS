@@ -43,10 +43,12 @@ struct NCImageViewerContentView: View {
                 .ignoresSafeArea()
 
             if let currentImage {
-                NCImageZoomView(image: currentImage,
-                                backgroundStyle: backgroundStyle,
-                                allowsImageAnalysis: allowsImageAnalysis)
-                    .ignoresSafeArea()
+                NCImageZoomView(
+                    image: currentImage,
+                    backgroundStyle: backgroundStyle,
+                    allowsImageAnalysis: allowsImageAnalysis
+                )
+                .ignoresSafeArea()
             } else if let failedMessage {
                 failedView(failedMessage)
             } else {

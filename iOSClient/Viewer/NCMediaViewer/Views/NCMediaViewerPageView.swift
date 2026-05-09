@@ -72,22 +72,6 @@ struct NCMediaViewerPageView: View {
         }
         .background(Color.ncViewerBackground(backgroundStyle))
         .ignoresSafeArea()
-        .contentShape(Rectangle())
-        .gesture(
-            TapGesture(count: 2)
-                .exclusively(
-                    before: TapGesture(count: 1)
-                )
-                .onEnded { value in
-                    switch value {
-                    case .first:
-                        break
-
-                    case .second:
-                        onToggleChrome()
-                    }
-                }
-        )
     }
 
     // MARK: - Computed Properties
@@ -163,15 +147,13 @@ struct NCMediaViewerPageView: View {
         previewURL: URL?
     ) -> some View {
         if let metadata = page.metadata {
-            let style = ncViewerBackgroundStyle(for: metadata)
-
             switch mediaKind(for: metadata) {
             case .image:
                 imageContentView(
                     previewURL: previewURL,
                     localURL: localURL,
                     livePhotoURL: nil,
-                    backgroundStyle: style
+                    backgroundStyle: backgroundStyle
                 )
 
             case .video:
@@ -179,14 +161,14 @@ struct NCMediaViewerPageView: View {
                     metadata: metadata,
                     localURL: localURL
                 )
-                .background(Color.ncViewerBackground(style))
+                .background(Color.ncViewerBackground(backgroundStyle))
 
             case .audio:
                 NCAudioViewerPlaceholderView(
                     metadata: metadata,
                     localURL: localURL
                 )
-                .background(Color.ncViewerBackground(style))
+                .background(Color.ncViewerBackground(backgroundStyle))
             }
         } else {
             metadataMissingView
@@ -230,6 +212,8 @@ struct NCMediaViewerPageView: View {
                 topOverlayInset: livePhotoTopOverlayInset
             )
             .background(Color.ncViewerBackground(backgroundStyle))
+            .contentShape(Rectangle())
+            .gesture(chromeToggleGesture())
         } else {
             NCImageViewerContentView(
                 identifier: page.ocId,
@@ -237,6 +221,8 @@ struct NCMediaViewerPageView: View {
                 fullURL: localURL,
                 backgroundStyle: backgroundStyle
             )
+            .contentShape(Rectangle())
+            .gesture(chromeToggleGesture())
         }
     }
 
@@ -248,6 +234,8 @@ struct NCMediaViewerPageView: View {
             fullURL: nil,
             backgroundStyle: backgroundStyle
         )
+        .contentShape(Rectangle())
+        .gesture(chromeToggleGesture())
     }
 
     private func downloadingOverlay(progress: Double?) -> some View {
@@ -299,6 +287,25 @@ struct NCMediaViewerPageView: View {
         .background(.black.opacity(0.45))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding()
+    }
+
+    /// Returns the tap gesture used to toggle the viewer chrome.
+    ///
+    /// Double tap is ignored here so image zoom can keep using it.
+    private func chromeToggleGesture() -> some Gesture {
+        TapGesture(count: 2)
+            .exclusively(
+                before: TapGesture(count: 1)
+            )
+            .onEnded { value in
+                switch value {
+                case .first:
+                    break
+
+                case .second:
+                    onToggleChrome()
+                }
+            }
     }
 
     // MARK: - Appearance Helpers
