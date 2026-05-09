@@ -24,8 +24,10 @@ struct NCAudioViewerContentView: View {
     let localURL: URL
     let canGoPrevious: Bool
     let canGoNext: Bool
-    let onPrevious: () -> Void
-    let onNext: () -> Void
+    let shouldAutoPlay: Bool
+    let onPrevious: (_ shouldAutoPlay: Bool) -> Void
+    let onNext: (_ shouldAutoPlay: Bool) -> Void
+    let onAutoPlayConsumed: () -> Void
 
     @StateObject private var model = NCAudioViewerModel()
 
@@ -34,15 +36,19 @@ struct NCAudioViewerContentView: View {
         localURL: URL,
         canGoPrevious: Bool = false,
         canGoNext: Bool = false,
-        onPrevious: @escaping () -> Void = {},
-        onNext: @escaping () -> Void = {}
+        shouldAutoPlay: Bool = false,
+        onPrevious: @escaping (_ shouldAutoPlay: Bool) -> Void = { _ in },
+        onNext: @escaping (_ shouldAutoPlay: Bool) -> Void = { _ in },
+        onAutoPlayConsumed: @escaping () -> Void = {}
     ) {
         self.metadata = metadata
         self.localURL = localURL
         self.canGoPrevious = canGoPrevious
         self.canGoNext = canGoNext
+        self.shouldAutoPlay = shouldAutoPlay
         self.onPrevious = onPrevious
         self.onNext = onNext
+        self.onAutoPlayConsumed = onAutoPlayConsumed
     }
 
     var body: some View {
@@ -87,7 +93,7 @@ struct NCAudioViewerContentView: View {
 
             HStack(spacing: 28) {
                 Button {
-                    onPrevious()
+                    onPrevious(model.isPlaying)
                 } label: {
                     Image(systemName: "backward.end.circle")
                         .font(.system(size: 38, weight: .regular))
@@ -125,7 +131,7 @@ struct NCAudioViewerContentView: View {
                 .disabled(model.duration <= 0)
 
                 Button {
-                    onNext()
+                    onNext(model.isPlaying)
                 } label: {
                     Image(systemName: "forward.end.circle")
                         .font(.system(size: 38, weight: .regular))
@@ -139,6 +145,10 @@ struct NCAudioViewerContentView: View {
         .background(Color.black)
         .task(id: localURL) {
             await model.load(url: localURL)
+            consumeAutoPlayIfNeeded()
+        }
+        .onChange(of: shouldAutoPlay) { _, _ in
+            consumeAutoPlayIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             model.pause()
@@ -163,6 +173,20 @@ struct NCAudioViewerContentView: View {
     }
 
     // MARK: - Private
+
+    /// Starts playback when this page receives an auto-play request.
+    @MainActor
+    private func consumeAutoPlayIfNeeded() {
+        guard shouldAutoPlay else {
+            return
+        }
+
+        guard model.play() else {
+            return
+        }
+
+        onAutoPlayConsumed()
+    }
 
     private var displayFileName: String {
         if !metadata.fileNameView.isEmpty {

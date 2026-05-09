@@ -172,6 +172,9 @@ final class NCMediaViewerModel: ObservableObject {
     /// background for a cleaner fullscreen media experience.
     @Published private(set) var isChromeHidden = false
 
+    /// Page ocId that should auto-start playback after navigation.
+    @Published private(set) var autoPlayTargetOcId: String?
+
     // MARK: - Dependencies
 
     private let loader: NCMediaViewerLoading
@@ -292,6 +295,33 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Public API
 
+    /// Requests automatic playback for a target page.
+    ///
+    /// The request is stored by `ocId` instead of index so it survives page reloads,
+    /// download state changes, and page model reconstruction.
+    ///
+    /// - Parameter ocId: Target page ocId.
+    func requestAutoPlay(ocId: String) {
+        guard autoPlayTargetOcId != ocId else {
+            return
+        }
+
+        autoPlayTargetOcId = ocId
+        revision &+= 1
+    }
+
+    /// Clears the automatic playback request if it matches the provided page.
+    ///
+    /// - Parameter ocId: Page ocId that consumed auto-play.
+    func clearAutoPlayIfNeeded(for ocId: String) {
+        guard autoPlayTargetOcId == ocId else {
+            return
+        }
+
+        autoPlayTargetOcId = nil
+        revision &+= 1
+    }
+    
     /// Returns the page model for an absolute index.
     ///
     /// If the page is not cached yet, a lightweight idle page is created and cached.

@@ -28,8 +28,10 @@ struct NCMediaViewerPageView: View {
     let onToggleChrome: () -> Void
     let canGoPrevious: Bool
     let canGoNext: Bool
-    let onPreviousPage: () -> Void
-    let onNextPage: () -> Void
+    let shouldAutoPlay: Bool
+    let onPreviousPage: (_ shouldAutoPlay: Bool) -> Void
+    let onNextPage: (_ shouldAutoPlay: Bool) -> Void
+    let onAutoPlayConsumed: () -> Void
 
     // MARK: - Body
 
@@ -184,8 +186,10 @@ struct NCMediaViewerPageView: View {
                     localURL: localURL,
                     canGoPrevious: canGoPrevious,
                     canGoNext: canGoNext,
+                    shouldAutoPlay: shouldAutoPlay,
                     onPrevious: onPreviousPage,
-                    onNext: onNextPage
+                    onNext: onNextPage,
+                    onAutoPlayConsumed: onAutoPlayConsumed
                 )
                 .background(Color.black)
             }
