@@ -335,8 +335,9 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             object: nil
         )
 
-        if shouldAutoPlay {
-            model.requestAutoPlay(at: targetIndex)
+        if shouldAutoPlay,
+           let targetPage = model.pageModel(at: targetIndex) {
+            model.requestAutoPlay(ocId: targetPage.ocId)
         }
 
         model.setSelectedIndex(targetIndex)
@@ -370,7 +371,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             backgroundColor: pageBackgroundColor,
             canGoPrevious: page.index > 0,
             canGoNext: page.index < model.numberOfPages - 1,
-            shouldAutoPlay: model.autoPlayTargetIndex == page.index,
+            shouldAutoPlay: model.autoPlayTargetOcId == page.ocId,
             onToggleChrome: { [weak model] in
                 model?.toggleChromeVisibility()
             },
@@ -387,7 +388,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
                 )
             },
             onAutoPlayConsumed: { [weak model] in
-                model?.clearAutoPlayIfNeeded(for: page.index)
+                model?.clearAutoPlayIfNeeded(for: page.ocId)
             }
         )
     }

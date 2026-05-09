@@ -192,8 +192,8 @@ final class NCMediaViewerModel: ObservableObject {
     /// background for a cleaner fullscreen media experience.
     @Published private(set) var isChromeHidden = false
 
-    /// Page index that should auto-start playback after navigation.
-    @Published private(set) var autoPlayTargetIndex: Int?
+    /// Page ocId that should auto-start playback after navigation.
+    @Published private(set) var autoPlayTargetOcId: String?
 
     // MARK: - Dependencies
 
@@ -258,27 +258,26 @@ final class NCMediaViewerModel: ObservableObject {
         return cachedPagesByOcId[ocId]?.metadata
     }
 
-    /// Requests automatic playback for a target page index.
+    /// Requests automatic playback for a target page.
     ///
-    /// - Parameter index: Target page index.
-    func requestAutoPlay(at index: Int) {
-        guard ocIds.indices.contains(index) else {
-            return
-        }
-
-        autoPlayTargetIndex = index
+    /// The request is stored by `ocId` instead of index so it survives page reloads,
+    /// download state changes, and page model reconstruction.
+    ///
+    /// - Parameter ocId: Target page ocId.
+    func requestAutoPlay(ocId: String) {
+        autoPlayTargetOcId = ocId
         revision &+= 1
     }
 
-    /// Clears the automatic playback request if it matches the provided index.
+    /// Clears the automatic playback request if it matches the provided page.
     ///
-    /// - Parameter index: Page index that consumed auto-play.
-    func clearAutoPlayIfNeeded(for index: Int) {
-        guard autoPlayTargetIndex == index else {
+    /// - Parameter ocId: Page ocId that consumed auto-play.
+    func clearAutoPlayIfNeeded(for ocId: String) {
+        guard autoPlayTargetOcId == ocId else {
             return
         }
 
-        autoPlayTargetIndex = nil
+        autoPlayTargetOcId = nil
         revision &+= 1
     }
 

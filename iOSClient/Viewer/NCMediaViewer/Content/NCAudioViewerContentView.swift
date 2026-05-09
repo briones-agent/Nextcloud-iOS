@@ -152,7 +152,9 @@ struct NCAudioViewerContentView: View {
             await model.load(
                 url: localURL,
                 title: displayFileName,
-                artist: metadata.contentType.isEmpty ? nil : metadata.contentType
+                artist: metadata.contentType.isEmpty ? nil : metadata.contentType,
+                onPrevious: onPrevious,
+                onNext: onNext
             )
 
             consumeAutoPlayIfNeeded()
@@ -245,6 +247,8 @@ final class NCAudioViewerModel: ObservableObject {
     private var currentURL: URL?
     private var nowPlayingTitle: String = "Audio"
     private var nowPlayingArtist: String?
+    private var onPreviousCommand: ((_ shouldAutoPlay: Bool) -> Void)?
+    private var onNextCommand: ((_ shouldAutoPlay: Bool) -> Void)?
 
     // MARK: - Public API
 
@@ -257,7 +261,9 @@ final class NCAudioViewerModel: ObservableObject {
     func load(
         url: URL,
         title: String,
-        artist: String? = nil
+        artist: String? = nil,
+        onPrevious: ((_ shouldAutoPlay: Bool) -> Void)? = nil,
+        onNext: ((_ shouldAutoPlay: Bool) -> Void)? = nil
     ) async {
         guard currentURL != url else {
             return
@@ -268,6 +274,8 @@ final class NCAudioViewerModel: ObservableObject {
         currentURL = url
         nowPlayingTitle = title
         nowPlayingArtist = artist
+        onPreviousCommand = onPrevious
+        onNextCommand = onNext
 
         configureAudioSession()
         configureRemoteCommands()
@@ -300,11 +308,15 @@ final class NCAudioViewerModel: ObservableObject {
         commandCenter.pauseCommand.removeTarget(nil)
         commandCenter.togglePlayPauseCommand.removeTarget(nil)
         commandCenter.changePlaybackPositionCommand.removeTarget(nil)
+        commandCenter.previousTrackCommand.removeTarget(nil)
+        commandCenter.nextTrackCommand.removeTarget(nil)
 
         commandCenter.playCommand.isEnabled = true
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.togglePlayPauseCommand.isEnabled = true
         commandCenter.changePlaybackPositionCommand.isEnabled = true
+        commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.nextTrackCommand.isEnabled = true
 
         commandCenter.playCommand.addTarget { [weak self] _ in
             Task { @MainActor in
@@ -341,6 +353,34 @@ final class NCAudioViewerModel: ObservableObject {
 
             Task { @MainActor in
                 self?.seek(to: event.positionTime)
+            }
+
+            return .success
+        }
+
+        commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor in
+                guard let self else {
+                    return
+                }
+
+                let shouldAutoPlay = self.isPlaying
+                self.pause()
+                self.onPreviousCommand?(shouldAutoPlay)
+            }
+
+            return .success
+        }
+
+        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor in
+                guard let self else {
+                    return
+                }
+
+                let shouldAutoPlay = self.isPlaying
+                self.pause()
+                self.onNextCommand?(shouldAutoPlay)
             }
 
             return .success
@@ -459,6 +499,8 @@ final class NCAudioViewerModel: ObservableObject {
         endObserver = nil
         player = nil
         currentURL = nil
+        onPreviousCommand = nil
+        onNextCommand = nil
 
         isPlaying = false
         currentTime = 0
@@ -471,6 +513,8 @@ final class NCAudioViewerModel: ObservableObject {
         commandCenter.pauseCommand.removeTarget(nil)
         commandCenter.togglePlayPauseCommand.removeTarget(nil)
         commandCenter.changePlaybackPositionCommand.removeTarget(nil)
+        commandCenter.previousTrackCommand.removeTarget(nil)
+        commandCenter.nextTrackCommand.removeTarget(nil)
     }
 
     // MARK: - Private
