@@ -18,7 +18,7 @@ import UIKit
 /// thumbnail into the fullscreen viewer and animates the currently selected media
 /// item back into its matching thumbnail frame on dismissal.
 @MainActor
-final class NCMediaViewerPresenter {
+final class NCMediaViewerPresenter: NSObject {
     static let shared = NCMediaViewerPresenter()
 
     private var navigationController: UINavigationController?
@@ -31,7 +31,14 @@ final class NCMediaViewerPresenter {
     private let openingAnimationDuration: TimeInterval = 0.28
     private let closingAnimationDuration: TimeInterval = 0.24
 
-    private init() { }
+    private var dismissPanGesture: UIPanGestureRecognizer?
+    private weak var dismissPanGestureView: UIView?
+    private var isTrackingDismissPan = false
+    private var isDismissing = false
+
+    private override init() {
+        super.init()
+    }
 
     // MARK: - Presentation
 
@@ -43,11 +50,13 @@ final class NCMediaViewerPresenter {
     ///   - sourceView: Optional view used to resolve the current window. When nil, the active foreground key window is used.
     ///   - contextMenuController: Controller used by the viewer context menu.
     ///   - closingTransitionSourceProvider: Optional provider used to resolve the current thumbnail source on dismissal.
-    func show(model: NCMediaViewerModel,
-              viewerTransitionSource: NCViewerTransitionSource?,
-              from sourceView: UIView? = nil,
-              contextMenuController: NCMainTabBarController? = nil,
-              closingTransitionSourceProvider: ((_ ocId: String) -> NCViewerTransitionSource?)? = nil) {
+    func show(
+        model: NCMediaViewerModel,
+        viewerTransitionSource: NCViewerTransitionSource?,
+        from sourceView: UIView? = nil,
+        contextMenuController: NCMainTabBarController? = nil,
+        closingTransitionSourceProvider: ((_ ocId: String) -> NCViewerTransitionSource?)? = nil
+    ) {
         guard let window = sourceView?.window ?? activeWindow() else {
             return
         }
@@ -57,6 +66,7 @@ final class NCMediaViewerPresenter {
         currentViewerTransitionSource = viewerTransitionSource
         currentModel = model
         self.closingTransitionSourceProvider = closingTransitionSourceProvider
+        isDismissing = false
 
         let hostingController = NCMediaViewerHostingController(
             model: model,
@@ -82,6 +92,8 @@ final class NCMediaViewerPresenter {
         self.navigationController = navigationController
         self.viewerContainerView = navigationController.view
 
+        installDismissPanGesture(on: navigationController.view)
+
         if let viewerTransitionSource {
             navigationController.view.alpha = 0
             window.addSubview(navigationController.view)
@@ -101,10 +113,17 @@ final class NCMediaViewerPresenter {
     ///
     /// - Parameter animated: Whether dismissal should be animated.
     func dismiss(animated: Bool = true) {
+        guard !isDismissing else {
+            return
+        }
+
         guard let viewerContainerView else {
             cleanup()
             return
         }
+
+        isDismissing = true
+        removeDismissPanGesture()
 
         guard animated else {
             viewerContainerView.removeFromSuperview()
@@ -171,6 +190,104 @@ final class NCMediaViewerPresenter {
         navigationController.navigationBar.compactScrollEdgeAppearance = appearance
     }
 
+    // MARK: - Dismiss Pan Gesture
+
+    /// Installs the swipe-down dismiss gesture on the fullscreen viewer container.
+    ///
+    /// The gesture is attached at presenter level, above the paging implementation,
+    /// so it does not require custom logic inside collection view cells or SwiftUI pages.
+    ///
+    /// - Parameter view: Viewer container view.
+    private func installDismissPanGesture(on view: UIView) {
+        removeDismissPanGesture()
+
+        let gesture = UIPanGestureRecognizer(
+            target: self,
+            action: #selector(handleDismissPanGesture(_:))
+        )
+
+        gesture.cancelsTouchesInView = false
+        gesture.delegate = self
+
+        view.addGestureRecognizer(gesture)
+
+        dismissPanGesture = gesture
+        dismissPanGestureView = view
+    }
+
+    /// Removes the swipe-down dismiss gesture from the viewer container.
+    private func removeDismissPanGesture() {
+        if let dismissPanGesture,
+           let dismissPanGestureView {
+            dismissPanGestureView.removeGestureRecognizer(dismissPanGesture)
+        }
+
+        dismissPanGesture = nil
+        dismissPanGestureView = nil
+        isTrackingDismissPan = false
+    }
+
+    /// Handles swipe-down dismissal from the fullscreen viewer container.
+    ///
+    /// The gesture dismisses only when the downward movement clearly dominates
+    /// horizontal movement.
+    @objc
+    private func handleDismissPanGesture(_ gesture: UIPanGestureRecognizer) {
+        guard !isDismissing,
+              let view = gesture.view else {
+            return
+        }
+
+        let translation = gesture.translation(in: view)
+        let velocity = gesture.velocity(in: view)
+
+        let verticalDistance = translation.y
+        let horizontalDistance = abs(translation.x)
+        let downwardVelocity = velocity.y
+
+        switch gesture.state {
+        case .began:
+            isTrackingDismissPan = false
+
+        case .changed:
+            guard verticalDistance > 0 else {
+                return
+            }
+
+            let isMostlyVertical = verticalDistance > horizontalDistance * 1.35
+
+            guard isMostlyVertical else {
+                return
+            }
+
+            isTrackingDismissPan = true
+
+        case .ended:
+            defer {
+                isTrackingDismissPan = false
+            }
+
+            guard isTrackingDismissPan else {
+                return
+            }
+
+            let shouldDismiss = verticalDistance > 120 || downwardVelocity > 1_000
+
+            guard shouldDismiss else {
+                return
+            }
+
+            dismiss(animated: true)
+
+        case .cancelled,
+             .failed:
+            isTrackingDismissPan = false
+
+        default:
+            break
+        }
+    }
+
     // MARK: - Opening Animation
 
     /// Animates the source thumbnail into the fullscreen viewer.
@@ -183,7 +300,11 @@ final class NCMediaViewerPresenter {
     ///   - viewerTransitionSource: Source thumbnail data.
     ///   - window: Window that contains the overlay transition views.
     ///   - viewerView: Real viewer container view to reveal at the end.
-    private func animateOpening(viewerTransitionSource: NCViewerTransitionSource, in window: UIWindow,viewerView: UIView) {
+    private func animateOpening(
+        viewerTransitionSource: NCViewerTransitionSource,
+        in window: UIWindow,
+        viewerView: UIView
+    ) {
         let dimView = UIView(frame: window.bounds)
         dimView.backgroundColor = .ncViewerBackground(.system)
         dimView.alpha = 0
@@ -235,7 +356,12 @@ final class NCMediaViewerPresenter {
     ///   - closingImage: Image currently displayed by the viewer, used during the closing transition.
     ///   - window: Window that contains the overlay transition views.
     ///   - viewerView: Real viewer container view to dismiss.
-    private func animateClosing(viewerTransitionSource: NCViewerTransitionSource, closingImage: UIImage, in window: UIWindow, viewerView: UIView) {
+    private func animateClosing(
+        viewerTransitionSource: NCViewerTransitionSource,
+        closingImage: UIImage,
+        in window: UIWindow,
+        viewerView: UIView
+    ) {
         let startFrame = aspectFitFrame(
             imageSize: closingImage.size,
             containerSize: window.bounds.size
@@ -339,11 +465,14 @@ final class NCMediaViewerPresenter {
 
     /// Clears retained presenter state after the viewer has been removed.
     private func cleanup() {
+        removeDismissPanGesture()
+
         navigationController = nil
         viewerContainerView = nil
         currentViewerTransitionSource = nil
         currentModel = nil
         closingTransitionSourceProvider = nil
+        isDismissing = false
     }
 
     // MARK: - Helpers
@@ -365,7 +494,10 @@ final class NCMediaViewerPresenter {
     ///   - imageSize: Source image size.
     ///   - containerSize: Window size.
     /// - Returns: Aspect-fit destination frame.
-    private func aspectFitFrame(imageSize: CGSize, containerSize: CGSize) -> CGRect {
+    private func aspectFitFrame(
+        imageSize: CGSize,
+        containerSize: CGSize
+    ) -> CGRect {
         guard imageSize.width > 0,
               imageSize.height > 0,
               containerSize.width > 0,
@@ -388,5 +520,32 @@ final class NCMediaViewerPresenter {
             width: fittedSize.width,
             height: fittedSize.height
         )
+    }
+}
+
+// MARK: - UIGestureRecognizerDelegate
+
+extension NCMediaViewerPresenter: UIGestureRecognizerDelegate {
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer === dismissPanGesture,
+              let panGesture = gestureRecognizer as? UIPanGestureRecognizer,
+              let view = panGesture.view else {
+            return true
+        }
+
+        let velocity = panGesture.velocity(in: view)
+
+        guard velocity.y > 0 else {
+            return false
+        }
+
+        return abs(velocity.y) > abs(velocity.x) * 1.35
+    }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        gestureRecognizer === dismissPanGesture
     }
 }
