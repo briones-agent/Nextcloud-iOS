@@ -14,6 +14,7 @@ import NextcloudKit
 /// - file title
 /// - play / pause button
 /// - loop button
+/// - previous / next buttons
 /// - restart button
 /// - elapsed and duration labels
 /// - seek slider
@@ -23,9 +24,9 @@ struct NCAudioViewerPlaceholderView: View {
     let localURL: URL
     let canGoPrevious: Bool
     let canGoNext: Bool
+    let shouldAutoPlay: Bool
     let onPrevious: (_ shouldAutoPlay: Bool) -> Void
     let onNext: (_ shouldAutoPlay: Bool) -> Void
-    let shouldAutoPlay: Bool
     let onAutoPlayConsumed: () -> Void
 
     @StateObject private var model = NCAudioViewerModel()
@@ -148,11 +149,10 @@ struct NCAudioViewerPlaceholderView: View {
         .background(Color.black)
         .task(id: localURL) {
             await model.load(url: localURL)
-
-            if shouldAutoPlay {
-                model.play()
-                onAutoPlayConsumed()
-            }
+            consumeAutoPlayIfNeeded()
+        }
+        .onChange(of: shouldAutoPlay) { _, _ in
+            consumeAutoPlayIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             model.pause()
@@ -184,6 +184,17 @@ struct NCAudioViewerPlaceholderView: View {
         }
 
         return metadata.fileName
+    }
+
+    /// Starts playback when this page receives an auto-play request.
+    @MainActor
+    private func consumeAutoPlayIfNeeded() {
+        guard shouldAutoPlay else {
+            return
+        }
+
+        model.play()
+        onAutoPlayConsumed()
     }
 
     private func formatTime(_ seconds: Double) -> String {
@@ -262,20 +273,6 @@ final class NCAudioViewerModel: ObservableObject {
         addEndObserver(for: item, player: player)
     }
 
-    /// Toggles audio playback.
-    func togglePlayback() {
-        if isPlaying {
-            pause()
-        } else {
-            play()
-        }
-    }
-
-    /// Toggles loop playback.
-    func toggleLoop() {
-        isLoopEnabled.toggle()
-    }
-
     /// Starts audio playback.
     func play() {
         guard let player else {
@@ -289,6 +286,20 @@ final class NCAudioViewerModel: ObservableObject {
 
         player.play()
         isPlaying = true
+    }
+
+    /// Toggles audio playback.
+    func togglePlayback() {
+        if isPlaying {
+            pause()
+        } else {
+            play()
+        }
+    }
+
+    /// Toggles loop playback.
+    func toggleLoop() {
+        isLoopEnabled.toggle()
     }
 
     /// Restarts playback from the beginning.
