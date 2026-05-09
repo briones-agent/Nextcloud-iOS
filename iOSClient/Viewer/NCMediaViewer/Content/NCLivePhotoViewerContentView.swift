@@ -82,7 +82,7 @@ struct NCLivePhotoViewerContentView: View {
                     isPlayingLivePhoto = true
                 }
         )
-        .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopLivePhotoPlayback)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             stopLivePhotoPlayback()
         }
         .onChange(of: identifier) { _, _ in

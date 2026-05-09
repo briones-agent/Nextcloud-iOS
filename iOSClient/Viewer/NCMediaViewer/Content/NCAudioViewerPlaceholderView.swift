@@ -86,6 +86,9 @@ struct NCAudioViewerPlaceholderView: View {
         .task(id: localURL) {
             await model.load(url: localURL)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
+            model.pause()
+        }
         .onDisappear {
             model.stop()
         }
@@ -242,6 +245,12 @@ final class NCAudioViewerModel: ObservableObject {
         isPlaying = false
         currentTime = 0
         duration = 0
+    }
+
+    /// Pause playback player.
+    func pause() {
+        player?.pause()
+        isPlaying = false
     }
 
     // MARK: - Private

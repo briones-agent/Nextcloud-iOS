@@ -372,7 +372,7 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         NotificationCenter.default.post(
-            name: .ncMediaViewerStopLivePhotoPlayback,
+            name: .ncMediaViewerStopPlayback,
             object: nil
         )
     }
@@ -501,5 +501,5 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
 }
 
 extension Notification.Name {
-    static let ncMediaViewerStopLivePhotoPlayback = Notification.Name("ncMediaViewerStopLivePhotoPlayback")
+    static let ncMediaViewerStopPlayback = Notification.Name("ncMediaViewerStopPlayback")
 }
