@@ -108,6 +108,43 @@ struct NCLivePhotoViewerContentView: View {
         )
     }
 
+    /// Badge shown below the navigation bar on the leading side. (color)
+    private var livePhotoBadgeBackground: Color {
+        switch backgroundStyle {
+        case .black:
+            return .gray.opacity(0.32)
+
+        case .system,
+             .white,
+             .custom:
+            return .white.opacity(0.72)
+        }
+    }
+
+    private var livePhotoBadgeForeground: Color {
+        switch backgroundStyle {
+        case .black:
+            return .white.opacity(0.88)
+
+        case .system,
+             .white,
+             .custom:
+            return .gray
+        }
+    }
+
+    private var livePhotoBadgeStroke: Color {
+        switch backgroundStyle {
+        case .black:
+            return .white.opacity(0.16)
+
+        case .system,
+             .white,
+             .custom:
+            return .gray.opacity(0.22)
+        }
+    }
+
     /// Badge shown below the navigation bar on the leading side.
     private var livePhotoBadge: some View {
         GeometryReader { proxy in
@@ -120,18 +157,18 @@ struct NCLivePhotoViewerContentView: View {
                     HStack(spacing: 5) {
                         Image(systemName: "livephoto")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(livePhotoBadgeForeground)
 
                         Text("LIVE")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(livePhotoBadgeForeground)
                     }
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
-                    .background(.white.opacity(0.72))
+                    .background(livePhotoBadgeBackground)
                     .overlay(
                         Capsule()
-                            .stroke(.gray.opacity(0.22), lineWidth: 1)
+                            .stroke(livePhotoBadgeStroke, lineWidth: 1)
                     )
                     .clipShape(Capsule())
                     .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
