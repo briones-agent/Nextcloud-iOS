@@ -26,6 +26,10 @@ struct NCMediaViewerPageView: View {
     let page: NCMediaViewerPageModel
     let isChromeHidden: Bool
     let onToggleChrome: () -> Void
+    let canGoPrevious: Bool
+    let canGoNext: Bool
+    let onPreviousPage: () -> Void
+    let onNextPage: () -> Void
 
     // MARK: - Body
 
@@ -166,9 +170,13 @@ struct NCMediaViewerPageView: View {
             case .audio:
                 NCAudioViewerPlaceholderView(
                     metadata: metadata,
-                    localURL: localURL
+                    localURL: localURL,
+                    canGoPrevious: canGoPrevious,
+                    canGoNext: canGoNext,
+                    onPrevious: onPreviousPage,
+                    onNext: onNextPage
                 )
-                .background(Color.ncViewerBackground(backgroundStyle))
+                .background(Color.black)
             }
         } else {
             metadataMissingView

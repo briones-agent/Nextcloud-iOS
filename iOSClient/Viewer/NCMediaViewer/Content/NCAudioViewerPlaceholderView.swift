@@ -21,8 +21,28 @@ import NextcloudKit
 struct NCAudioViewerPlaceholderView: View {
     let metadata: tableMetadata
     let localURL: URL
+    let canGoPrevious: Bool
+    let canGoNext: Bool
+    let onPrevious: () -> Void
+    let onNext: () -> Void
 
     @StateObject private var model = NCAudioViewerModel()
+
+    init(
+        metadata: tableMetadata,
+        localURL: URL,
+        canGoPrevious: Bool = false,
+        canGoNext: Bool = false,
+        onPrevious: @escaping () -> Void = {},
+        onNext: @escaping () -> Void = {}
+    ) {
+        self.metadata = metadata
+        self.localURL = localURL
+        self.canGoPrevious = canGoPrevious
+        self.canGoNext = canGoNext
+        self.onPrevious = onPrevious
+        self.onNext = onNext
+    }
 
     var body: some View {
         VStack(spacing: 28) {
@@ -64,12 +84,23 @@ struct NCAudioViewerPlaceholderView: View {
             }
             .padding(.horizontal, 32)
 
-            HStack(spacing: 34) {
+            HStack(spacing: 28) {
+                Button {
+                    model.pause()
+                    onPrevious()
+                } label: {
+                    Image(systemName: "backward.end.circle")
+                        .font(.system(size: 38, weight: .regular))
+                        .foregroundStyle(canGoPrevious ? .white.opacity(0.75) : .white.opacity(0.22))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canGoPrevious)
+
                 Button {
                     model.toggleLoop()
                 } label: {
                     Image(systemName: model.isLoopEnabled ? "repeat.circle.fill" : "repeat.circle")
-                        .font(.system(size: 38, weight: .regular))
+                        .font(.system(size: 34, weight: .regular))
                         .foregroundStyle(model.isLoopEnabled ? .white : .white.opacity(0.45))
                 }
                 .buttonStyle(.plain)
@@ -86,12 +117,23 @@ struct NCAudioViewerPlaceholderView: View {
                 Button {
                     model.restart()
                 } label: {
-                    Image(systemName: "backward.end.circle")
-                        .font(.system(size: 38, weight: .regular))
+                    Image(systemName: "gobackward")
+                        .font(.system(size: 34, weight: .regular))
                         .foregroundStyle(.white.opacity(0.45))
                 }
                 .buttonStyle(.plain)
                 .disabled(model.duration <= 0)
+
+                Button {
+                    model.pause()
+                    onNext()
+                } label: {
+                    Image(systemName: "forward.end.circle")
+                        .font(.system(size: 38, weight: .regular))
+                        .foregroundStyle(canGoNext ? .white.opacity(0.75) : .white.opacity(0.22))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canGoNext)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

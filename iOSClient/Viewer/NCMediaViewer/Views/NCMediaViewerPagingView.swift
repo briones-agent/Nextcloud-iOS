@@ -60,8 +60,12 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         return collectionView
     }
 
-    func updateUIView(_ collectionView: NCMediaViewerCollectionView, context: Context) {
+    func updateUIView(
+        _ collectionView: NCMediaViewerCollectionView,
+        context: Context
+    ) {
         context.coordinator.model = model
+
         collectionView.backgroundColor = .ncViewerBackground(.system)
         collectionView.isScrollEnabled = model.numberOfPages > 1
         collectionView.alwaysBounceHorizontal = model.numberOfPages > 1
@@ -113,7 +117,9 @@ final class NCMediaViewerCollectionView: UICollectionView {
 /// - collection view data source
 /// - collection view delegate flow layout
 @MainActor
-final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
+final class NCMediaViewerPagingCoordinator: NSObject,
+                                            UICollectionViewDataSource,
+                                            UICollectionViewDelegateFlowLayout {
     var model: NCMediaViewerModel
     weak var collectionView: UICollectionView?
 
@@ -196,15 +202,14 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
             return
         }
 
-        let indexPath = IndexPath(item: index, section: 0)
-
         collectionView.scrollToItem(
-            at: indexPath,
+            at: IndexPath(item: index, section: 0),
             at: .centeredHorizontally,
             animated: animated
         )
 
         didScrollToInitialIndex = true
+        lastVisibleIndex = index
     }
 
     /// Scrolls to the current selected index.
@@ -231,13 +236,13 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
             return
         }
 
-        let indexPath = IndexPath(item: index, section: 0)
-
         collectionView.scrollToItem(
-            at: indexPath,
+            at: IndexPath(item: index, section: 0),
             at: .centeredHorizontally,
             animated: animated
         )
+
+        lastVisibleIndex = index
     }
 
     // MARK: - Visible Cell Refresh
@@ -255,23 +260,85 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
                 continue
             }
 
-            cell.configure(
-                page: page,
-                isChromeHidden: model.isChromeHidden,
-                onToggleChrome: { [weak model] in
-                    model?.toggleChromeVisibility()
-                }
+            configure(
+                cell: cell,
+                page: page
             )
         }
     }
 
+    // MARK: - Page Navigation
+
+    /// Moves the media viewer to a page relative to the current selected index.
+    ///
+    /// This is used by inline media controls, for example audio previous/next buttons.
+    ///
+    /// - Parameter offset: Relative page offset. Use `-1` for previous and `1` for next.
+    private func moveToPage(offset: Int) {
+        let targetIndex = model.selectedIndex + offset
+
+        guard targetIndex >= 0,
+              targetIndex < model.numberOfPages else {
+            return
+        }
+
+        NotificationCenter.default.post(
+            name: .ncMediaViewerStopPlayback,
+            object: nil
+        )
+
+        model.setSelectedIndex(targetIndex)
+
+        collectionView?.scrollToItem(
+            at: IndexPath(item: targetIndex, section: 0),
+            at: .centeredHorizontally,
+            animated: true
+        )
+
+        Task {
+            await model.displayPage(at: targetIndex)
+        }
+    }
+
+    /// Configures a paging cell with all callbacks required by the hosted SwiftUI page.
+    ///
+    /// - Parameters:
+    ///   - cell: Cell to configure.
+    ///   - page: Page model to render.
+    private func configure(
+        cell: NCMediaViewerPagingCell,
+        page: NCMediaViewerPageModel
+    ) {
+        cell.configure(
+            page: page,
+            isChromeHidden: model.isChromeHidden,
+            canGoPrevious: page.index > 0,
+            canGoNext: page.index < model.numberOfPages - 1,
+            onToggleChrome: { [weak model] in
+                model?.toggleChromeVisibility()
+            },
+            onPreviousPage: { [weak self] in
+                self?.moveToPage(offset: -1)
+            },
+            onNextPage: { [weak self] in
+                self?.moveToPage(offset: 1)
+            }
+        )
+    }
+
     // MARK: - UICollectionViewDataSource
 
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+    func collectionView(
+        _ collectionView: UICollectionView,
+        numberOfItemsInSection section: Int
+    ) -> Int {
         model.numberOfPages
     }
 
-    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+    func collectionView(
+        _ collectionView: UICollectionView,
+        cellForItemAt indexPath: IndexPath
+    ) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(
             withReuseIdentifier: NCMediaViewerPagingCell.reuseIdentifier,
             for: indexPath
@@ -282,12 +349,9 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
         }
 
         if let page = model.pageModel(at: indexPath.item) {
-            pagingCell.configure(
-                page: page,
-                isChromeHidden: model.isChromeHidden,
-                onToggleChrome: { [weak model] in
-                    model?.toggleChromeVisibility()
-                }
+            configure(
+                cell: pagingCell,
+                page: page
             )
         } else {
             pagingCell.configureEmpty()
@@ -298,24 +362,21 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
 
     // MARK: - UICollectionViewDelegateFlowLayout
 
-    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+    func collectionView(
+        _ collectionView: UICollectionView,
+        layout collectionViewLayout: UICollectionViewLayout,
+        sizeForItemAt indexPath: IndexPath
+    ) -> CGSize {
         collectionView.bounds.size
     }
 
     // MARK: - UIScrollViewDelegate
 
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        updateSelectedIndexFromScrollView(scrollView)
-    }
-
-    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
-        updateSelectedIndexFromScrollView(scrollView)
-    }
-
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        if !decelerate {
-            updateSelectedIndexFromScrollView(scrollView)
-        }
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        NotificationCenter.default.post(
+            name: .ncMediaViewerStopPlayback,
+            object: nil
+        )
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -345,6 +406,23 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
         }
     }
 
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        updateSelectedIndexFromScrollView(scrollView)
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        updateSelectedIndexFromScrollView(scrollView)
+    }
+
+    func scrollViewDidEndDragging(
+        _ scrollView: UIScrollView,
+        willDecelerate decelerate: Bool
+    ) {
+        if !decelerate {
+            updateSelectedIndexFromScrollView(scrollView)
+        }
+    }
+
     /// Updates the selected page index after paging has settled.
     ///
     /// - Parameter scrollView: Source scroll view.
@@ -366,15 +444,6 @@ final class NCMediaViewerPagingCoordinator: NSObject, UICollectionViewDataSource
         Task {
             await model.displayPage(at: index)
         }
-    }
-
-    // MARK: - UIScrollViewDelegate
-
-    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        NotificationCenter.default.post(
-            name: .ncMediaViewerStopPlayback,
-            object: nil
-        )
     }
 }
 
@@ -427,8 +496,23 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
 
     /// Configures the cell with a media viewer page.
     ///
-    /// - Parameter page: Page model to render.
-    func configure(page: NCMediaViewerPageModel, isChromeHidden: Bool, onToggleChrome: @escaping () -> Void) {
+    /// - Parameters:
+    ///   - page: Page model to render.
+    ///   - isChromeHidden: Whether viewer chrome is currently hidden.
+    ///   - canGoPrevious: Whether the page can navigate to a previous item.
+    ///   - canGoNext: Whether the page can navigate to a next item.
+    ///   - onToggleChrome: Callback used by image pages to show or hide chrome.
+    ///   - onPreviousPage: Callback used by inline controls to move to previous page.
+    ///   - onNextPage: Callback used by inline controls to move to next page.
+    func configure(
+        page: NCMediaViewerPageModel,
+        isChromeHidden: Bool,
+        canGoPrevious: Bool,
+        canGoNext: Bool,
+        onToggleChrome: @escaping () -> Void,
+        onPreviousPage: @escaping () -> Void,
+        onNextPage: @escaping () -> Void
+    ) {
         backgroundColor = .ncViewerBackground(.system)
         contentView.backgroundColor = .ncViewerBackground(.system)
 
@@ -436,15 +520,15 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
             NCMediaViewerPageView(
                 page: page,
                 isChromeHidden: isChromeHidden,
-                onToggleChrome: onToggleChrome
+                onToggleChrome: onToggleChrome,
+                canGoPrevious: canGoPrevious,
+                canGoNext: canGoNext,
+                onPreviousPage: onPreviousPage,
+                onNextPage: onNextPage
             )
             .id(page.ocId)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(
-                Color.ncViewerBackground(
-                    isChromeHidden ? .black : .system
-                )
-            )
+            .background(Color.ncViewerBackground(.system))
             .ignoresSafeArea()
         )
 
@@ -499,6 +583,8 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         self.hostingController = hostingController
     }
 }
+
+// MARK: - Notifications
 
 extension Notification.Name {
     static let ncMediaViewerStopPlayback = Notification.Name("ncMediaViewerStopPlayback")
