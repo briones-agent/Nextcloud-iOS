@@ -290,7 +290,7 @@ struct NCImageViewerContentView: View {
             return false
         }
 
-        /*
+        /* for now disable (marino)
         if isSVG(url) {
             return false
         }
