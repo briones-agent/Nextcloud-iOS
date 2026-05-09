@@ -20,7 +20,7 @@ import MediaPlayer
 /// - elapsed and duration labels
 /// - seek slider
 /// - automatic cleanup when the view disappears
-struct NCAudioViewerPlaceholderView: View {
+struct NCAudioViewerContentView: View {
     let metadata: tableMetadata
     let localURL: URL
     let canGoPrevious: Bool
