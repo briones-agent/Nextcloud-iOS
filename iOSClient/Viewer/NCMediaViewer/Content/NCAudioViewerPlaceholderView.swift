@@ -3,12 +3,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import SwiftUI
-
-// SPDX-FileCopyrightText: Nextcloud GmbH
-// SPDX-FileCopyrightText: 2026 Marino Faggiana
-// SPDX-License-Identifier: GPL-3.0-or-later
-
-import SwiftUI
 import AVFoundation
 
 // MARK: - Audio Viewer View
@@ -18,6 +12,7 @@ import AVFoundation
 /// This view owns a lightweight `AVPlayer` model and provides:
 /// - file title
 /// - play / pause button
+/// - loop button
 /// - elapsed and duration labels
 /// - seek slider
 /// - automatic cleanup when the view disappears
@@ -72,14 +67,35 @@ struct NCAudioViewerPlaceholderView: View {
             }
             .padding(.horizontal, 32)
 
-            Button {
-                model.togglePlayback()
-            } label: {
-                Image(systemName: model.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 72, weight: .regular))
-                    .foregroundStyle(.white)
+            HStack(spacing: 34) {
+                Button {
+                    model.toggleLoop()
+                } label: {
+                    Image(systemName: model.isLoopEnabled ? "repeat.circle.fill" : "repeat.circle")
+                        .font(.system(size: 38, weight: .regular))
+                        .foregroundStyle(model.isLoopEnabled ? .white : .white.opacity(0.45))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    model.togglePlayback()
+                } label: {
+                    Image(systemName: model.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 72, weight: .regular))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    model.seek(to: 0)
+                } label: {
+                    Image(systemName: "backward.end.circle")
+                        .font(.system(size: 38, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+                .buttonStyle(.plain)
+                .disabled(model.duration <= 0)
             }
-            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
@@ -150,6 +166,7 @@ final class NCAudioViewerModel: ObservableObject {
     @Published private(set) var isPlaying = false
     @Published private(set) var duration: Double = 0
     @Published var currentTime: Double = 0
+    @Published private(set) var isLoopEnabled = false
 
     // MARK: - Private State
 
@@ -196,9 +213,19 @@ final class NCAudioViewerModel: ObservableObject {
             player.pause()
             isPlaying = false
         } else {
+            if duration > 0,
+               currentTime >= duration - 0.2 {
+                seek(to: 0)
+            }
+
             player.play()
             isPlaying = true
         }
+    }
+
+    /// Toggles loop playback.
+    func toggleLoop() {
+        isLoopEnabled.toggle()
     }
 
     /// Seeks to a specific playback time.
@@ -247,7 +274,7 @@ final class NCAudioViewerModel: ObservableObject {
         duration = 0
     }
 
-    /// Pause playback player.
+    /// Pauses playback without releasing the player.
     func pause() {
         player?.pause()
         isPlaying = false
@@ -275,8 +302,16 @@ final class NCAudioViewerModel: ObservableObject {
             Task { @MainActor in
                 self.currentTime = time.seconds.isFinite ? time.seconds : 0
 
-                if self.duration > 0,
-                   self.currentTime >= self.duration - 0.2 {
+                guard self.duration > 0,
+                      self.currentTime >= self.duration - 0.2 else {
+                    return
+                }
+
+                if self.isLoopEnabled {
+                    self.seek(to: 0)
+                    self.player?.play()
+                    self.isPlaying = true
+                } else {
                     self.isPlaying = false
                     self.currentTime = self.duration
                 }
