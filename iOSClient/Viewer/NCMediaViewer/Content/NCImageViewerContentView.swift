@@ -43,7 +43,9 @@ struct NCImageViewerContentView: View {
                 .ignoresSafeArea()
 
             if let currentImage {
-                NCImageZoomView(image: currentImage, backgroundStyle: backgroundStyle)
+                NCImageZoomView(image: currentImage,
+                                backgroundStyle: backgroundStyle,
+                                allowsImageAnalysis: allowsImageAnalysis)
                     .ignoresSafeArea()
             } else if let failedMessage {
                 failedView(failedMessage)
@@ -269,6 +271,30 @@ struct NCImageViewerContentView: View {
               fileSize > 0 else {
             return false
         }
+
+        return true
+    }
+
+    /// Returns whether VisionKit image analysis should be enabled for the current image.
+    ///
+    /// Image analysis is enabled only for normal static images.
+    /// GIF and SVG are excluded because they are rendered through special decoding paths.
+    private var allowsImageAnalysis: Bool {
+        let url = fullURL ?? previewURL
+
+        guard let url else {
+            return false
+        }
+
+        if isGIF(url) {
+            return false
+        }
+
+        /*
+        if isSVG(url) {
+            return false
+        }
+        */
 
         return true
     }
