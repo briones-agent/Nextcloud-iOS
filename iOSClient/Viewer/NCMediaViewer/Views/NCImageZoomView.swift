@@ -4,6 +4,7 @@
 
 import SwiftUI
 import UIKit
+import VisionKit
 
 // MARK: - Image Zoom View
 
@@ -15,15 +16,25 @@ import UIKit
 struct NCImageZoomView: UIViewRepresentable {
     let image: UIImage
     let backgroundStyle: NCViewerBackgroundStyle
+    let allowsImageAnalysis: Bool
 
     private let minimumZoomScale: CGFloat = 1
     private let maximumZoomScale: CGFloat = 5
     private let doubleTapZoomScale: CGFloat = 2.5
 
     /// Creates an image zoom view.
-    init(image: UIImage, backgroundStyle: NCViewerBackgroundStyle = .system) {
+    ///
+    /// - Parameters:
+    ///   - image: Image rendered inside the zoomable scroll view.
+    ///   - backgroundStyle: Viewer background style.
+    init(
+        image: UIImage,
+        backgroundStyle: NCViewerBackgroundStyle = .system,
+        allowsImageAnalysis: Bool = true
+    ) {
         self.image = image
         self.backgroundStyle = backgroundStyle
+        self.allowsImageAnalysis = allowsImageAnalysis
     }
 
     // MARK: - UIViewRepresentable
@@ -62,6 +73,14 @@ struct NCImageZoomView: UIViewRepresentable {
         context.coordinator.maximumZoomScale = maximumZoomScale
         context.coordinator.doubleTapZoomScale = doubleTapZoomScale
 
+        if allowsImageAnalysis {
+            analyzeImageIfAvailable(
+                image: image,
+                imageView: imageView,
+                coordinator: context.coordinator
+            )
+        }
+
         scrollView.onLayoutSubviews = { [weak coordinator = context.coordinator] in
             coordinator?.layoutImageViewResettingOnBoundsChange()
         }
@@ -76,7 +95,10 @@ struct NCImageZoomView: UIViewRepresentable {
         return scrollView
     }
 
-    func updateUIView(_ scrollView: NCZoomScrollView, context: Context) {
+    func updateUIView(
+        _ scrollView: NCZoomScrollView,
+        context: Context
+    ) {
         guard let imageView = context.coordinator.imageView else {
             return
         }
@@ -103,6 +125,16 @@ struct NCImageZoomView: UIViewRepresentable {
 
             imageView.image = image
             context.coordinator.layoutImageViewResettingZoom()
+
+            if allowsImageAnalysis {
+                analyzeImageIfAvailable(
+                    image: image,
+                    imageView: imageView,
+                    coordinator: context.coordinator
+                )
+            } else {
+                removeImageAnalysisInteractions(from: imageView)
+            }
         } else {
             context.coordinator.layoutImageViewResettingOnBoundsChange()
         }
@@ -164,7 +196,10 @@ struct NCImageZoomView: UIViewRepresentable {
 
             let boundsSize = scrollView.bounds.size
 
-            guard isValidLayout(imageSize: image.size, boundsSize: boundsSize) else {
+            guard isValidLayout(
+                imageSize: image.size,
+                boundsSize: boundsSize
+            ) else {
                 return
             }
 
@@ -201,7 +236,10 @@ struct NCImageZoomView: UIViewRepresentable {
 
             let boundsSize = scrollView.bounds.size
 
-            guard isValidLayout(imageSize: image.size, boundsSize: boundsSize) else {
+            guard isValidLayout(
+                imageSize: image.size,
+                boundsSize: boundsSize
+            ) else {
                 return
             }
 
@@ -256,7 +294,10 @@ struct NCImageZoomView: UIViewRepresentable {
         }
 
         /// Returns whether the current image and container sizes can be used for layout.
-        private func isValidLayout(imageSize: CGSize, boundsSize: CGSize) -> Bool {
+        private func isValidLayout(
+            imageSize: CGSize,
+            boundsSize: CGSize
+        ) -> Bool {
             imageSize.width > 0 &&
             imageSize.height > 0 &&
             boundsSize.width > 0 &&
@@ -264,7 +305,10 @@ struct NCImageZoomView: UIViewRepresentable {
         }
 
         /// Returns the aspect-fit size of an image inside a container.
-        private func fittedImageSize(imageSize: CGSize, containerSize: CGSize) -> CGSize {
+        private func fittedImageSize(
+            imageSize: CGSize,
+            containerSize: CGSize
+        ) -> CGSize {
             let widthRatio = containerSize.width / imageSize.width
             let heightRatio = containerSize.height / imageSize.height
             let ratio = min(widthRatio, heightRatio)
@@ -303,7 +347,11 @@ struct NCImageZoomView: UIViewRepresentable {
         }
 
         /// Builds the zoom rect used by double tap.
-        private func zoomRect(for scrollView: UIScrollView, scale: CGFloat, center: CGPoint) -> CGRect {
+        private func zoomRect(
+            for scrollView: UIScrollView,
+            scale: CGFloat,
+            center: CGPoint
+        ) -> CGRect {
             let size = CGSize(
                 width: scrollView.bounds.width / scale,
                 height: scrollView.bounds.height / scale
@@ -316,5 +364,72 @@ struct NCImageZoomView: UIViewRepresentable {
                 height: size.height
             )
         }
+    }
+
+    // MARK: - Image Analysis
+
+    /// Adds VisionKit image analysis to the displayed image when supported.
+    ///
+    /// Existing analysis interactions are removed before installing a new one,
+    /// so stale analysis results are not reused after an image change.
+    ///
+    /// - Parameters:
+    ///   - image: Image to analyze.
+    ///   - imageView: Image view that renders the image.
+    ///   - coordinator: Coordinator used to validate that the image is still current.
+    @MainActor
+    private func analyzeImageIfAvailable(
+        image: UIImage,
+        imageView: UIImageView,
+        coordinator: Coordinator
+    ) {
+        guard ImageAnalyzer.isSupported else {
+            return
+        }
+
+        imageView.interactions
+            .compactMap { $0 as? ImageAnalysisInteraction }
+            .forEach { imageView.removeInteraction($0) }
+
+        let interaction = ImageAnalysisInteraction()
+        interaction.preferredInteractionTypes = []
+        interaction.analysis = nil
+
+        imageView.addInteraction(interaction)
+
+        let analyzer = ImageAnalyzer()
+        let configuration = ImageAnalyzer.Configuration([
+            .text,
+            .machineReadableCode,
+            .visualLookUp
+        ])
+
+        Task { @MainActor in
+            let analysis = try? await analyzer.analyze(
+                image,
+                configuration: configuration
+            )
+
+            guard coordinator.currentImage === image else {
+                return
+            }
+
+            guard imageView.image === image else {
+                return
+            }
+
+            interaction.analysis = analysis
+            interaction.preferredInteractionTypes = .automatic
+        }
+    }
+
+    /// Removes VisionKit image analysis interactions from the image view.
+    ///
+    /// - Parameter imageView: Image view from which analysis interactions should be removed.
+    @MainActor
+    private func removeImageAnalysisInteractions(from imageView: UIImageView) {
+        imageView.interactions
+            .compactMap { $0 as? ImageAnalysisInteraction }
+            .forEach { imageView.removeInteraction($0) }
     }
 }
