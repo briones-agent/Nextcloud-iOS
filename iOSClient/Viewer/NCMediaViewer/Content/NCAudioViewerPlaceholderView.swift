@@ -23,8 +23,10 @@ struct NCAudioViewerPlaceholderView: View {
     let localURL: URL
     let canGoPrevious: Bool
     let canGoNext: Bool
-    let onPrevious: () -> Void
-    let onNext: () -> Void
+    let onPrevious: (_ shouldAutoPlay: Bool) -> Void
+    let onNext: (_ shouldAutoPlay: Bool) -> Void
+    let shouldAutoPlay: Bool
+    let onAutoPlayConsumed: () -> Void
 
     @StateObject private var model = NCAudioViewerModel()
 
@@ -33,15 +35,19 @@ struct NCAudioViewerPlaceholderView: View {
         localURL: URL,
         canGoPrevious: Bool = false,
         canGoNext: Bool = false,
-        onPrevious: @escaping () -> Void = {},
-        onNext: @escaping () -> Void = {}
+        shouldAutoPlay: Bool = false,
+        onPrevious: @escaping (_ shouldAutoPlay: Bool) -> Void = { _ in },
+        onNext: @escaping (_ shouldAutoPlay: Bool) -> Void = { _ in },
+        onAutoPlayConsumed: @escaping () -> Void = {}
     ) {
         self.metadata = metadata
         self.localURL = localURL
         self.canGoPrevious = canGoPrevious
         self.canGoNext = canGoNext
+        self.shouldAutoPlay = shouldAutoPlay
         self.onPrevious = onPrevious
         self.onNext = onNext
+        self.onAutoPlayConsumed = onAutoPlayConsumed
     }
 
     var body: some View {
@@ -86,8 +92,9 @@ struct NCAudioViewerPlaceholderView: View {
 
             HStack(spacing: 28) {
                 Button {
+                    let shouldAutoPlay = model.isPlaying
                     model.pause()
-                    onPrevious()
+                    onPrevious(shouldAutoPlay)
                 } label: {
                     Image(systemName: "backward.end.circle")
                         .font(.system(size: 38, weight: .regular))
@@ -125,8 +132,9 @@ struct NCAudioViewerPlaceholderView: View {
                 .disabled(model.duration <= 0)
 
                 Button {
+                    let shouldAutoPlay = model.isPlaying
                     model.pause()
-                    onNext()
+                    onNext(shouldAutoPlay)
                 } label: {
                     Image(systemName: "forward.end.circle")
                         .font(.system(size: 38, weight: .regular))
@@ -140,6 +148,11 @@ struct NCAudioViewerPlaceholderView: View {
         .background(Color.black)
         .task(id: localURL) {
             await model.load(url: localURL)
+
+            if shouldAutoPlay {
+                model.play()
+                onAutoPlayConsumed()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             model.pause()
@@ -251,12 +264,21 @@ final class NCAudioViewerModel: ObservableObject {
 
     /// Toggles audio playback.
     func togglePlayback() {
-        guard let player else {
-            return
-        }
-
         if isPlaying {
             pause()
+        } else {
+            play()
+        }
+    }
+
+    /// Toggles loop playback.
+    func toggleLoop() {
+        isLoopEnabled.toggle()
+    }
+
+    /// Starts audio playback.
+    func play() {
+        guard let player else {
             return
         }
 
@@ -267,11 +289,6 @@ final class NCAudioViewerModel: ObservableObject {
 
         player.play()
         isPlaying = true
-    }
-
-    /// Toggles loop playback.
-    func toggleLoop() {
-        isLoopEnabled.toggle()
     }
 
     /// Restarts playback from the beginning.
