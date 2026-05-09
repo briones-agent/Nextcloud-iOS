@@ -87,18 +87,7 @@ struct NCMediaViewerPageView: View {
             return .black
         }
 
-        guard let metadata = page.metadata else {
-            return .system
-        }
-
-        switch metadata.classFile {
-        case NKTypeClassFile.audio.rawValue,
-             NKTypeClassFile.video.rawValue:
-            return .black
-
-        default:
-            return ncViewerBackgroundStyle(for: metadata)
-        }
+        return ncViewerBackgroundStyle(for: page.metadata)
     }
 
     // MARK: - State Views
