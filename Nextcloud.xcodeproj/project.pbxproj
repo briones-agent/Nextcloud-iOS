@@ -3162,6 +3162,7 @@
 				F749ED342FAF0EE200CE8DFA /* Model - View */,
 				F7CDB5CE2FA33DED00F72306 /* Loading */,
 				F7CDB5D02FA33E3500F72306 /* Views */,
+				F716DA682FA5F137006A6703 /* Content */,
 				F7EDBB592FA8D09E00098C42 /* Helpers */,
 			);
 			path = NCMediaViewer;
@@ -3181,7 +3182,6 @@
 				F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */,
 				F716DA662FA5F019006A6703 /* NCMediaViewerPagingView.swift */,
 				F716DA642FA4E878006A6703 /* NCImageZoomView.swift */,
-				F716DA682FA5F137006A6703 /* Content */,
 			);
 			path = Views;
 			sourceTree = "<group>";
