@@ -20,7 +20,10 @@ class NCContextMenuViewer: NSObject {
        SceneManager.shared.getWindowScene(controller: controller)
     }
 
-    init(metadata: tableMetadata, controller: NCMainTabBarController?, webView: Bool, sender: Any?) {
+    init(metadata: tableMetadata,
+         controller: NCMainTabBarController?,
+         webView: Bool,
+         sender: Any?) {
         self.metadata = metadata
         self.controller = controller
         self.webView = webView
@@ -45,7 +48,7 @@ class NCContextMenuViewer: NSObject {
 
         // VIEW IN FOLDER
         if !webView {
-            menuElements.append(makeViewInFolderAction(metadata: metadata, controller: controller))
+            menuElements.append(makeViewInFolderAction(metadata: metadata, controller: controller, sender: sender))
         }
 
         // FAVORITE
@@ -96,15 +99,18 @@ class NCContextMenuViewer: NSObject {
         }
     }
 
-    private func makeViewInFolderAction(metadata: tableMetadata, controller: NCMainTabBarController) -> UIAction {
+    private func makeViewInFolderAction(metadata: tableMetadata, controller: NCMainTabBarController, sender: Any?) -> UIAction {
         UIAction(
             title: NSLocalizedString("_view_in_folder_", comment: ""),
             image: UIImage(systemName: "questionmark.folder")
         ) { _ in
             Task {
-                await NCNetworking.shared.blinkInFolder(serverUrl: metadata.serverUrl,
-                                                        fileName: metadata.fileName,
-                                                        sceneIdentifier: controller.sceneIdentifier)
+                if let mediaViewer = sender as? NCMediaViewerHostingController,
+                   await NCNetworking.shared.moveInFolder(serverUrl: metadata.serverUrl,
+                                                          sceneIdentifier: controller.sceneIdentifier) {
+                    mediaViewer.dismiss(animated: true)
+
+                }
             }
         }
     }
