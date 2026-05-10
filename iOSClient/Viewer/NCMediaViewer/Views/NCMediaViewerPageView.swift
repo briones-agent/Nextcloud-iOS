@@ -175,7 +175,7 @@ struct NCMediaViewerPageView: View {
                 )
 
             case .video:
-                NCVideoViewerViewerContentView(
+                NCVideoViewerContentView(
                     metadata: metadata,
                     localURL: localURL
                 )
