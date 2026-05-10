@@ -417,6 +417,7 @@
 		F74D50362C9856D300BBBF4C /* NCCollectionViewDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C1EEA425053A9C00866ACC /* NCCollectionViewDataSource.swift */; };
 		F74E3EE02FB07E7000252FA0 /* NCVideoVLCViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74E3EDF2FB07E6F00252FA0 /* NCVideoVLCViewerContentView.swift */; };
 		F74E3EE22FB07F0E00252FA0 /* NCVideoPlaybackHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74E3EE12FB07F0B00252FA0 /* NCVideoPlaybackHub.swift */; };
+		F74E3EE72FB081BF00252FA0 /* NCVideoViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74E3EE62FB081BD00252FA0 /* NCVideoViewerContentView.swift */; };
 		F7501C322212E57500FB1415 /* NCMedia.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F7501C302212E57400FB1415 /* NCMedia.storyboard */; };
 		F7501C332212E57500FB1415 /* NCMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7501C312212E57400FB1415 /* NCMedia.swift */; };
 		F751247C2C42919C00E63DB8 /* NCPhotoCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = F751247A2C42919C00E63DB8 /* NCPhotoCell.swift */; };
@@ -797,7 +798,7 @@
 		F7CDB5C42FA33CA300F72306 /* NCImageViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5B62FA33CA300F72306 /* NCImageViewerContentView.swift */; };
 		F7CDB5C52FA33CA300F72306 /* NCMediaViewerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5B82FA33CA300F72306 /* NCMediaViewerModel.swift */; };
 		F7CDB5C62FA33CA300F72306 /* NCMediaViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */; };
-		F7CDB5C82FA33CA300F72306 /* NCVideoViewerViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5BF2FA33CA300F72306 /* NCVideoViewerViewerContentView.swift */; };
+		F7CDB5C82FA33CA300F72306 /* NCVideoAVPlayerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5BF2FA33CA300F72306 /* NCVideoAVPlayerContentView.swift */; };
 		F7CDB5CC2FA33CA300F72306 /* NCNextcloudMediaViewerLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5BD2FA33CA300F72306 /* NCNextcloudMediaViewerLoader.swift */; };
 		F7CDB5D32FA3448B00F72306 /* NCAudioViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5D22FA3448A00F72306 /* NCAudioViewerContentView.swift */; };
 		F7CEE6002BA9A5C9003EFD89 /* NCTrashGridCell.xib in Resources */ = {isa = PBXBuildFile; fileRef = F7CEE5FE2BA9A5C9003EFD89 /* NCTrashGridCell.xib */; };
@@ -1466,6 +1467,7 @@
 		F74D50342C9855A000BBBF4C /* NCCollectionViewCommon+CollectionViewDataSourcePrefetching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NCCollectionViewCommon+CollectionViewDataSourcePrefetching.swift"; sourceTree = "<group>"; };
 		F74E3EDF2FB07E6F00252FA0 /* NCVideoVLCViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoVLCViewerContentView.swift; sourceTree = "<group>"; };
 		F74E3EE12FB07F0B00252FA0 /* NCVideoPlaybackHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoPlaybackHub.swift; sourceTree = "<group>"; };
+		F74E3EE62FB081BD00252FA0 /* NCVideoViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoViewerContentView.swift; sourceTree = "<group>"; };
 		F7501C302212E57400FB1415 /* NCMedia.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = NCMedia.storyboard; sourceTree = "<group>"; };
 		F7501C312212E57400FB1415 /* NCMedia.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCMedia.swift; sourceTree = "<group>"; };
 		F751247A2C42919C00E63DB8 /* NCPhotoCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCPhotoCell.swift; sourceTree = "<group>"; };
@@ -1786,7 +1788,7 @@
 		F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCMediaViewerPageView.swift; sourceTree = "<group>"; };
 		F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCMediaViewerView.swift; sourceTree = "<group>"; };
 		F7CDB5BD2FA33CA300F72306 /* NCNextcloudMediaViewerLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCNextcloudMediaViewerLoader.swift; sourceTree = "<group>"; };
-		F7CDB5BF2FA33CA300F72306 /* NCVideoViewerViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoViewerViewerContentView.swift; sourceTree = "<group>"; };
+		F7CDB5BF2FA33CA300F72306 /* NCVideoAVPlayerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoAVPlayerContentView.swift; sourceTree = "<group>"; };
 		F7CDB5D22FA3448A00F72306 /* NCAudioViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCAudioViewerContentView.swift; sourceTree = "<group>"; };
 		F7CE8AFA1DC1F8D8009CAE48 /* Nextcloud.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nextcloud.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F7CE8AFB1DC1F8D8009CAE48 /* Share.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = Share.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -2556,9 +2558,10 @@
 		F74E3EE32FB07F1800252FA0 /* Video */ = {
 			isa = PBXGroup;
 			children = (
-				F7CDB5BF2FA33CA300F72306 /* NCVideoViewerViewerContentView.swift */,
-				F74E3EDF2FB07E6F00252FA0 /* NCVideoVLCViewerContentView.swift */,
 				F74E3EE12FB07F0B00252FA0 /* NCVideoPlaybackHub.swift */,
+				F74E3EE62FB081BD00252FA0 /* NCVideoViewerContentView.swift */,
+				F7CDB5BF2FA33CA300F72306 /* NCVideoAVPlayerContentView.swift */,
+				F74E3EDF2FB07E6F00252FA0 /* NCVideoVLCViewerContentView.swift */,
 			);
 			path = Video;
 			sourceTree = "<group>";
@@ -4733,7 +4736,7 @@
 				F7CDB5C42FA33CA300F72306 /* NCImageViewerContentView.swift in Sources */,
 				F7CDB5C52FA33CA300F72306 /* NCMediaViewerModel.swift in Sources */,
 				F7CDB5C62FA33CA300F72306 /* NCMediaViewerView.swift in Sources */,
-				F7CDB5C82FA33CA300F72306 /* NCVideoViewerViewerContentView.swift in Sources */,
+				F7CDB5C82FA33CA300F72306 /* NCVideoAVPlayerContentView.swift in Sources */,
 				F7CDB5CC2FA33CA300F72306 /* NCNextcloudMediaViewerLoader.swift in Sources */,
 				F76341182EBE0BC60056F538 /* NCNetworking+NextcloudKitDelegate.swift in Sources */,
 				F78A18B823CDE2B300F681F3 /* NCViewerRichWorkspace.swift in Sources */,
@@ -5018,6 +5021,7 @@
 				F76882272C0DD1E7001CF441 /* NCManageE2EEView.swift in Sources */,
 				F7864ACC2A78FE73004870E0 /* NCManageDatabase+LocalFile.swift in Sources */,
 				F7327E302B73A86700A462C7 /* NCNetworking+WebDAV.swift in Sources */,
+				F74E3EE72FB081BF00252FA0 /* NCVideoViewerContentView.swift in Sources */,
 				F3DDFE1E2F1F8EC600A784C8 /* ChatInputField.swift in Sources */,
 				F74B91E52F51D4170050813D /* InfoBannerView.swift in Sources */,
 				F7D61EA82EBF1694007F865B /* NCManageDatabase+TableCapabilities.swift in Sources */,
