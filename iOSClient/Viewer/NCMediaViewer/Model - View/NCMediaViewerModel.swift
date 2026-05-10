@@ -519,8 +519,6 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Selected Page Loading
 
-    // MARK: - Selected Page Loading
-
     /// Loads metadata and media content for a selected or explicitly requested page.
     ///
     /// Loading order:
