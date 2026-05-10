@@ -16,15 +16,18 @@ import NextcloudKit
 struct NCVideoVLCViewerContentView: UIViewRepresentable {
     let metadata: tableMetadata
     let url: URL
+    let userAgent: String?
     let shouldAutoPlay: Bool
 
     init(
         metadata: tableMetadata,
         url: URL,
+        userAgent: String? = nil,
         shouldAutoPlay: Bool = true
     ) {
         self.metadata = metadata
         self.url = url
+        self.userAgent = userAgent
         self.shouldAutoPlay = shouldAutoPlay
     }
 
@@ -36,6 +39,7 @@ struct NCVideoVLCViewerContentView: UIViewRepresentable {
             to: view,
             metadata: metadata,
             url: url,
+            userAgent: userAgent,
             shouldAutoPlay: shouldAutoPlay
         )
 
@@ -46,6 +50,7 @@ struct NCVideoVLCViewerContentView: UIViewRepresentable {
         context.coordinator.update(
             metadata: metadata,
             url: url,
+            userAgent: userAgent,
             shouldAutoPlay: shouldAutoPlay
         )
     }
@@ -73,11 +78,13 @@ struct NCVideoVLCViewerContentView: UIViewRepresentable {
         ///   - view: UIView used as VLC drawable target.
         ///   - metadata: Video metadata used for logging.
         ///   - url: Local or remote video URL.
+        ///   - userAgent: Optional HTTP User-Agent used for remote playback.
         ///   - shouldAutoPlay: Whether playback should start immediately.
         func attach(
             to view: UIView,
             metadata: tableMetadata,
             url: URL,
+            userAgent: String?,
             shouldAutoPlay: Bool
         ) {
             mediaPlayer.drawable = view
@@ -85,6 +92,7 @@ struct NCVideoVLCViewerContentView: UIViewRepresentable {
             load(
                 metadata: metadata,
                 url: url,
+                userAgent: userAgent,
                 shouldAutoPlay: shouldAutoPlay
             )
         }
@@ -94,10 +102,12 @@ struct NCVideoVLCViewerContentView: UIViewRepresentable {
         /// - Parameters:
         ///   - metadata: Video metadata used for logging.
         ///   - url: Local or remote video URL.
+        ///   - userAgent: Optional HTTP User-Agent used for remote playback.
         ///   - shouldAutoPlay: Whether playback should start immediately.
         func update(
             metadata: tableMetadata,
             url: URL,
+            userAgent: String?,
             shouldAutoPlay: Bool
         ) {
             guard currentURL != url else {
@@ -107,6 +117,7 @@ struct NCVideoVLCViewerContentView: UIViewRepresentable {
             load(
                 metadata: metadata,
                 url: url,
+                userAgent: userAgent,
                 shouldAutoPlay: shouldAutoPlay
             )
         }
@@ -124,10 +135,12 @@ struct NCVideoVLCViewerContentView: UIViewRepresentable {
         /// - Parameters:
         ///   - metadata: Video metadata used for logging.
         ///   - url: Local or remote video URL.
+        ///   - userAgent: Optional HTTP User-Agent used for remote playback.
         ///   - shouldAutoPlay: Whether playback should start immediately.
         private func load(
             metadata: tableMetadata,
             url: URL,
+            userAgent: String?,
             shouldAutoPlay: Bool
         ) {
             currentURL = url
@@ -135,12 +148,19 @@ struct NCVideoVLCViewerContentView: UIViewRepresentable {
             mediaPlayer.stop()
 
             let media = VLCMedia(url: url)
+
+            if let userAgent,
+               !userAgent.isEmpty,
+               !url.isFileURL {
+                media.addOption(":http-user-agent=\(userAgent)")
+            }
+
             mediaPlayer.media = media
 
             nkLog(
                 tag: NCGlobal.shared.logTagViewer,
                 emoji: .debug,
-                message: "VIDEO VLC load \(metadata.ocId), url \(url.absoluteString)",
+                message: "VIDEO VLC load \(metadata.ocId), url \(url.absoluteString), userAgent \(userAgent != nil)",
                 consoleOnly: true
             )
 
