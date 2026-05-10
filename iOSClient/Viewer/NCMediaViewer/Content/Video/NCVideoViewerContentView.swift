@@ -21,6 +21,7 @@ struct NCVideoViewerContentView: View {
     let localURL: URL?
     let previewURL: URL?
     let userAgent: String?
+    let isSelected: Bool
 
     @StateObject private var hub = NCVideoPlaybackHub()
 
@@ -32,12 +33,14 @@ struct NCVideoViewerContentView: View {
         metadata: tableMetadata,
         localURL: URL?,
         previewURL: URL? = nil,
-        userAgent: String? = nil
+        userAgent: String? = nil,
+        isSelected: Bool = true
     ) {
         self.metadata = metadata
         self.localURL = localURL
         self.previewURL = previewURL
         self.userAgent = userAgent
+        self.isSelected = isSelected
     }
 
     var body: some View {
@@ -56,7 +59,7 @@ struct NCVideoViewerContentView: View {
                     NCVideoAVPlayerContentView(
                         player: player,
                         allowsPictureInPicture: true,
-                        shouldAutoPlay: true
+                        shouldAutoPlay: isSelected
                     )
                     .ignoresSafeArea()
 
@@ -65,7 +68,7 @@ struct NCVideoViewerContentView: View {
                         metadata: metadata,
                         url: url,
                         userAgent: userAgent,
-                        shouldAutoPlay: true
+                        shouldAutoPlay: isSelected
                     )
                     .ignoresSafeArea()
 
@@ -81,9 +84,18 @@ struct NCVideoViewerContentView: View {
             hub.stop()
             errorMessage = nil
 
+            guard isSelected else {
+                return
+            }
+
             await resolveAndLoadVideo(
                 expectedTaskIdentifier: expectedTaskIdentifier
             )
+        }
+        .onChange(of: isSelected) { _, selected in
+            if !selected {
+                hub.stop()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             hub.stop()
@@ -131,7 +143,7 @@ struct NCVideoViewerContentView: View {
     // MARK: - Loading
 
     private var taskIdentifier: String {
-        "\(metadata.ocId)|\(metadata.etag)|\(metadata.url)|\(localURL?.absoluteString ?? "")|\(previewURL?.absoluteString ?? "")"
+        "\(metadata.ocId)|\(metadata.etag)|\(metadata.url)|\(localURL?.absoluteString ?? "")|\(previewURL?.absoluteString ?? "")|\(isSelected)"
     }
 
     /// Resolves the playable video URL and loads it into the playback hub.

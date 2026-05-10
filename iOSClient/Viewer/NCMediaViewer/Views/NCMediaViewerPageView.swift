@@ -26,6 +26,7 @@ struct NCMediaViewerPageView: View {
     let page: NCMediaViewerPageModel
     let isChromeHidden: Bool
     let onToggleChrome: () -> Void
+    let isSelected: Bool
 
     let canGoPrevious: Bool
     let canGoNext: Bool
@@ -151,8 +152,10 @@ struct NCMediaViewerPageView: View {
             NCVideoViewerContentView(
                 metadata: metadata,
                 localURL: nil,
-                previewURL: previewURL
+                previewURL: previewURL,
+                isSelected: isSelected
             )
+            .id("video-\(page.ocId)")
             .background(Color.ncViewerBackground(backgroundStyle))
         } else {
             metadataMissingView
@@ -195,8 +198,10 @@ struct NCMediaViewerPageView: View {
                 NCVideoViewerContentView(
                     metadata: metadata,
                     localURL: localURL,
-                    previewURL: previewURL
+                    previewURL: previewURL,
+                    isSelected: isSelected
                 )
+                .id("video-\(page.ocId)")
                 .background(Color.ncViewerBackground(backgroundStyle))
 
             case .audio:
