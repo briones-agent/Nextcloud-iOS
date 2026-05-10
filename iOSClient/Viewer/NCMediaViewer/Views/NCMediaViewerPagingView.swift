@@ -129,6 +129,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     private var lastCollectionViewBoundsSize: CGSize = .zero
     private var cancellable: AnyCancellable?
     private var lastVisibleIndex: Int?
+    private var isUserPaging = false
 
     // MARK: - Init
 
@@ -149,7 +150,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     /// Updates the paging layout after bounds changes.
     ///
     /// This keeps the selected page centered after rotation, split view resizing,
-    /// or iPad floating window resizing.
+    /// or iPad window resizing.
     func updateLayoutAfterBoundsChangeIfNeeded() {
         guard let collectionView else {
             return
@@ -206,6 +207,8 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     }
 
     /// Applies the current page background to the collection view.
+    ///
+    /// - Parameter index: Optional page index. If omitted, the current selected index is used.
     func updateCollectionBackground(for index: Int? = nil) {
         let pageIndex = index ?? model.selectedIndex
         let page = model.pageModel(at: pageIndex)
@@ -249,6 +252,8 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         didScrollToInitialIndex = true
         lastVisibleIndex = index
+        isUserPaging = false
+
         updateCollectionBackground(for: index)
         refreshVisibleCells()
     }
@@ -284,6 +289,8 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         )
 
         lastVisibleIndex = index
+        isUserPaging = false
+
         updateCollectionBackground(for: index)
         refreshVisibleCells()
     }
@@ -339,6 +346,9 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             model.requestAutoPlay(at: targetIndex)
         }
 
+        isUserPaging = false
+        lastVisibleIndex = targetIndex
+
         model.setSelectedIndex(targetIndex)
         updateCollectionBackground(for: targetIndex)
         refreshVisibleCells()
@@ -364,10 +374,11 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         page: NCMediaViewerPageModel
     ) {
         let pageBackgroundColor = backgroundColor(for: page)
+        let isSelected = !isUserPaging && page.index == model.selectedIndex
 
         cell.configure(
             page: page,
-            isSelected: page.index == model.selectedIndex,
+            isSelected: isSelected,
             isChromeHidden: model.isChromeHidden,
             backgroundColor: pageBackgroundColor,
             canGoPrevious: page.index > 0,
@@ -443,10 +454,14 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     // MARK: - UIScrollViewDelegate
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        isUserPaging = true
+
         NotificationCenter.default.post(
             name: .ncMediaViewerStopPlayback,
             object: nil
         )
+
+        refreshVisibleCells()
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -474,7 +489,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         )
 
         lastVisibleIndex = index
-        model.setSelectedIndex(index)
+
         updateCollectionBackground(for: index)
         refreshVisibleCells()
 
@@ -502,6 +517,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     /// Updates the selected page index after paging has settled.
     ///
+    /// This is the only place where user-driven paging commits the selected index.
+    /// During dragging, cells are refreshed with `isSelected == false` to prevent
+    /// side pages from starting video playback while the collection view is still moving.
+    ///
     /// - Parameter scrollView: Source scroll view.
     private func updateSelectedIndexFromScrollView(_ scrollView: UIScrollView) {
         let width = scrollView.bounds.width
@@ -518,6 +537,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             return
         }
 
+        isUserPaging = false
+        lastVisibleIndex = index
+
+        model.setSelectedIndex(index)
         updateCollectionBackground(for: index)
         refreshVisibleCells()
 
@@ -617,7 +640,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
                 onNextPage: onNextPage,
                 onAutoPlayConsumed: onAutoPlayConsumed
             )
-            .id("\(page.ocId)-\(isSelected)")
+            .id(page.ocId)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(backgroundColor))
             .ignoresSafeArea()
@@ -675,10 +698,4 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         contentView.addSubview(hostingController.view)
         self.hostingController = hostingController
     }
-}
-
-// MARK: - Notifications
-
-extension Notification.Name {
-    static let ncMediaViewerStopPlayback = Notification.Name("ncMediaViewerStopPlayback")
 }
