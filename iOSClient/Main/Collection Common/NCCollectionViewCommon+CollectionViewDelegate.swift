@@ -164,64 +164,6 @@ extension NCCollectionViewCommon: UICollectionViewDelegate {
         }
     }
 
-    /// Returns the transition source for a media item in the collection view.
-    ///
-    /// If the target cell is visible, the transition uses the real preview image view frame.
-    /// If the target cell is not materialized yet, the transition falls back to the
-    /// collection view layout attributes so the closing animation can still target
-    /// the correct item position.
-    ///
-    /// - Parameter ocId: Nextcloud file identifier of the media item.
-    /// - Returns: Transition source if the item can be resolved.
-    func viewerTransitionSource(for ocId: String) -> NCViewerTransitionSource? {
-        guard let indexPath = dataSource.getIndexPathMetadata(ocId: ocId),
-              let window = collectionView.window else {
-            return nil
-        }
-
-        collectionView.layoutIfNeeded()
-
-        if collectionView.cellForItem(at: indexPath) == nil {
-            collectionView.scrollToItem(
-                at: indexPath,
-                at: .centeredVertically,
-                animated: false
-            )
-
-            collectionView.layoutIfNeeded()
-        }
-
-        if let cell = collectionView.cellForItem(at: indexPath) as? NCCellMainProtocol,
-           let imageView = cell.previewImg,
-           let image = imageView.image {
-            let sourceFrame = imageView.convert(
-                imageView.bounds,
-                to: window
-            )
-
-            return NCViewerTransitionSource(
-                image: image,
-                sourceFrame: sourceFrame,
-                cornerRadius: imageView.layer.cornerRadius
-            )
-        }
-
-        guard let attributes = collectionView.layoutAttributesForItem(at: indexPath) else {
-            return nil
-        }
-
-        let sourceFrame = collectionView.convert(
-            attributes.frame,
-            to: window
-        )
-
-        return NCViewerTransitionSource(
-            image: UIImage(),
-            sourceFrame: sourceFrame,
-            cornerRadius: 6
-        )
-    }
-
     func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
         guard let metadata = self.dataSource.getMetadata(indexPath: indexPath),
               metadata.classFile != NKTypeClassFile.url.rawValue,
