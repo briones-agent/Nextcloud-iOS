@@ -58,6 +58,9 @@ struct NCMediaViewerPageView: View {
                     livePhotoURL: livePhotoURL
                 )
 
+            case .video(let previewURL):
+                videoStateView(previewURL: previewURL)
+
             case .downloading(let previewURL, let progress):
                 downloadingStateView(
                     previewURL: previewURL,
@@ -139,6 +142,20 @@ struct NCMediaViewerPageView: View {
             if previewURL == nil && localURL == nil {
                 loadingView
             }
+        }
+    }
+
+    @ViewBuilder
+    private func videoStateView(previewURL: URL?) -> some View {
+        if let metadata = page.metadata {
+            NCVideoViewerContentView(
+                metadata: metadata,
+                localURL: nil,
+                previewURL: previewURL
+            )
+            .background(Color.black)
+        } else {
+            metadataMissingView
         }
     }
 

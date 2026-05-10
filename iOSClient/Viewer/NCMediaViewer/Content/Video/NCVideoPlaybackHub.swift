@@ -20,7 +20,7 @@ enum NCVideoPlaybackEngine {
     /// Native AVFoundation playback using an `AVPlayer`.
     case avFoundation(player: AVPlayer)
 
-    /// VLC fallback playback using a local file URL.
+    /// VLC fallback playback using a local or remote URL.
     case vlc(url: URL)
 
     /// Playback could not be prepared.
@@ -29,11 +29,15 @@ enum NCVideoPlaybackEngine {
 
 // MARK: - Video Playback Hub
 
-/// Resolves and owns the best playback engine for a local video file.
+/// Resolves and owns the best playback engine for a video URL.
 ///
 /// The hub first tries AVFoundation. If the item reaches `.readyToPlay`,
 /// the viewer uses AVFoundation. If the item fails or does not become ready
 /// before the timeout, the hub falls back to VLC.
+///
+/// The input URL can be either:
+/// - a local file URL
+/// - a remote direct-download URL
 @MainActor
 final class NCVideoPlaybackHub: ObservableObject {
 
@@ -50,18 +54,23 @@ final class NCVideoPlaybackHub: ObservableObject {
     private var timeoutTask: Task<Void, Never>?
     private var currentURL: URL?
 
-    private let fallbackTimeoutSeconds: Double = 1.5
+    private let fallbackTimeoutMilliseconds = 1_500
 
     // MARK: - Public API
 
-    /// Loads a local video file and resolves the preferred playback engine.
+    /// Loads a video URL and resolves the preferred playback engine.
     ///
     /// AVFoundation is attempted first. VLC is selected only when AVFoundation
     /// fails, reports an unsupported item, or does not become ready before the
     /// fallback timeout.
     ///
-    /// - Parameter url: Local video file URL.
-    func load(url: URL) {
+    /// - Parameters:
+    ///   - url: Local or remote video URL.
+    ///   - httpHeaders: Optional HTTP headers used by AVFoundation for remote playback.
+    func load(
+        url: URL,
+        httpHeaders: [String: String] = [:]
+    ) {
         guard currentURL != url else {
             return
         }
@@ -71,13 +80,19 @@ final class NCVideoPlaybackHub: ObservableObject {
         currentURL = url
         engine = .loading
 
-        guard isValidLocalFile(url: url) else {
+        if url.isFileURL,
+           !isValidLocalFile(url: url) {
             engine = .failed(message: "Video file is not available.")
             return
         }
 
         configureAudioSession()
-        prepareAVFoundation(url: url)
+
+        prepareAVFoundation(
+            url: url,
+            httpHeaders: url.isFileURL ? [:] : httpHeaders
+        )
+
         startFallbackTimeout(url: url)
     }
 
@@ -108,9 +123,24 @@ final class NCVideoPlaybackHub: ObservableObject {
 
     /// Prepares an AVFoundation player item and observes its status.
     ///
-    /// - Parameter url: Local video file URL.
-    private func prepareAVFoundation(url: URL) {
-        let asset = AVURLAsset(url: url)
+    /// - Parameters:
+    ///   - url: Local or remote video URL.
+    ///   - httpHeaders: Optional HTTP headers used by AVFoundation for remote playback.
+    private func prepareAVFoundation(
+        url: URL,
+        httpHeaders: [String: String]
+    ) {
+        let assetOptions: [String: Any]? = httpHeaders.isEmpty
+            ? nil
+            : [
+                "AVURLAssetHTTPHeaderFieldsKey": httpHeaders
+            ]
+
+        let asset = AVURLAsset(
+            url: url,
+            options: assetOptions
+        )
+
         let item = AVPlayerItem(asset: asset)
         let player = AVPlayer(playerItem: item)
 
@@ -174,7 +204,7 @@ final class NCVideoPlaybackHub: ObservableObject {
 
     /// Starts a timeout after which VLC is selected if AVFoundation is still loading.
     ///
-    /// - Parameter url: Local video file URL.
+    /// - Parameter url: Local or remote video URL.
     private func startFallbackTimeout(url: URL) {
         timeoutTask = Task { [weak self] in
             guard let self else {
@@ -182,7 +212,7 @@ final class NCVideoPlaybackHub: ObservableObject {
             }
 
             try? await Task.sleep(
-                for: .seconds(fallbackTimeoutSeconds)
+                for: .milliseconds(self.fallbackTimeoutMilliseconds)
             )
 
             await MainActor.run {
@@ -203,7 +233,7 @@ final class NCVideoPlaybackHub: ObservableObject {
     /// Selects VLC as playback engine.
     ///
     /// - Parameters:
-    ///   - url: Local video file URL.
+    ///   - url: Local or remote video URL.
     ///   - reason: Debug reason for the fallback.
     private func fallbackToVLC(
         url: URL,
