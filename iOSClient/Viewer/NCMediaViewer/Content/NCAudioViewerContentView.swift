@@ -10,15 +10,9 @@ import NextcloudKit
 
 /// Displays and plays a local audio file.
 ///
-/// This view owns a lightweight `AVPlayer` model and provides:
-/// - file title
-/// - play / pause button
-/// - loop button
-/// - previous / next buttons
-/// - restart button
-/// - elapsed and duration labels
-/// - seek slider
-/// - automatic cleanup when the view disappears
+/// The playback model is retrieved from `NCAudioViewerPlaybackRegistry` so the
+/// underlying `AVPlayer` survives SwiftUI view rebuilds caused by rotation,
+/// layout invalidation, or cell refreshes.
 struct NCAudioViewerContentView: View {
     let metadata: tableMetadata
     let localURL: URL
@@ -29,7 +23,7 @@ struct NCAudioViewerContentView: View {
     let onNext: (_ shouldAutoPlay: Bool) -> Void
     let onAutoPlayConsumed: () -> Void
 
-    @StateObject private var model = NCAudioViewerModel()
+    @StateObject private var model: NCAudioViewerModel
 
     init(
         metadata: tableMetadata,
@@ -49,6 +43,12 @@ struct NCAudioViewerContentView: View {
         self.onPrevious = onPrevious
         self.onNext = onNext
         self.onAutoPlayConsumed = onAutoPlayConsumed
+
+        _model = StateObject(
+            wrappedValue: NCAudioViewerPlaybackRegistry.shared.model(
+                for: metadata.ocId
+            )
+        )
     }
 
     var body: some View {
@@ -155,10 +155,7 @@ struct NCAudioViewerContentView: View {
             consumeAutoPlayIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
-            model.pause()
-        }
-        .onDisappear {
-            model.stop()
+            NCAudioViewerPlaybackRegistry.shared.stopAll()
         }
     }
 
@@ -215,12 +212,48 @@ struct NCAudioViewerContentView: View {
     }
 }
 
+// MARK: - Audio Viewer Playback Registry
+
+/// Keeps audio playback models alive across SwiftUI view rebuilds.
+///
+/// The media viewer can rebuild cells during rotation or layout changes.
+/// This registry prevents the audio player from being destroyed just because
+/// the SwiftUI page view was recreated.
+@MainActor
+final class NCAudioViewerPlaybackRegistry {
+    static let shared = NCAudioViewerPlaybackRegistry()
+
+    private var modelsByOcId: [String: NCAudioViewerModel] = [:]
+
+    private init() { }
+
+    /// Returns a stable audio model for the given media item.
+    ///
+    /// - Parameter ocId: Stable Nextcloud media identifier.
+    /// - Returns: Existing or newly created audio playback model.
+    func model(for ocId: String) -> NCAudioViewerModel {
+        if let model = modelsByOcId[ocId] {
+            return model
+        }
+
+        let model = NCAudioViewerModel()
+        modelsByOcId[ocId] = model
+        return model
+    }
+
+    /// Stops and removes all cached audio models.
+    func stopAll() {
+        modelsByOcId.values.forEach { $0.stop() }
+        modelsByOcId.removeAll()
+    }
+}
+
 // MARK: - Audio Viewer Model
 
 /// Lightweight audio playback model backed by `AVPlayer`.
 ///
 /// The model observes playback time and item completion, exposes SwiftUI-friendly
-/// state, and performs cleanup when playback is stopped or the view disappears.
+/// state, and performs cleanup when playback is explicitly stopped.
 @MainActor
 final class NCAudioViewerModel: ObservableObject {
 
@@ -241,6 +274,8 @@ final class NCAudioViewerModel: ObservableObject {
     // MARK: - Public API
 
     /// Loads a local audio file.
+    ///
+    /// If the same URL is already loaded, the existing player is reused.
     ///
     /// - Parameter url: Local audio file URL.
     func load(url: URL) async {
@@ -283,6 +318,8 @@ final class NCAudioViewerModel: ObservableObject {
            currentTime >= duration - 0.2 {
             seek(to: 0)
         }
+
+        configureAudioSession()
 
         player.play()
         isPlaying = true

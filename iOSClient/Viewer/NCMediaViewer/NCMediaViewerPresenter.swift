@@ -465,14 +465,16 @@ final class NCMediaViewerPresenter: NSObject {
 
     /// Clears retained presenter state after the viewer has been removed.
     private func cleanup() {
-        removeDismissPanGesture()
+        NotificationCenter.default.post(
+            name: .ncMediaViewerStopPlayback,
+            object: nil
+        )
 
         navigationController = nil
         viewerContainerView = nil
         currentViewerTransitionSource = nil
         currentModel = nil
         closingTransitionSourceProvider = nil
-        isDismissing = false
     }
 
     // MARK: - Helpers
