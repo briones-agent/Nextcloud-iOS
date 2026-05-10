@@ -15,7 +15,7 @@ import Combine
 @MainActor
 final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerView>, UIAdaptivePresentationControllerDelegate {
     private let model: NCMediaViewerModel
-    private let onClose: () -> Void
+    public let onClose: () -> Void
     private weak var contextMenuController: NCMainTabBarController?
 
     private var detailHostingController: UIHostingController<NCImageViewerDetailView>?

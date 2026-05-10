@@ -313,52 +313,67 @@ extension NCNetworking: NCTransferDelegate {
     }
 
     @MainActor
-    func moveInFolder(serverUrl: String,sceneIdentifier: String) async -> Bool {
+    func moveInFolder(serverUrl: String, sceneIdentifier: String) async -> Bool {
         guard let controller = SceneManager.shared.getController(sceneIdentifier: sceneIdentifier),
               let navigationController = controller.viewControllers?.first as? UINavigationController
         else {
             return false
         }
+
         let session = NCSession.shared.getSession(controller: controller)
-        var serverUrlPush = self.utilityFileSystem.getHomeServer(session: session)
+        var serverUrlPush = utilityFileSystem.getHomeServer(session: session)
 
         navigationController.popToRootViewController(animated: false)
         controller.selectedIndex = 0
+
         if serverUrlPush == serverUrl,
-            let viewController = navigationController.topViewController as? NCFiles {
+           navigationController.topViewController is NCFiles {
             return true
         }
 
-        let diffDirectory = serverUrl.replacingOccurrences(of: serverUrlPush, with: "")
+        guard serverUrl.hasPrefix(serverUrlPush) else {
+            return false
+        }
+
+        let diffDirectory = String(serverUrl.dropFirst(serverUrlPush.count))
         var subDirs = diffDirectory.split(separator: "/")
 
         while serverUrlPush != serverUrl, !subDirs.isEmpty {
-            guard let dir = subDirs.first else {
-                return false
-            }
-            serverUrlPush = self.utilityFileSystem.createServerUrl(serverUrl: serverUrlPush, fileName: String(dir))
+            let dir = String(subDirs.removeFirst())
 
-            if let viewController = controller.navigationCollectionViewCommon.first(where: { $0.navigationController == navigationController && $0.serverUrl == serverUrlPush})?.viewController as? NCFiles, viewController.isViewLoaded {
+            serverUrlPush = utilityFileSystem.createServerUrl(
+                serverUrl: serverUrlPush,
+                fileName: dir
+            )
+
+            if let viewController = controller.navigationCollectionViewCommon.first(where: {
+                $0.navigationController == navigationController &&
+                $0.serverUrl == serverUrlPush
+            })?.viewController as? NCFiles {
 
                 navigationController.pushViewController(viewController, animated: false)
-                return true
+
+            } else if let viewController = UIStoryboard(name: "NCFiles", bundle: nil).instantiateInitialViewController() as? NCFiles {
+
+                viewController.serverUrl = serverUrlPush
+                viewController.titleCurrentFolder = dir
+                viewController.navigationItem.backButtonTitle = dir
+
+                controller.navigationCollectionViewCommon.append(
+                    NavigationCollectionViewCommon(
+                        serverUrl: serverUrlPush,
+                        navigationController: navigationController,
+                        viewController: viewController
+                    )
+                )
+
+                navigationController.pushViewController(viewController, animated: false)
 
             } else {
-                if let viewController: NCFiles = UIStoryboard(name: "NCFiles", bundle: nil).instantiateInitialViewController() as? NCFiles {
-                    viewController.serverUrl = serverUrlPush
-                    viewController.titleCurrentFolder = String(dir)
-                    viewController.navigationItem.backButtonTitle = viewController.titleCurrentFolder
-
-                    controller.navigationCollectionViewCommon.append(NavigationCollectionViewCommon(serverUrl: serverUrlPush, navigationController: navigationController, viewController: viewController))
-
-                    navigationController.pushViewController(viewController, animated: false)
-                    if serverUrlPush == serverUrl {
-                        return true
-                    }
-                }
+                return false
             }
-            subDirs.remove(at: 0)
         }
-        return false
+
+        return serverUrlPush == serverUrl
     }
 }
