@@ -416,6 +416,8 @@
 		F74C863D2AEFBFD9009A1D4A /* LRUCache in Frameworks */ = {isa = PBXBuildFile; productRef = F74C863C2AEFBFD9009A1D4A /* LRUCache */; };
 		F74D50352C9855A000BBBF4C /* NCCollectionViewCommon+CollectionViewDataSourcePrefetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74D50342C9855A000BBBF4C /* NCCollectionViewCommon+CollectionViewDataSourcePrefetching.swift */; };
 		F74D50362C9856D300BBBF4C /* NCCollectionViewDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C1EEA425053A9C00866ACC /* NCCollectionViewDataSource.swift */; };
+		F74E3EE02FB07E7000252FA0 /* NCVideoVLCViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74E3EDF2FB07E6F00252FA0 /* NCVideoVLCViewerContentView.swift */; };
+		F74E3EE22FB07F0E00252FA0 /* NCVideoPlaybackHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74E3EE12FB07F0B00252FA0 /* NCVideoPlaybackHub.swift */; };
 		F7501C322212E57500FB1415 /* NCMedia.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F7501C302212E57400FB1415 /* NCMedia.storyboard */; };
 		F7501C332212E57500FB1415 /* NCMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7501C312212E57400FB1415 /* NCMedia.swift */; };
 		F751247C2C42919C00E63DB8 /* NCPhotoCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = F751247A2C42919C00E63DB8 /* NCPhotoCell.swift */; };
@@ -783,7 +785,7 @@
 		F7CDB5C42FA33CA300F72306 /* NCImageViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5B62FA33CA300F72306 /* NCImageViewerContentView.swift */; };
 		F7CDB5C52FA33CA300F72306 /* NCMediaViewerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5B82FA33CA300F72306 /* NCMediaViewerModel.swift */; };
 		F7CDB5C62FA33CA300F72306 /* NCMediaViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */; };
-		F7CDB5C82FA33CA300F72306 /* NCVideoViewerPlaceholderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5BF2FA33CA300F72306 /* NCVideoViewerPlaceholderView.swift */; };
+		F7CDB5C82FA33CA300F72306 /* NCVideoViewerViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5BF2FA33CA300F72306 /* NCVideoViewerViewerContentView.swift */; };
 		F7CDB5CC2FA33CA300F72306 /* NCNextcloudMediaViewerLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5BD2FA33CA300F72306 /* NCNextcloudMediaViewerLoader.swift */; };
 		F7CDB5D32FA3448B00F72306 /* NCAudioViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB5D22FA3448A00F72306 /* NCAudioViewerContentView.swift */; };
 		F7CEE6002BA9A5C9003EFD89 /* NCTrashGridCell.xib in Resources */ = {isa = PBXBuildFile; fileRef = F7CEE5FE2BA9A5C9003EFD89 /* NCTrashGridCell.xib */; };
@@ -1440,6 +1442,8 @@
 		F74C0434253F1CDC009762AB /* NCShares.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCShares.swift; sourceTree = "<group>"; };
 		F74C0435253F1CDC009762AB /* NCShares.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = NCShares.storyboard; sourceTree = "<group>"; };
 		F74D50342C9855A000BBBF4C /* NCCollectionViewCommon+CollectionViewDataSourcePrefetching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NCCollectionViewCommon+CollectionViewDataSourcePrefetching.swift"; sourceTree = "<group>"; };
+		F74E3EDF2FB07E6F00252FA0 /* NCVideoVLCViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoVLCViewerContentView.swift; sourceTree = "<group>"; };
+		F74E3EE12FB07F0B00252FA0 /* NCVideoPlaybackHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoPlaybackHub.swift; sourceTree = "<group>"; };
 		F7501C302212E57400FB1415 /* NCMedia.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = NCMedia.storyboard; sourceTree = "<group>"; };
 		F7501C312212E57400FB1415 /* NCMedia.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCMedia.swift; sourceTree = "<group>"; };
 		F751247A2C42919C00E63DB8 /* NCPhotoCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCPhotoCell.swift; sourceTree = "<group>"; };
@@ -1753,7 +1757,7 @@
 		F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCMediaViewerPageView.swift; sourceTree = "<group>"; };
 		F7CDB5BB2FA33CA300F72306 /* NCMediaViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCMediaViewerView.swift; sourceTree = "<group>"; };
 		F7CDB5BD2FA33CA300F72306 /* NCNextcloudMediaViewerLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCNextcloudMediaViewerLoader.swift; sourceTree = "<group>"; };
-		F7CDB5BF2FA33CA300F72306 /* NCVideoViewerPlaceholderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoViewerPlaceholderView.swift; sourceTree = "<group>"; };
+		F7CDB5BF2FA33CA300F72306 /* NCVideoViewerViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoViewerViewerContentView.swift; sourceTree = "<group>"; };
 		F7CDB5D22FA3448A00F72306 /* NCAudioViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCAudioViewerContentView.swift; sourceTree = "<group>"; };
 		F7CE8AFA1DC1F8D8009CAE48 /* Nextcloud.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nextcloud.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F7CE8AFB1DC1F8D8009CAE48 /* Share.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = Share.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -2344,11 +2348,9 @@
 		F716DA682FA5F137006A6703 /* Content */ = {
 			isa = PBXGroup;
 			children = (
-				F7CDB5D22FA3448A00F72306 /* NCAudioViewerContentView.swift */,
-				F7CDB5B62FA33CA300F72306 /* NCImageViewerContentView.swift */,
-				F749ED302FADD62400CE8DFA /* NCImageViewerDetailView.swift */,
-				F7EDBB4A2FA89F6500098C42 /* NCLivePhotoViewerContentView.swift */,
-				F7CDB5BF2FA33CA300F72306 /* NCVideoViewerPlaceholderView.swift */,
+				F74E3EE52FB07F3000252FA0 /* Audio */,
+				F74E3EE42FB07F2500252FA0 /* Image */,
+				F74E3EE32FB07F1800252FA0 /* Video */,
 			);
 			path = Content;
 			sourceTree = "<group>";
@@ -2506,6 +2508,34 @@
 				F755BD9A20594AC7008C5FBB /* NCService.swift */,
 			);
 			path = Networking;
+			sourceTree = "<group>";
+		};
+		F74E3EE32FB07F1800252FA0 /* Video */ = {
+			isa = PBXGroup;
+			children = (
+				F7CDB5BF2FA33CA300F72306 /* NCVideoViewerViewerContentView.swift */,
+				F74E3EDF2FB07E6F00252FA0 /* NCVideoVLCViewerContentView.swift */,
+				F74E3EE12FB07F0B00252FA0 /* NCVideoPlaybackHub.swift */,
+			);
+			path = Video;
+			sourceTree = "<group>";
+		};
+		F74E3EE42FB07F2500252FA0 /* Image */ = {
+			isa = PBXGroup;
+			children = (
+				F7CDB5B62FA33CA300F72306 /* NCImageViewerContentView.swift */,
+				F749ED302FADD62400CE8DFA /* NCImageViewerDetailView.swift */,
+				F7EDBB4A2FA89F6500098C42 /* NCLivePhotoViewerContentView.swift */,
+			);
+			path = Image;
+			sourceTree = "<group>";
+		};
+		F74E3EE52FB07F3000252FA0 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				F7CDB5D22FA3448A00F72306 /* NCAudioViewerContentView.swift */,
+			);
+			path = Audio;
 			sourceTree = "<group>";
 		};
 		F757CC8929E82D0500F31428 /* Groupfolders */ = {
@@ -4611,7 +4641,7 @@
 				F7CDB5C42FA33CA300F72306 /* NCImageViewerContentView.swift in Sources */,
 				F7CDB5C52FA33CA300F72306 /* NCMediaViewerModel.swift in Sources */,
 				F7CDB5C62FA33CA300F72306 /* NCMediaViewerView.swift in Sources */,
-				F7CDB5C82FA33CA300F72306 /* NCVideoViewerPlaceholderView.swift in Sources */,
+				F7CDB5C82FA33CA300F72306 /* NCVideoViewerViewerContentView.swift in Sources */,
 				F7CDB5CC2FA33CA300F72306 /* NCNextcloudMediaViewerLoader.swift in Sources */,
 				F76341182EBE0BC60056F538 /* NCNetworking+NextcloudKitDelegate.swift in Sources */,
 				F78A18B823CDE2B300F681F3 /* NCViewerRichWorkspace.swift in Sources */,
@@ -4696,6 +4726,7 @@
 				F78ACD4A21903F850088454D /* NCTrashListCell.swift in Sources */,
 				F7386E482DA90E0F009A00F6 /* NCAppVersionManager.swift in Sources */,
 				F76882352C0DD1E7001CF441 /* NCWebBrowserView.swift in Sources */,
+				F74E3EE02FB07E7000252FA0 /* NCVideoVLCViewerContentView.swift in Sources */,
 				F72CA0572F5048C3002E2F06 /* UIApplication+Extension.swift in Sources */,
 				F3A047972BD2668800658E7B /* NCAssistantEmptyView.swift in Sources */,
 				F757CC8D29E82D0500F31428 /* NCGroupfolders.swift in Sources */,
@@ -4708,6 +4739,7 @@
 				F7E7AEA52BA32C6500512E52 /* NCCollectionViewDownloadThumbnail.swift in Sources */,
 				AF730AF827834B1400B7520E /* NCShare+NCCellDelegate.swift in Sources */,
 				F3C587AE2D47E4FE004532DB /* PHAssetCollectionThumbnailLoader.swift in Sources */,
+				F74E3EE22FB07F0E00252FA0 /* NCVideoPlaybackHub.swift in Sources */,
 				F78F74362163781100C2ADAD /* NCTrash.swift in Sources */,
 				F71638922FA0C20C00A913B7 /* NCMoreView.swift in Sources */,
 				AF2D7C7C2742556F00ADF566 /* NCShareLinkCell.swift in Sources */,
