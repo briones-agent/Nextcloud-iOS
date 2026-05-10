@@ -184,8 +184,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     ///
     /// Audio and video use black because their player surfaces are dark.
     /// Images use the viewer background style unless chrome is hidden.
-    /// If metadata is temporarily unavailable, the last applied background color is reused
-    /// to avoid white flashes during paging or cell reuse.
     private func backgroundColor(for page: NCMediaViewerPageModel?) -> UIColor {
         guard !model.isChromeHidden else {
             return .black
@@ -252,6 +250,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         didScrollToInitialIndex = true
         lastVisibleIndex = index
         updateCollectionBackground(for: index)
+        refreshVisibleCells()
     }
 
     /// Scrolls to the current selected index.
@@ -286,11 +285,12 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         lastVisibleIndex = index
         updateCollectionBackground(for: index)
+        refreshVisibleCells()
     }
 
     // MARK: - Visible Cell Refresh
 
-    /// Refreshes currently visible cells using the latest page models.
+    /// Refreshes currently visible cells using the latest page models and selected index.
     func refreshVisibleCells() {
         guard let collectionView else {
             return
@@ -341,6 +341,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         model.setSelectedIndex(targetIndex)
         updateCollectionBackground(for: targetIndex)
+        refreshVisibleCells()
 
         collectionView?.scrollToItem(
             at: IndexPath(item: targetIndex, section: 0),
@@ -366,6 +367,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         cell.configure(
             page: page,
+            isSelected: page.index == model.selectedIndex,
             isChromeHidden: model.isChromeHidden,
             backgroundColor: pageBackgroundColor,
             canGoPrevious: page.index > 0,
@@ -466,9 +468,15 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             return
         }
 
+        NotificationCenter.default.post(
+            name: .ncMediaViewerStopPlayback,
+            object: nil
+        )
+
         lastVisibleIndex = index
         model.setSelectedIndex(index)
         updateCollectionBackground(for: index)
+        refreshVisibleCells()
 
         Task {
             await model.prefetchVisiblePageIfNeeded(index: index)
@@ -511,6 +519,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         }
 
         updateCollectionBackground(for: index)
+        refreshVisibleCells()
 
         Task {
             await model.displayPage(at: index)
@@ -569,6 +578,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     ///
     /// - Parameters:
     ///   - page: Page model to render.
+    ///   - isSelected: Whether this cell represents the currently selected page.
     ///   - isChromeHidden: Whether viewer chrome is currently hidden.
     ///   - backgroundColor: Background color matching the currently rendered page.
     ///   - canGoPrevious: Whether the page can navigate to a previous item.
@@ -580,6 +590,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     ///   - onAutoPlayConsumed: Callback invoked after the hosted page consumes the auto-play request.
     func configure(
         page: NCMediaViewerPageModel,
+        isSelected: Bool,
         isChromeHidden: Bool,
         backgroundColor: UIColor,
         canGoPrevious: Bool,
@@ -598,6 +609,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
                 page: page,
                 isChromeHidden: isChromeHidden,
                 onToggleChrome: onToggleChrome,
+                isSelected: isSelected,
                 canGoPrevious: canGoPrevious,
                 canGoNext: canGoNext,
                 shouldAutoPlay: shouldAutoPlay,
@@ -605,7 +617,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
                 onNextPage: onNextPage,
                 onAutoPlayConsumed: onAutoPlayConsumed
             )
-            .id(page.ocId)
+            .id("\(page.ocId)-\(isSelected)")
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(backgroundColor))
             .ignoresSafeArea()
