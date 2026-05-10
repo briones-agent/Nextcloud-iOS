@@ -15,12 +15,12 @@ import Combine
 @MainActor
 final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerView>, UIAdaptivePresentationControllerDelegate {
     private let model: NCMediaViewerModel
-    public let onClose: () -> Void
+    private let onClose: () -> Void
+    private let onCloseToTransitionSource: ((_ viewerTransitionSource: NCViewerTransitionSource) -> Void)?
     private weak var contextMenuController: NCMainTabBarController?
 
     private var detailHostingController: UIHostingController<NCImageViewerDetailView>?
     private var isShowingDetail = false
-
     private var cancellables = Set<AnyCancellable>()
 
     private lazy var moreNavigationItem = UIBarButtonItem(
@@ -62,11 +62,19 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     ///
     /// - Parameters:
     ///   - model: Media viewer model used to render and page through media items.
-    ///   - onClose: Closure called when the navigation bar close button is tapped.
-    init(model: NCMediaViewerModel, contextMenuController: NCMainTabBarController?, onClose: @escaping () -> Void) {
+    ///   - contextMenuController: Main tab bar controller used to build viewer context menus.
+    ///   - onClose: Closure called when the viewer should close normally.
+    ///   - onCloseToTransitionSource: Closure called when the viewer should close toward a specific transition destination.
+    init(
+        model: NCMediaViewerModel,
+        contextMenuController: NCMainTabBarController?,
+        onClose: @escaping () -> Void,
+        onCloseToTransitionSource: ((_ viewerTransitionSource: NCViewerTransitionSource) -> Void)? = nil
+    ) {
         self.model = model
         self.contextMenuController = contextMenuController
         self.onClose = onClose
+        self.onCloseToTransitionSource = onCloseToTransitionSource
 
         super.init(rootView: NCMediaViewerView(model: model))
 
@@ -84,6 +92,24 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     @available(*, unavailable)
     dynamic required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    // MARK: - Closing
+
+    /// Closes the viewer normally.
+    func close() {
+        onClose()
+    }
+
+    /// Closes the viewer toward a specific transition destination.
+    ///
+    /// - Parameter viewerTransitionSource: Current destination frame used by the closing animation.
+    func close(to viewerTransitionSource: NCViewerTransitionSource) {
+        if let onCloseToTransitionSource {
+            onCloseToTransitionSource(viewerTransitionSource)
+        } else {
+            onClose()
+        }
     }
 
     // MARK: - Navigation
@@ -146,10 +172,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     /// - Parameters:
     ///   - hidden: Whether the chrome should be hidden.
     ///   - animated: Whether the transition should be animated.
-    private func setChromeHidden(
-        _ hidden: Bool,
-        animated: Bool
-    ) {
+    private func setChromeHidden(_ hidden: Bool, animated: Bool) {
         navigationController?.setNavigationBarHidden(
             hidden,
             animated: animated
@@ -168,7 +191,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
     @objc
     private func closeButtonTapped() {
-        onClose()
+        close()
     }
 
     @objc
@@ -176,7 +199,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         openDetail(animated: true)
     }
 
-    // MARK: -
+    // MARK: - Detail
 
     /// Opens or closes the media detail panel for the currently selected media item.
     ///
@@ -192,7 +215,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         }
 
         let index = model.selectedIndex
-
         isShowingDetail = true
 
         NCUtility().getExif(metadata: metadata) { [weak self] exif in
@@ -218,7 +240,12 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     ///   - index: Page index associated with the metadata.
     ///   - exif: EXIF information resolved for the selected media.
     ///   - animated: Whether presentation should be animated.
-    private func presentDetailView(metadata: tableMetadata, index: Int, exif: ExifData, animated: Bool) {
+    private func presentDetailView(
+        metadata: tableMetadata,
+        index: Int,
+        exif: ExifData,
+        animated: Bool
+    ) {
         let detailView = NCImageViewerDetailView(
             metadata: metadata,
             exif: exif,
@@ -236,7 +263,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
                 .medium(),
                 .large()
             ]
-
             sheet.prefersGrabberVisible = true
             sheet.prefersScrollingExpandsWhenScrolledToEdge = true
             sheet.preferredCornerRadius = 20
@@ -248,9 +274,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         present(hostingController, animated: animated)
     }
 
-    /// Closes the media detail panel.
-    ///
-    /// - Parameter animated: Whether dismissal should be animated.
     /// Closes the media detail panel.
     ///
     /// - Parameter animated: Whether dismissal should be animated.
@@ -277,8 +300,12 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     /// - Parameter metadata: Current selected media metadata.
     private func downloadFullResolution(metadata: tableMetadata) {
         let index = model.selectedIndex
+
         Task {
-            _ = try? await NCMediaViewerLoader().downloadMedia(for: metadata, index: index)
+            _ = try? await NCMediaViewerLoader().downloadMedia(
+                for: metadata,
+                index: index
+            )
         }
     }
 }

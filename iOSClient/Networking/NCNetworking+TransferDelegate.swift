@@ -313,11 +313,11 @@ extension NCNetworking: NCTransferDelegate {
     }
 
     @MainActor
-    func moveInFolder(serverUrl: String, sceneIdentifier: String) async -> Bool {
+    func moveInFolder(serverUrl: String, sceneIdentifier: String) async -> NCFiles? {
         guard let controller = SceneManager.shared.getController(sceneIdentifier: sceneIdentifier),
               let navigationController = controller.viewControllers?.first as? UINavigationController
         else {
-            return false
+            return nil
         }
 
         let session = NCSession.shared.getSession(controller: controller)
@@ -327,16 +327,18 @@ extension NCNetworking: NCTransferDelegate {
         controller.selectedIndex = 0
 
         if serverUrlPush == serverUrl,
-           navigationController.topViewController is NCFiles {
-            return true
+           let files = navigationController.topViewController as? NCFiles {
+            return files
         }
 
         guard serverUrl.hasPrefix(serverUrlPush) else {
-            return false
+            return nil
         }
 
         let diffDirectory = String(serverUrl.dropFirst(serverUrlPush.count))
         var subDirs = diffDirectory.split(separator: "/")
+
+        var lastFilesViewController: NCFiles?
 
         while serverUrlPush != serverUrl, !subDirs.isEmpty {
             let dir = String(subDirs.removeFirst())
@@ -352,6 +354,7 @@ extension NCNetworking: NCTransferDelegate {
             })?.viewController as? NCFiles {
 
                 navigationController.pushViewController(viewController, animated: false)
+                lastFilesViewController = viewController
 
             } else if let viewController = UIStoryboard(name: "NCFiles", bundle: nil).instantiateInitialViewController() as? NCFiles {
 
@@ -368,12 +371,13 @@ extension NCNetworking: NCTransferDelegate {
                 )
 
                 navigationController.pushViewController(viewController, animated: false)
+                lastFilesViewController = viewController
 
             } else {
-                return false
+                return nil
             }
         }
 
-        return serverUrlPush == serverUrl
+        return serverUrlPush == serverUrl ? lastFilesViewController : nil
     }
 }
