@@ -10,7 +10,7 @@ import NextcloudKit
 
 /// SwiftUI wrapper around `AVPlayerViewController`.
 ///
-/// This view is used when AVFoundation can play the local video file.
+/// This view is used when AVFoundation can play the video URL.
 /// It provides native playback controls and Picture in Picture support where available.
 ///
 /// Picture in Picture requires the app target to enable:
@@ -42,11 +42,10 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
         controller.view.backgroundColor = .black
         controller.delegate = context.coordinator
 
-        if shouldAutoPlay {
-            DispatchQueue.main.async {
-                player.play()
-            }
-        }
+        context.coordinator.playIfNeeded(
+            player: player,
+            shouldAutoPlay: shouldAutoPlay
+        )
 
         return controller
     }
@@ -57,6 +56,7 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
     ) {
         if controller.player !== player {
             controller.player = player
+            context.coordinator.resetAutoplay()
         }
 
         controller.showsPlaybackControls = true
@@ -66,6 +66,11 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
         controller.videoGravity = .resizeAspect
         controller.view.backgroundColor = .black
         controller.delegate = context.coordinator
+
+        context.coordinator.playIfNeeded(
+            player: player,
+            shouldAutoPlay: shouldAutoPlay
+        )
     }
 
     static func dismantleUIViewController(
@@ -82,6 +87,35 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
     }
 
     final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+        private var didAutoplay = false
+
+        func resetAutoplay() {
+            didAutoplay = false
+        }
+
+        func playIfNeeded(
+            player: AVPlayer,
+            shouldAutoPlay: Bool
+        ) {
+            guard shouldAutoPlay,
+                  !didAutoplay else {
+                return
+            }
+
+            didAutoplay = true
+
+            DispatchQueue.main.async {
+                player.play()
+
+                nkLog(
+                    tag: NCGlobal.shared.logTagViewer,
+                    emoji: .debug,
+                    message: "VIDEO AVPlayer autoplay",
+                    consoleOnly: true
+                )
+            }
+        }
+
         func playerViewControllerWillStartPictureInPicture(
             _ playerViewController: AVPlayerViewController
         ) {

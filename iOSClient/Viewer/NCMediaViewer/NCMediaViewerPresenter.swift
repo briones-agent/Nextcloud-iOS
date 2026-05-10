@@ -434,6 +434,13 @@ final class NCMediaViewerPresenter: NSObject {
 
             return nil
 
+        case .video(let previewURL):
+            guard let previewURL else {
+                return nil
+            }
+
+            return UIImage(contentsOfFile: previewURL.path)
+
         case .ready(let localURL, let previewURL):
             if let image = UIImage(contentsOfFile: localURL.path) {
                 return image

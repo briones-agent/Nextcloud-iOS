@@ -30,6 +30,12 @@ enum NCMediaViewerPageState {
     /// to full image. This avoids flickering caused by replacing SwiftUI view branches.
     case image(previewURL: URL?, localURL: URL?, livePhotoURL: URL?, progress: Double?)
 
+    /// Video page state.
+    ///
+    /// Videos can be played from a local file, metadata URL, or Nextcloud direct
+    /// download URL. The video viewer resolves the final playback URL by itself.
+    case video(previewURL: URL?)
+
     /// Remote media state with an optional preview and optional download progress.
     ///
     /// For video/audio, this can also represent a remote-only state where a preview
@@ -513,6 +519,8 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Selected Page Loading
 
+    // MARK: - Selected Page Loading
+
     /// Loads metadata and media content for a selected or explicitly requested page.
     ///
     /// Loading order:
@@ -520,7 +528,8 @@ final class NCMediaViewerModel: ObservableObject {
     /// - Preserve any preview already stored in the current page state.
     /// - If the full local file exists, show it immediately.
     /// - Otherwise, resolve/show the preview.
-    /// - Finally, download the full media file and replace the preview.
+    /// - For non-local videos, stop here and let the video viewer resolve direct playback.
+    /// - For images and audio, download the full media file when needed.
     ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     private func loadPage(index: Int) async {
@@ -528,10 +537,14 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LOAD PAGE \(index)", consoleOnly: true)
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "LOAD PAGE \(index)",
+            consoleOnly: true
+        )
 
         let ocId = ocIds[index]
-
         let metadata = await resolvedMetadata(for: ocId)
 
         guard !Task.isCancelled else {
@@ -584,8 +597,14 @@ final class NCMediaViewerModel: ObservableObject {
                 ),
                 for: ocId
             )
-        } else if pageState(for: ocId).isIdle {
-            setState(.loadingMetadata, for: ocId)
+        }
+
+        if isVideo(metadata) {
+            setState(
+                .video(previewURL: previewURL),
+                for: ocId
+            )
+            return
         }
 
         guard !Task.isCancelled else {
@@ -603,7 +622,10 @@ final class NCMediaViewerModel: ObservableObject {
                 )
             }
 
-            let downloadedURL = try await loader.downloadMedia(for: metadata, index: index)
+            let downloadedURL = try await loader.downloadMedia(
+                for: metadata,
+                index: index
+            )
 
             guard !Task.isCancelled else {
                 return
@@ -768,6 +790,14 @@ final class NCMediaViewerModel: ObservableObject {
         cachedPagesByOcId[ocId]?.state ?? .idle
     }
 
+    /// Returns whether the metadata represents a video.
+    ///
+    /// - Parameter metadata: Detached metadata.
+    /// - Returns: True when the media is a video.
+    private func isVideo(_ metadata: tableMetadata) -> Bool {
+        metadata.classFile == NKTypeClassFile.video.rawValue
+    }
+
     /// Returns the currently cached preview URL for a page, if any.
     ///
     /// - Parameter ocId: Page file identifier.
@@ -779,6 +809,9 @@ final class NCMediaViewerModel: ObservableObject {
 
         switch page.state {
         case .image(let previewURL, _, _, _):
+            return previewURL
+
+        case .video(let previewURL):
             return previewURL
 
         case .downloading(let previewURL, _):
@@ -932,6 +965,7 @@ private extension NCMediaViewerPageState {
              .metadataMissing,
              .checkingLocalFile,
              .image,
+             .video,
              .downloading,
              .ready,
              .failed:
@@ -941,8 +975,11 @@ private extension NCMediaViewerPageState {
 
     /// Returns true when selected-page loading should continue.
     ///
-    /// A prefetched page can already have a preview but still needs selected-page
-    /// loading to download the full media file.
+    /// A prefetched image page can already have a preview but still needs
+    /// selected-page loading to download the full image file.
+    ///
+    /// Video is considered resolved once it reaches `.video`, because the video
+    /// viewer resolves local, metadata URL, or direct-download playback by itself.
     var needsSelectedPageLoading: Bool {
         switch self {
         case .idle:
@@ -955,6 +992,7 @@ private extension NCMediaViewerPageState {
             return true
 
         case .image(_, .some, _, _),
+             .video,
              .loadingMetadata,
              .metadataMissing,
              .checkingLocalFile,
