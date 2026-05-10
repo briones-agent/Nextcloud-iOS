@@ -26,7 +26,6 @@ struct NCVideoViewerContentView: View {
 
     @State private var resolvedURL: URL?
     @State private var errorMessage: String?
-    @State private var showsLoadingOverlay = false
 
     private let resolver = NCVideoURLResolver()
 
@@ -66,6 +65,7 @@ struct NCVideoViewerContentView: View {
                     NCVideoVLCViewerContentView(
                         metadata: metadata,
                         url: url,
+                        userAgent: userAgent,
                         shouldAutoPlay: true
                     )
                     .ignoresSafeArea()
@@ -82,39 +82,25 @@ struct NCVideoViewerContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             hub.stop()
         }
+        .onDisappear {
+            hub.pause()
+        }
     }
 
     // MARK: - Views
 
     @ViewBuilder
     private var loadingView: some View {
-        ZStack {
-            if let previewURL {
-                NCImageViewerContentView(
-                    identifier: metadata.ocId,
-                    previewURL: previewURL,
-                    fullURL: nil,
-                    backgroundStyle: .black
-                )
-            } else {
-                Color.black
-                    .ignoresSafeArea()
-            }
-
-            VStack(spacing: 14) {
-                ProgressView()
-                    .tint(.white)
-
-                Text(displayFileName)
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .padding(.horizontal, 24)
-            }
-            .padding(16)
-            .background(.black.opacity(0.35))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+        if let previewURL {
+            NCImageViewerContentView(
+                identifier: metadata.ocId,
+                previewURL: previewURL,
+                fullURL: nil,
+                backgroundStyle: .black
+            )
+        } else {
+            Color.black
+                .ignoresSafeArea()
         }
     }
 
@@ -139,7 +125,7 @@ struct NCVideoViewerContentView: View {
     // MARK: - Loading
 
     private var taskIdentifier: String {
-        "\(metadata.ocId)|\(metadata.etag)|\(metadata.url)|\(localURL?.absoluteString ?? "")"
+        "\(metadata.ocId)|\(metadata.etag)|\(metadata.url)|\(localURL?.absoluteString ?? "")|\(previewURL?.absoluteString ?? "")"
     }
 
     /// Resolves the playable video URL and loads it into the playback hub.
