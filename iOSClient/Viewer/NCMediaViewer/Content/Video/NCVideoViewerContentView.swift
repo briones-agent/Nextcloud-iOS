@@ -61,7 +61,8 @@ struct NCVideoViewerContentView: View {
                         allowsPictureInPicture: true,
                         shouldAutoPlay: isSelected
                     )
-                    .ignoresSafeArea()
+                    .padding(.bottom, videoPlayerBottomPadding)
+                    .ignoresSafeArea(edges: [.top, .leading, .trailing])
 
                 case .vlc(let url):
                     NCVideoVLCViewerContentView(
@@ -106,6 +107,21 @@ struct NCVideoViewerContentView: View {
     }
 
     // MARK: - Views
+
+    /// Extra bottom padding used only for the native AVPlayer controller.
+    ///
+    /// This keeps the native playback scrubber away from the bottom edge / home indicator
+    /// without changing image, Live Photo, audio, or VLC layout.
+    private var videoPlayerBottomPadding: CGFloat {
+        let windowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+
+        let window = windowScene?.windows.first { $0.isKeyWindow }
+        let safeBottom = window?.safeAreaInsets.bottom ?? 0
+
+        return max(safeBottom, 16)
+    }
 
     @ViewBuilder
     private var loadingView: some View {
