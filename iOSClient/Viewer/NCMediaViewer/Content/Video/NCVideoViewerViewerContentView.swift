@@ -9,7 +9,7 @@ import SwiftUI
 /// Temporary video page.
 ///
 /// The real implementation will select AVPlayer when possible and VLC otherwise.
-struct NCVideoViewerPlaceholderView: View {
+struct NCVideoViewerViewerContentView: View {
 
     // MARK: - Properties
 
