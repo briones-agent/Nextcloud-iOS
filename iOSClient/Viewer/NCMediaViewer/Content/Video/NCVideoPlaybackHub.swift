@@ -75,8 +75,7 @@ final class NCVideoPlaybackHub: ObservableObject {
         url: URL,
         httpHeaders: [String: String] = [:]
     ) {
-        if currentURL == url,
-           !isLoading {
+        guard currentURL != url else {
             return
         }
 
@@ -313,15 +312,6 @@ final class NCVideoPlaybackHub: ObservableObject {
     }
 
     // MARK: - State Helpers
-
-    /// Returns whether the hub is currently resolving an engine.
-    private var isLoading: Bool {
-        if case .loading = engine {
-            return true
-        }
-
-        return false
-    }
 
     /// Returns whether a callback belongs to the current load request.
     ///

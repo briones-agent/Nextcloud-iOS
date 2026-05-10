@@ -49,7 +49,7 @@ struct NCVideoURLResolver {
 
             return (
                 url: URL(fileURLWithPath: localPath),
-                autoplay: false,
+                autoplay: true,
                 error: .success
             )
         }

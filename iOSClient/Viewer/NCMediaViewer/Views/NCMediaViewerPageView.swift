@@ -155,7 +155,7 @@ struct NCMediaViewerPageView: View {
                 previewURL: previewURL,
                 isSelected: isSelected
             )
-            .id("video-\(page.ocId)")
+            .id(page.ocId)
             .background(Color.ncViewerBackground(backgroundStyle))
         } else {
             metadataMissingView
@@ -201,7 +201,7 @@ struct NCMediaViewerPageView: View {
                     previewURL: previewURL,
                     isSelected: isSelected
                 )
-                .id("video-\(page.ocId)")
+                .id(page.ocId)
                 .background(Color.ncViewerBackground(backgroundStyle))
 
             case .audio:
