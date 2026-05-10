@@ -76,13 +76,20 @@ struct NCVideoViewerContentView: View {
         }
         .background(Color.black)
         .task(id: taskIdentifier) {
-            await resolveAndLoadVideo()
+            let expectedTaskIdentifier = taskIdentifier
+
+            hub.stop()
+            errorMessage = nil
+
+            await resolveAndLoadVideo(
+                expectedTaskIdentifier: expectedTaskIdentifier
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             hub.stop()
         }
         .onDisappear {
-            hub.pause()
+            hub.stop()
         }
     }
 
@@ -128,8 +135,12 @@ struct NCVideoViewerContentView: View {
     }
 
     /// Resolves the playable video URL and loads it into the playback hub.
+    ///
+    /// - Parameter expectedTaskIdentifier: Task identity captured before starting async resolution.
     @MainActor
-    private func resolveAndLoadVideo() async {
+    private func resolveAndLoadVideo(
+        expectedTaskIdentifier: String
+    ) async {
         errorMessage = nil
 
         nkLog(
@@ -151,6 +162,16 @@ struct NCVideoViewerContentView: View {
             return
         }
 
+        guard expectedTaskIdentifier == taskIdentifier else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO resolve ignored stale task ocId \(metadata.ocId)",
+                consoleOnly: true
+            )
+            return
+        }
+
         guard result.error == .success,
               let url = result.url else {
             nkLog(
@@ -161,6 +182,16 @@ struct NCVideoViewerContentView: View {
             )
 
             errorMessage = result.error.errorDescription
+            return
+        }
+
+        guard expectedTaskIdentifier == taskIdentifier else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO load ignored stale task ocId \(metadata.ocId), url \(url.absoluteString)",
+                consoleOnly: true
+            )
             return
         }
 

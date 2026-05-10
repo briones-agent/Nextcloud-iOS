@@ -8,11 +8,11 @@ import NextcloudKit
 
 // MARK: - Video Playback Engine
 
-/// Describes the selected video playback engine.
+/// Describes the currently selected video playback engine.
 ///
 /// AVFoundation is preferred because it supports native iOS playback features,
-/// including Picture in Picture where available.
-/// VLC is used as fallback when AVFoundation cannot prepare the asset.
+/// including Picture in Picture where available. VLC is used as fallback when
+/// AVFoundation cannot prepare the asset.
 enum NCVideoPlaybackEngine {
     /// The hub is resolving the best playback engine.
     case loading
@@ -31,13 +31,16 @@ enum NCVideoPlaybackEngine {
 
 /// Resolves and owns the best playback engine for a video URL.
 ///
-/// The hub first tries AVFoundation. If the item reaches `.readyToPlay`,
-/// the viewer uses AVFoundation. If the item fails or does not become ready
-/// before the timeout, the hub falls back to VLC.
-///
 /// The input URL can be either:
 /// - a local file URL
 /// - a remote direct-download URL
+///
+/// The hub first tries AVFoundation. If the item reaches `.readyToPlay`,
+/// the viewer uses AVFoundation. If the item fails or does not become ready
+/// before the fallback timeout, the hub switches to VLC.
+///
+/// A generation token is used to ignore stale AVFoundation callbacks or timeout
+/// tasks produced by an older load request.
 @MainActor
 final class NCVideoPlaybackHub: ObservableObject {
 
@@ -53,6 +56,7 @@ final class NCVideoPlaybackHub: ObservableObject {
     private var statusObservation: NSKeyValueObservation?
     private var timeoutTask: Task<Void, Never>?
     private var currentURL: URL?
+    private var loadToken = UUID()
 
     private let fallbackTimeoutMilliseconds = 1_500
 
@@ -71,12 +75,15 @@ final class NCVideoPlaybackHub: ObservableObject {
         url: URL,
         httpHeaders: [String: String] = [:]
     ) {
-        guard currentURL != url else {
+        if currentURL == url,
+           !isLoading {
             return
         }
 
         stop()
 
+        let token = UUID()
+        loadToken = token
         currentURL = url
         engine = .loading
 
@@ -90,14 +97,23 @@ final class NCVideoPlaybackHub: ObservableObject {
 
         prepareAVFoundation(
             url: url,
-            httpHeaders: url.isFileURL ? [:] : httpHeaders
+            httpHeaders: url.isFileURL ? [:] : httpHeaders,
+            token: token
         )
 
-        startFallbackTimeout(url: url)
+        startFallbackTimeout(
+            url: url,
+            token: token
+        )
     }
 
     /// Stops playback and releases all current resources.
+    ///
+    /// This also invalidates the current load generation so stale timeout tasks
+    /// and AVFoundation status callbacks cannot update the engine anymore.
     func stop() {
+        loadToken = UUID()
+
         timeoutTask?.cancel()
         timeoutTask = nil
 
@@ -126,9 +142,11 @@ final class NCVideoPlaybackHub: ObservableObject {
     /// - Parameters:
     ///   - url: Local or remote video URL.
     ///   - httpHeaders: Optional HTTP headers used by AVFoundation for remote playback.
+    ///   - token: Load generation token used to ignore stale callbacks.
     private func prepareAVFoundation(
         url: URL,
-        httpHeaders: [String: String]
+        httpHeaders: [String: String],
+        token: UUID
     ) {
         let assetOptions: [String: Any]? = httpHeaders.isEmpty
             ? nil
@@ -146,7 +164,7 @@ final class NCVideoPlaybackHub: ObservableObject {
 
         player.actionAtItemEnd = .pause
 
-        self.playerItem = item
+        playerItem = item
         self.player = player
 
         statusObservation = item.observe(
@@ -158,18 +176,25 @@ final class NCVideoPlaybackHub: ObservableObject {
                     return
                 }
 
-                guard self.currentURL == url else {
+                guard self.isCurrentLoad(
+                    url: url,
+                    token: token
+                ) else {
                     return
                 }
 
                 switch item.status {
                 case .readyToPlay:
-                    self.resolveWithAVFoundation(player: player)
+                    self.resolveWithAVFoundation(
+                        player: player,
+                        token: token
+                    )
 
                 case .failed:
                     self.fallbackToVLC(
                         url: url,
-                        reason: item.error?.localizedDescription ?? "AVFoundation failed."
+                        reason: item.error?.localizedDescription ?? "AVFoundation failed.",
+                        token: token
                     )
 
                 case .unknown:
@@ -178,7 +203,8 @@ final class NCVideoPlaybackHub: ObservableObject {
                 @unknown default:
                     self.fallbackToVLC(
                         url: url,
-                        reason: "AVFoundation returned an unknown status."
+                        reason: "AVFoundation returned an unknown status.",
+                        token: token
                     )
                 }
             }
@@ -187,8 +213,17 @@ final class NCVideoPlaybackHub: ObservableObject {
 
     /// Selects AVFoundation as playback engine.
     ///
-    /// - Parameter player: Prepared AVPlayer.
-    private func resolveWithAVFoundation(player: AVPlayer) {
+    /// - Parameters:
+    ///   - player: Prepared AVPlayer.
+    ///   - token: Load generation token used to ignore stale callbacks.
+    private func resolveWithAVFoundation(
+        player: AVPlayer,
+        token: UUID
+    ) {
+        guard loadToken == token else {
+            return
+        }
+
         timeoutTask?.cancel()
         timeoutTask = nil
 
@@ -204,8 +239,13 @@ final class NCVideoPlaybackHub: ObservableObject {
 
     /// Starts a timeout after which VLC is selected if AVFoundation is still loading.
     ///
-    /// - Parameter url: Local or remote video URL.
-    private func startFallbackTimeout(url: URL) {
+    /// - Parameters:
+    ///   - url: Local or remote video URL.
+    ///   - token: Load generation token used to ignore stale timeout tasks.
+    private func startFallbackTimeout(
+        url: URL,
+        token: UUID
+    ) {
         timeoutTask = Task { [weak self] in
             guard let self else {
                 return
@@ -216,14 +256,18 @@ final class NCVideoPlaybackHub: ObservableObject {
             )
 
             await MainActor.run {
-                guard self.currentURL == url else {
+                guard self.isCurrentLoad(
+                    url: url,
+                    token: token
+                ) else {
                     return
                 }
 
                 if case .loading = self.engine {
                     self.fallbackToVLC(
                         url: url,
-                        reason: "AVFoundation timeout."
+                        reason: "AVFoundation timeout.",
+                        token: token
                     )
                 }
             }
@@ -235,10 +279,19 @@ final class NCVideoPlaybackHub: ObservableObject {
     /// - Parameters:
     ///   - url: Local or remote video URL.
     ///   - reason: Debug reason for the fallback.
+    ///   - token: Load generation token used to ignore stale callbacks.
     private func fallbackToVLC(
         url: URL,
-        reason: String
+        reason: String,
+        token: UUID
     ) {
+        guard isCurrentLoad(
+            url: url,
+            token: token
+        ) else {
+            return
+        }
+
         timeoutTask?.cancel()
         timeoutTask = nil
 
@@ -249,10 +302,6 @@ final class NCVideoPlaybackHub: ObservableObject {
         player = nil
         playerItem = nil
 
-        guard currentURL == url else {
-            return
-        }
-
         engine = .vlc(url: url)
 
         nkLog(
@@ -261,6 +310,30 @@ final class NCVideoPlaybackHub: ObservableObject {
             message: "VIDEO engine VLC fallback: \(reason)",
             consoleOnly: true
         )
+    }
+
+    // MARK: - State Helpers
+
+    /// Returns whether the hub is currently resolving an engine.
+    private var isLoading: Bool {
+        if case .loading = engine {
+            return true
+        }
+
+        return false
+    }
+
+    /// Returns whether a callback belongs to the current load request.
+    ///
+    /// - Parameters:
+    ///   - url: URL associated with the callback.
+    ///   - token: Load generation token associated with the callback.
+    /// - Returns: True when the callback belongs to the active load request.
+    private func isCurrentLoad(
+        url: URL,
+        token: UUID
+    ) -> Bool {
+        loadToken == token && currentURL == url
     }
 
     // MARK: - Private Helpers
