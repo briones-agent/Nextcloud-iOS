@@ -2858,7 +2858,7 @@
 			path = Trash;
 			sourceTree = "<group>";
 		};
-		F79018B1240962C7007C9B6D /* NCViewerMedia */ = {
+		F79018B1240962C7007C9B6D /* OLD - NCViewerMedia */ = {
 			isa = PBXGroup;
 			children = (
 				F70753EA2542A99800972D44 /* NCViewerMediaPage.swift */,
@@ -2868,7 +2868,7 @@
 				F70753F62542A9C000972D44 /* NCViewerMediaPage.storyboard */,
 				F79EDA9E26B004980007D134 /* NCPlayer */,
 			);
-			path = NCViewerMedia;
+			path = "OLD - NCViewerMedia";
 			sourceTree = "<group>";
 		};
 		F79630EC215526B60015EEA5 /* Viewer */ = {
@@ -2877,11 +2877,11 @@
 				F7F9D1BA25397CE000D9BFF5 /* NCViewer.swift */,
 				F7EFA47725ADBA500083159A /* NCViewerProviderContextMenu.swift */,
 				F7CDB5C12FA33CA300F72306 /* NCMediaViewer */,
-				F79018B1240962C7007C9B6D /* NCViewerMedia */,
 				F723986A253C9C0E00257F49 /* NCViewerQuickLook */,
 				F76D3CEF2428B3DD005DFA87 /* NCViewerPDF */,
 				F73D11FF253C5F5400DF9BEC /* NCViewerDirectEditing */,
 				F7239861253C95D500257F49 /* NCViewerRichdocument */,
+				F79018B1240962C7007C9B6D /* OLD - NCViewerMedia */,
 			);
 			path = Viewer;
 			sourceTree = "<group>";
