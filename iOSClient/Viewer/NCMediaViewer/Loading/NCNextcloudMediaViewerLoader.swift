@@ -131,6 +131,14 @@ final class NCMediaViewerLoader: NCMediaViewerLoading, @unchecked Sendable {
 
         nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "FULL network request \(index)", consoleOnly: true)
 
+        guard let metadata = await self.database.setMetadataSessionInWaitDownloadAsync(
+            ocId: metadata.ocId,
+            session: NCNetworking.shared.sessionDownload,
+            selector: NCGlobal.shared.selectorDownloadFile) else {
+                nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "FULL error \(index)", consoleOnly: true)
+                throw NSError(domain: "Download Media", code: 1, userInfo: [NSLocalizedDescriptionKey: "FULL error \(index)"])
+        }
+
         let result = await NCNetworking.shared.downloadFile(metadata: metadata)
 
         if let afError = result.afError {
