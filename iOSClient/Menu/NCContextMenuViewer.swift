@@ -105,11 +105,10 @@ class NCContextMenuViewer: NSObject {
             image: UIImage(systemName: "questionmark.folder")
         ) { _ in
             Task {
-                if let mediaViewer = sender as? NCMediaViewerHostingController,
-                   await NCNetworking.shared.moveInFolder(serverUrl: metadata.serverUrl,
-                                                          sceneIdentifier: controller.sceneIdentifier) {
-                    mediaViewer.dismiss(animated: true)
-
+                if await NCNetworking.shared.moveInFolder(serverUrl: metadata.serverUrl,
+                                                          sceneIdentifier: controller.sceneIdentifier),
+                   let mediaViewer = sender as? NCMediaViewerHostingController {
+                    mediaViewer.onClose()
                 }
             }
         }
