@@ -153,7 +153,7 @@ struct NCMediaViewerPageView: View {
                 localURL: nil,
                 previewURL: previewURL
             )
-            .background(Color.black)
+            .background(Color.ncViewerBackground(backgroundStyle))
         } else {
             metadataMissingView
         }
@@ -194,7 +194,8 @@ struct NCMediaViewerPageView: View {
             case .video:
                 NCVideoViewerContentView(
                     metadata: metadata,
-                    localURL: localURL
+                    localURL: localURL,
+                    previewURL: previewURL
                 )
                 .background(Color.ncViewerBackground(backgroundStyle))
 

@@ -24,7 +24,6 @@ struct NCVideoViewerContentView: View {
 
     @StateObject private var hub = NCVideoPlaybackHub()
 
-    @State private var resolvedURL: URL?
     @State private var errorMessage: String?
 
     private let resolver = NCVideoURLResolver()
@@ -164,8 +163,6 @@ struct NCVideoViewerContentView: View {
             errorMessage = result.error.errorDescription
             return
         }
-
-        resolvedURL = url
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
