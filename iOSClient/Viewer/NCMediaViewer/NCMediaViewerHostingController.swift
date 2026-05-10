@@ -5,13 +5,14 @@
 import SwiftUI
 import UIKit
 import Combine
+import NextcloudKit
 
 // MARK: - Media Viewer Hosting Controller
 
 /// UIKit hosting controller used by the media viewer.
 ///
 /// This controller embeds the SwiftUI media viewer and provides standard UIKit
-/// navigation items for the title, close button, and context menu button.
+/// navigation items for the title, close button, context menu button, and detail button.
 @MainActor
 final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerView>, UIAdaptivePresentationControllerDelegate {
     private let model: NCMediaViewerModel
@@ -22,6 +23,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     private var detailHostingController: UIHostingController<NCImageViewerDetailView>?
     private var isShowingDetail = false
     private var cancellables = Set<AnyCancellable>()
+    private var transferDelegate: NCMediaViewerTransferDelegate?
 
     private lazy var moreNavigationItem = UIBarButtonItem(
         image: NCImageCache.shared.getImageButtonMore(),
@@ -78,6 +80,15 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
         super.init(rootView: NCMediaViewerView(model: model))
 
+        self.transferDelegate = NCMediaViewerTransferDelegate { [weak self, weak model] deletedOcId in
+            guard let self,
+                  deletedOcId == model?.selectedOcId else {
+                return
+            }
+
+            self.close()
+        }
+
         view.backgroundColor = .ncViewerBackground(.system)
         edgesForExtendedLayout = [.all]
         extendedLayoutIncludesOpaqueBars = true
@@ -92,6 +103,30 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     @available(*, unavailable)
     dynamic required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+
+        guard let transferDelegate else {
+            return
+        }
+
+        Task {
+            await NCNetworking.shared.transferDispatcher.addDelegate(transferDelegate)
+        }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+
+        guard let transferDelegate else {
+            return
+        }
+
+        Task {
+            await NCNetworking.shared.transferDispatcher.removeDelegate(transferDelegate)
+        }
     }
 
     // MARK: - Closing
@@ -131,7 +166,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         ]
     }
 
-    /// Observes model changes and refreshes the navigation title.
+    /// Observes model changes and refreshes navigation UI.
     private func observeModel() {
         model.$selectedIndex
             .receive(on: RunLoop.main)
@@ -306,6 +341,47 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
                 for: metadata,
                 index: index
             )
+        }
+    }
+}
+
+// MARK: - Media Viewer Transfer Delegate
+
+/// Bridges transfer events into the MainActor-isolated media viewer controller.
+///
+/// `NCTransferDelegate` is not MainActor-isolated, so `NCMediaViewerHostingController`
+/// must not conform to it directly in Swift 6.
+final class NCMediaViewerTransferDelegate: NSObject, NCTransferDelegate {
+    private let onDeletedOcId: @MainActor (_ ocId: String) -> Void
+    let sceneIdentifier: String = ""
+
+    init(onDeletedOcId: @escaping @MainActor (_ ocId: String) -> Void) {
+        self.onDeletedOcId = onDeletedOcId
+    }
+
+    func transferReloadData(serverUrl: String?) { }
+
+    func transferReloadDataSource(serverUrl: String?, requestData: Bool, status: Int?) { }
+
+    func transferProgressDidUpdate(progress: Float, totalBytes: Int64, totalBytesExpected: Int64, fileName: String, serverUrl: String) { }
+
+    func transferChange(
+        status: String,
+        account: String,
+        fileName: String,
+        serverUrl: String,
+        selector: String?,
+        ocId: String,
+        destination: String?,
+        error: NKError
+    ) {
+        guard status == NCGlobal.shared.networkingStatusDelete,
+              error == .success else {
+            return
+        }
+
+        Task { @MainActor in
+            onDeletedOcId(ocId)
         }
     }
 }
