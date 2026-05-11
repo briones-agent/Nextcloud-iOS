@@ -15,6 +15,8 @@ import NextcloudKit
 /// `NCVideoVLCPresenter`, outside the SwiftUI paging hierarchy.
 ///
 /// Loading rules:
+/// - If a valid local URL is already available, it is used directly.
+/// - The remote resolver is used only when no local URL is available.
 /// - If the same video is already loaded, the existing player is reused.
 /// - If the page is not selected, the view does not load a new video.
 /// - AVFoundation is paused/resumed when page selection changes.
@@ -26,15 +28,15 @@ struct NCVideoViewerContentView: View {
     let previewURL: URL?
     let userAgent: String?
     let isSelected: Bool
+    let contextMenuController: NCMainTabBarController?
 
-    @StateObject private var playback = NCVideoPlaybackController.shared
+    @ObservedObject private var playback = NCVideoPlaybackController.shared
 
     @State private var errorMessage: String?
     @State private var playerOpacity: Double = 0
     @State private var presentedVLCURL: URL?
 
     private let resolver = NCVideoURLResolver()
-    let contextMenuController: NCMainTabBarController?
 
     init(
         metadata: tableMetadata,
@@ -109,17 +111,22 @@ struct NCVideoViewerContentView: View {
             playerOpacity = 0
             errorMessage = nil
 
-            if playback.isCurrentVideo(
-                ocId: metadata.ocId,
-                etag: metadata.etag
-            ) {
-                guard isSelected else {
+            if let localURL {
+                let isAlreadyPlayingSameLocalVideo = playback.isCurrentVideo(
+                    ocId: metadata.ocId,
+                    etag: metadata.etag,
+                    url: localURL
+                )
+
+                if isAlreadyPlayingSameLocalVideo {
+                    guard isSelected else {
+                        return
+                    }
+
+                    resumeCurrentPlaybackIfNeeded()
+                    fadeInPlayer()
                     return
                 }
-
-                resumeCurrentPlaybackIfNeeded()
-                fadeInPlayer()
-                return
             }
 
             guard isSelected else {
@@ -183,10 +190,13 @@ struct NCVideoViewerContentView: View {
     // MARK: - Loading
 
     private var taskIdentifier: String {
-        "\(metadata.ocId)|\(metadata.etag)|\(isSelected)"
+        let localIdentifier = localURL?.absoluteString ?? "remote"
+        return "\(metadata.ocId)|\(metadata.etag)|\(localIdentifier)|\(isSelected)"
     }
 
     /// Resolves the playable video URL and loads it into the shared playback controller.
+    ///
+    /// Local URLs are loaded directly and have priority over remote resolution.
     ///
     /// - Parameter expectedTaskIdentifier: Task identity captured before starting async resolution.
     @MainActor
@@ -194,6 +204,16 @@ struct NCVideoViewerContentView: View {
         expectedTaskIdentifier: String
     ) async {
         errorMessage = nil
+
+        if let localURL {
+            loadResolvedVideo(
+                url: localURL,
+                autoplay: true,
+                expectedTaskIdentifier: expectedTaskIdentifier,
+                source: "local"
+            )
+            return
+        }
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
@@ -241,11 +261,33 @@ struct NCVideoViewerContentView: View {
             return
         }
 
+        loadResolvedVideo(
+            url: url,
+            autoplay: result.autoplay,
+            expectedTaskIdentifier: expectedTaskIdentifier,
+            source: "resolved"
+        )
+    }
+
+    /// Loads a resolved video URL into the shared playback controller.
+    ///
+    /// - Parameters:
+    ///   - url: Local or remote playable URL.
+    ///   - autoplay: Whether the resolved URL requests autoplay.
+    ///   - expectedTaskIdentifier: Task identity used to ignore stale async work.
+    ///   - source: Debug source label used in logs.
+    @MainActor
+    private func loadResolvedVideo(
+        url: URL,
+        autoplay: Bool,
+        expectedTaskIdentifier: String,
+        source: String
+    ) {
         guard expectedTaskIdentifier == taskIdentifier else {
             nkLog(
                 tag: NCGlobal.shared.logTagViewer,
                 emoji: .debug,
-                message: "VIDEO load ignored stale task ocId \(metadata.ocId), url \(url.absoluteString)",
+                message: "VIDEO load ignored stale task ocId \(metadata.ocId), source \(source), url \(url.absoluteString)",
                 consoleOnly: true
             )
             return
@@ -258,7 +300,7 @@ struct NCVideoViewerContentView: View {
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
             emoji: .debug,
-            message: "VIDEO resolve done url \(url.absoluteString), isFileURL \(url.isFileURL), fileName \(resolvedFileName)",
+            message: "VIDEO load \(source) url \(url.absoluteString), isFileURL \(url.isFileURL), fileName \(resolvedFileName)",
             consoleOnly: true
         )
 
@@ -268,7 +310,7 @@ struct NCVideoViewerContentView: View {
             fileName: resolvedFileName,
             userAgent: userAgent,
             httpHeaders: httpHeaders(for: url),
-            shouldAutoPlay: result.autoplay || isSelected
+            shouldAutoPlay: autoplay || isSelected
         )
     }
 

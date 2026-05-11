@@ -181,7 +181,7 @@ struct NCMediaViewerPageView: View {
                 isSelected: isSelected,
                 contextMenuController: contextMenuController
             )
-            .id(page.ocId)
+            .id("\(page.ocId)-remote")
             .background(Color.ncViewerBackground(backgroundStyle))
         } else {
             metadataMissingView
@@ -225,9 +225,10 @@ struct NCMediaViewerPageView: View {
                     metadata: metadata,
                     localURL: localURL,
                     previewURL: previewURL,
-                    isSelected: isSelected
+                    isSelected: isSelected,
+                    contextMenuController: contextMenuController
                 )
-                .id(page.ocId)
+                .id("\(page.ocId)-local-\(localURL.absoluteString)")
                 .background(Color.ncViewerBackground(backgroundStyle))
 
             case .audio:
