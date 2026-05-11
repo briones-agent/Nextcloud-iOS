@@ -612,7 +612,7 @@
 		F78448B32FB1BE9000F2909A /* NCVideoAVPlayerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78448A22FB1BE9000F2909A /* NCVideoAVPlayerContentView.swift */; };
 		F78448B52FB1BE9000F2909A /* NCVideoViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78448A82FB1BE9000F2909A /* NCVideoViewerContentView.swift */; };
 		F78448BA2FB1BE9000F2909A /* NCVideoPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78448A32FB1BE9000F2909A /* NCVideoPlaybackController.swift */; };
-		F78448BE2FB1C33B00F2909A /* NCVideoVLCViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78448BD2FB1C33B00F2909A /* NCVideoVLCViewerContentView.swift */; };
+		F78448BE2FB1C33B00F2909A /* NCVideoVLCViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78448BD2FB1C33B00F2909A /* NCVideoVLCViewController.swift */; };
 		F785129C2D7989B30087DDD0 /* NCNetworking+TermsOfService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F785129A2D79899E0087DDD0 /* NCNetworking+TermsOfService.swift */; };
 		F785EE9D246196DF00B3F945 /* NCNetworkingE2EE.swift in Sources */ = {isa = PBXBuildFile; fileRef = F785EE9C246196DF00B3F945 /* NCNetworkingE2EE.swift */; };
 		F785EE9E2461A09900B3F945 /* NCNetworking.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75A9EE523796C6F0044CFCE /* NCNetworking.swift */; };
@@ -1601,7 +1601,7 @@
 		F78448A22FB1BE9000F2909A /* NCVideoAVPlayerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoAVPlayerContentView.swift; sourceTree = "<group>"; };
 		F78448A32FB1BE9000F2909A /* NCVideoPlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoPlaybackController.swift; sourceTree = "<group>"; };
 		F78448A82FB1BE9000F2909A /* NCVideoViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoViewerContentView.swift; sourceTree = "<group>"; };
-		F78448BD2FB1C33B00F2909A /* NCVideoVLCViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoVLCViewerContentView.swift; sourceTree = "<group>"; };
+		F78448BD2FB1C33B00F2909A /* NCVideoVLCViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoVLCViewController.swift; sourceTree = "<group>"; };
 		F785129A2D79899E0087DDD0 /* NCNetworking+TermsOfService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NCNetworking+TermsOfService.swift"; sourceTree = "<group>"; };
 		F785EE9C246196DF00B3F945 /* NCNetworkingE2EE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCNetworkingE2EE.swift; sourceTree = "<group>"; };
 		F7864ACB2A78FE73004870E0 /* NCManageDatabase+LocalFile.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "NCManageDatabase+LocalFile.swift"; sourceTree = "<group>"; };
@@ -2866,7 +2866,7 @@
 			isa = PBXGroup;
 			children = (
 				F7635D8C2FB1F81D007F658D /* NCVideoVLCPresenter.swift */,
-				F78448BD2FB1C33B00F2909A /* NCVideoVLCViewerContentView.swift */,
+				F78448BD2FB1C33B00F2909A /* NCVideoVLCViewController.swift */,
 			);
 			path = VLC;
 			sourceTree = "<group>";
@@ -4955,7 +4955,7 @@
 				AA8D316E2D4123B200FE2775 /* NCShareDownloadLimitTableViewControllerDelegate.swift in Sources */,
 				F36C514F2E89393C0097E5F7 /* UIView+BlurVibrancy.swift in Sources */,
 				AA8D316F2D4123B200FE2775 /* NCShareDownloadLimitTableViewController.swift in Sources */,
-				F78448BE2FB1C33B00F2909A /* NCVideoVLCViewerContentView.swift in Sources */,
+				F78448BE2FB1C33B00F2909A /* NCVideoVLCViewController.swift in Sources */,
 				AA8D31702D4123B200FE2775 /* DownloadLimitViewModel.swift in Sources */,
 				AA8D31712D4123B200FE2775 /* NCShareDownloadLimitViewController.swift in Sources */,
 				AB6000012F60000100FE2775 /* NCTagEditorModel.swift in Sources */,
