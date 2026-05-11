@@ -130,6 +130,7 @@ final class NCVideoVLCViewController: UIViewController {
 
     private var loadedURL: URL?
     private var isViewVisible = false
+    private var needsDrawableRefresh = false
 
     // MARK: - Lifecycle
 
@@ -229,6 +230,8 @@ final class NCVideoVLCViewController: UIViewController {
 
             mediaPlayer.stop()
             mediaPlayer.media = nil
+            mediaPlayer.drawable = nil
+            needsDrawableRefresh = true
         }
 
         startIfPossible()
@@ -261,6 +264,7 @@ final class NCVideoVLCViewController: UIViewController {
         url = nil
         loadedURL = nil
         metadata = nil
+        needsDrawableRefresh = false
     }
 
     // MARK: - Playback
@@ -278,6 +282,7 @@ final class NCVideoVLCViewController: UIViewController {
 
         attachDrawableIfNeeded()
         loadMediaIfNeeded()
+        refreshDrawableAfterMediaChangeIfNeeded()
 
         guard mediaPlayer.media != nil else {
             log(
@@ -319,9 +324,31 @@ final class NCVideoVLCViewController: UIViewController {
 
         mediaPlayer.media = media
 
+        needsDrawableRefresh = true
+
         log(
             emoji: .debug,
             message: "VIDEO VLC media loaded url \(url.absoluteString), isFileURL \(url.isFileURL)"
+        )
+    }
+
+    private func refreshDrawableAfterMediaChangeIfNeeded() {
+        guard needsDrawableRefresh else {
+            return
+        }
+
+        guard drawableView.bounds.width > 0,
+              drawableView.bounds.height > 0 else {
+            return
+        }
+
+        mediaPlayer.drawable = nil
+        mediaPlayer.drawable = drawableView
+        needsDrawableRefresh = false
+
+        log(
+            emoji: .debug,
+            message: "VIDEO VLC drawable refreshed after media change bounds \(drawableView.bounds)"
         )
     }
 
