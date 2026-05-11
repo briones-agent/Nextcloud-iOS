@@ -66,7 +66,7 @@ final class NCVideoPlaybackController: ObservableObject {
 
     // MARK: - Public API
 
-    /// Returns whether the requested metadata is already owned by this controller.
+    /// Returns whether the requested metadata and URL are already owned by this controller.
     ///
     /// This check is used by views to avoid resolving/reloading the same media during
     /// rotation or SwiftUI rebuilds.
@@ -74,12 +74,16 @@ final class NCVideoPlaybackController: ObservableObject {
     /// - Parameters:
     ///   - ocId: Nextcloud file identifier.
     ///   - etag: Metadata ETag.
-    /// - Returns: True when the current loaded media matches the supplied identity.
+    ///   - url: Expected local or remote playable URL.
+    /// - Returns: True when the current loaded media matches the supplied identity and URL.
     func isCurrentVideo(
         ocId: String,
-        etag: String
+        etag: String,
+        url: URL
     ) -> Bool {
-        currentOcId == ocId && currentEtag == etag && currentURL != nil
+        currentOcId == ocId &&
+        currentEtag == etag &&
+        currentURL == url
     }
 
     /// Loads a video URL if it is not already loaded.
