@@ -7,15 +7,26 @@ import UIKit
 import MobileVLCKit
 import NextcloudKit
 
+// MARK: - VLC Audio Track
+
+struct NCVideoVLCAudioTrack: Identifiable, Equatable {
+    let id: Int32
+    let name: String
+}
+
+// MARK: - VLC Subtitle Track
+
+struct NCVideoVLCSubtitleTrack: Identifiable, Equatable {
+    let id: Int32
+    let name: String
+}
+
 // MARK: - VLC Video Viewer Content View
 
 /// Displays a video using MobileVLCKit with SwiftUI overlay controls.
 ///
 /// This view is used as fallback when AVFoundation cannot prepare the video.
-/// The URL can be either a local file URL or a remote direct-download URL.
-///
-/// The implementation is intentionally isolated from image, Live Photo, audio,
-/// and AVFoundation playback logic.
+/// The implementation is isolated from image, Live Photo, audio, and AVFoundation logic.
 struct NCVideoVLCViewerContentView: View {
     let metadata: tableMetadata
     let url: URL
@@ -43,27 +54,31 @@ struct NCVideoVLCViewerContentView: View {
 
             NCVideoVLCRenderView(mediaPlayer: model.mediaPlayer)
                 .ignoresSafeArea()
+                .zIndex(0)
 
-            Color.clear
-                .contentShape(Rectangle())
-                .ignoresSafeArea()
-                .onTapGesture {
-                    model.toggleControls()
-                }
+            if !model.isControlsVisible {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .zIndex(1)
+                    .onTapGesture {
+                        model.showControls()
+                    }
+            }
 
             if model.isControlsVisible {
                 NCVideoVLCControlsView(
                     model: model,
-                    displayFileName: displayFileName
+                    displayFileName: displayFileName,
+                    onBackgroundTap: {
+                        model.toggleControls()
+                    }
                 )
                 .transition(.opacity)
+                .zIndex(2)
             }
         }
         .background(Color.black)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            model.toggleControls()
-        }
         .task(id: taskIdentifier) {
             model.load(
                 metadata: metadata,
@@ -81,8 +96,6 @@ struct NCVideoVLCViewerContentView: View {
         .animation(.easeInOut(duration: 0.18), value: model.isControlsVisible)
     }
 
-    // MARK: - Helpers
-
     private var taskIdentifier: String {
         "\(metadata.ocId)|\(metadata.etag)|\(url.absoluteString)|\(shouldAutoPlay)"
     }
@@ -99,9 +112,6 @@ struct NCVideoVLCViewerContentView: View {
 // MARK: - VLC Render View
 
 /// UIKit render surface used by `VLCMediaPlayer`.
-///
-/// This wrapper only assigns the drawable view.
-/// Playback state, media loading, and controls are owned by `NCVideoVLCPlayerModel`.
 private struct NCVideoVLCRenderView: UIViewRepresentable {
     let mediaPlayer: VLCMediaPlayer
 
@@ -136,10 +146,6 @@ private struct NCVideoVLCRenderView: UIViewRepresentable {
 // MARK: - VLC Player Model
 
 /// Lightweight VLC playback model.
-///
-/// The model owns `VLCMediaPlayer`, exposes SwiftUI-friendly playback state,
-/// polls playback time, and provides basic controls such as play, pause, seek,
-/// restart, and short skip.
 @MainActor
 final class NCVideoVLCPlayerModel: ObservableObject {
 
@@ -150,6 +156,12 @@ final class NCVideoVLCPlayerModel: ObservableObject {
     @Published private(set) var isPlaying = false
     @Published var isControlsVisible = true
 
+    @Published private(set) var audioTracks: [NCVideoVLCAudioTrack] = []
+    @Published private(set) var currentAudioTrackIndex: Int32 = -1
+
+    @Published private(set) var subtitleTracks: [NCVideoVLCSubtitleTrack] = []
+    @Published private(set) var currentSubtitleTrackIndex: Int32 = -1
+
     // MARK: - Public State
 
     let mediaPlayer = VLCMediaPlayer()
@@ -159,6 +171,7 @@ final class NCVideoVLCPlayerModel: ObservableObject {
     private var currentURL: URL?
     private var monitorTask: Task<Void, Never>?
     private var controlsHideTask: Task<Void, Never>?
+    private var trackRefreshTask: Task<Void, Never>?
 
     // MARK: - Public API
 
@@ -209,6 +222,7 @@ final class NCVideoVLCPlayerModel: ObservableObject {
         )
 
         startMonitoring()
+        refreshTracksRepeatedly()
 
         if shouldAutoPlay {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
@@ -242,15 +256,6 @@ final class NCVideoVLCPlayerModel: ObservableObject {
         }
     }
 
-    /// Restarts playback from the beginning.
-    func restart() {
-        seek(to: 0)
-
-        if isPlaying {
-            mediaPlayer.play()
-        }
-    }
-
     /// Skips playback by a relative number of seconds.
     ///
     /// - Parameter seconds: Relative offset in seconds.
@@ -279,6 +284,38 @@ final class NCVideoVLCPlayerModel: ObservableObject {
         scheduleControlsAutoHide()
     }
 
+    /// Selects a VLC audio track.
+    ///
+    /// - Parameter index: VLC audio track index.
+    func selectAudioTrack(index: Int32) {
+        mediaPlayer.currentAudioTrackIndex = index
+        currentAudioTrackIndex = index
+        showControls()
+
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO VLC selected audio track index \(index)",
+            consoleOnly: true
+        )
+    }
+
+    /// Selects a VLC subtitle track.
+    ///
+    /// - Parameter index: VLC subtitle track index.
+    func selectSubtitleTrack(index: Int32) {
+        mediaPlayer.currentVideoSubTitleIndex = index
+        currentSubtitleTrackIndex = index
+        showControls()
+
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO VLC selected subtitle track index \(index)",
+            consoleOnly: true
+        )
+    }
+
     /// Shows or hides controls.
     func toggleControls() {
         isControlsVisible.toggle()
@@ -297,6 +334,9 @@ final class NCVideoVLCPlayerModel: ObservableObject {
 
     /// Stops playback and releases VLC resources.
     func stop() {
+        trackRefreshTask?.cancel()
+        trackRefreshTask = nil
+
         controlsHideTask?.cancel()
         controlsHideTask = nil
 
@@ -311,6 +351,12 @@ final class NCVideoVLCPlayerModel: ObservableObject {
         duration = 0
         isPlaying = false
         isControlsVisible = true
+
+        audioTracks = []
+        currentAudioTrackIndex = -1
+
+        subtitleTracks = []
+        currentSubtitleTrackIndex = -1
     }
 
     // MARK: - Private
@@ -334,8 +380,7 @@ final class NCVideoVLCPlayerModel: ObservableObject {
     private func updatePlaybackState() {
         isPlaying = mediaPlayer.isPlaying
 
-        let time = mediaPlayer.time
-        let currentSeconds = Double(time.intValue) / 1_000
+        let currentSeconds = Double(mediaPlayer.time.intValue) / 1_000
 
         if currentSeconds.isFinite {
             currentTime = max(currentSeconds, 0)
@@ -343,17 +388,214 @@ final class NCVideoVLCPlayerModel: ObservableObject {
             currentTime = 0
         }
 
-        guard let media = mediaPlayer.media else {
-            return
+        if let media = mediaPlayer.media {
+            let durationSeconds = Double(media.length.intValue) / 1_000
+
+            if durationSeconds.isFinite,
+               durationSeconds > 0 {
+                duration = durationSeconds
+            }
         }
 
-        let length = media.length
-        let durationSeconds = Double(length.intValue) / 1_000
+        updateAudioTracks()
+        updateSubtitleTracks()
+    }
 
-        if durationSeconds.isFinite,
-           durationSeconds > 0 {
-            duration = durationSeconds
+    /// Refreshes VLC audio and subtitle tracks multiple times after media loading.
+    private func refreshTracksRepeatedly() {
+        trackRefreshTask?.cancel()
+
+        trackRefreshTask = Task { [weak self] in
+            let delays: [Duration] = [
+                .milliseconds(150),
+                .milliseconds(400),
+                .milliseconds(800),
+                .milliseconds(1_500),
+                .milliseconds(2_500)
+            ]
+
+            for delay in delays {
+                try? await Task.sleep(for: delay)
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                await MainActor.run {
+                    self?.updateAudioTracks()
+                    self?.updateSubtitleTracks()
+                }
+            }
         }
+    }
+
+    /// Updates available VLC audio tracks.
+    private func updateAudioTracks() {
+        let names = readAudioTrackNames()
+        let indexes = readAudioTrackIndexes()
+        let currentIndex = mediaPlayer.currentAudioTrackIndex
+
+        let tracks = indexes.enumerated().map { offset, index in
+            NCVideoVLCAudioTrack(
+                id: index,
+                name: trackName(
+                    names: names,
+                    offset: offset,
+                    index: index,
+                    fallbackPrefix: "Audio",
+                    disabledTitle: "Disable"
+                )
+            )
+        }
+
+        if audioTracks != tracks {
+            audioTracks = tracks
+
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO VLC audio tracks \(tracks.map { "\($0.id):\($0.name)" }), current \(currentIndex)",
+                consoleOnly: true
+            )
+        }
+
+        if currentAudioTrackIndex != currentIndex {
+            currentAudioTrackIndex = currentIndex
+        }
+    }
+
+    /// Updates available VLC subtitle tracks.
+    private func updateSubtitleTracks() {
+        let names = readSubtitleTrackNames()
+        let indexes = readSubtitleTrackIndexes()
+        let currentIndex = mediaPlayer.currentVideoSubTitleIndex
+
+        let tracks = indexes.enumerated().map { offset, index in
+            NCVideoVLCSubtitleTrack(
+                id: index,
+                name: trackName(
+                    names: names,
+                    offset: offset,
+                    index: index,
+                    fallbackPrefix: "Subtitle",
+                    disabledTitle: "Disable"
+                )
+            )
+        }
+
+        if subtitleTracks != tracks {
+            subtitleTracks = tracks
+
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO VLC subtitle tracks \(tracks.map { "\($0.id):\($0.name)" }), current \(currentIndex)",
+                consoleOnly: true
+            )
+        }
+
+        if currentSubtitleTrackIndex != currentIndex {
+            currentSubtitleTrackIndex = currentIndex
+        }
+    }
+
+    /// Reads VLC audio track names using tolerant casting.
+    ///
+    /// - Returns: Audio track names exposed by VLC.
+    private func readAudioTrackNames() -> [String] {
+        readStringArray(mediaPlayer.audioTrackNames)
+    }
+
+    /// Reads VLC audio track indexes using tolerant casting.
+    ///
+    /// - Returns: Audio track indexes exposed by VLC.
+    private func readAudioTrackIndexes() -> [Int32] {
+        readInt32Array(mediaPlayer.audioTrackIndexes)
+    }
+
+    /// Reads VLC subtitle track names using tolerant casting.
+    ///
+    /// - Returns: Subtitle track names exposed by VLC.
+    private func readSubtitleTrackNames() -> [String] {
+        readStringArray(mediaPlayer.videoSubTitlesNames)
+    }
+
+    /// Reads VLC subtitle track indexes using tolerant casting.
+    ///
+    /// - Returns: Subtitle track indexes exposed by VLC.
+    private func readSubtitleTrackIndexes() -> [Int32] {
+        readInt32Array(mediaPlayer.videoSubTitlesIndexes)
+    }
+
+    /// Converts an Objective-C array-like value into strings.
+    ///
+    /// - Parameter values: Values exposed by MobileVLCKit.
+    /// - Returns: Converted string values.
+    private func readStringArray(_ values: [Any]) -> [String] {
+        values.compactMap { value in
+            if let string = value as? String {
+                return string
+            }
+
+            if let description = value as? CustomStringConvertible {
+                return description.description
+            }
+
+            return nil
+        }
+    }
+
+    /// Converts an Objective-C array-like value into Int32 indexes.
+    ///
+    /// - Parameter values: Values exposed by MobileVLCKit.
+    /// - Returns: Converted Int32 values.
+    private func readInt32Array(_ values: [Any]) -> [Int32] {
+        values.compactMap { value in
+            if let number = value as? NSNumber {
+                return number.int32Value
+            }
+
+            if let intValue = value as? Int {
+                return Int32(intValue)
+            }
+
+            if let int32Value = value as? Int32 {
+                return int32Value
+            }
+
+            return nil
+        }
+    }
+
+    /// Returns a display name for a VLC track.
+    ///
+    /// - Parameters:
+    ///   - names: VLC track names.
+    ///   - offset: Track offset.
+    ///   - index: VLC track index.
+    ///   - fallbackPrefix: Prefix used when VLC does not expose a name.
+    ///   - disabledTitle: Title used for disabled track index.
+    /// - Returns: User-visible track title.
+    private func trackName(
+        names: [String],
+        offset: Int,
+        index: Int32,
+        fallbackPrefix: String,
+        disabledTitle: String
+    ) -> String {
+        if names.indices.contains(offset) {
+            let name = names[offset]
+
+            if !name.isEmpty {
+                return name
+            }
+        }
+
+        if index == -1 {
+            return disabledTitle
+        }
+
+        return "\(fallbackPrefix) \(offset + 1)"
     }
 
     /// Hides controls after a short delay while playback is active.
@@ -385,24 +627,10 @@ private struct NCVideoVLCControlsView: View {
     @ObservedObject var model: NCVideoVLCPlayerModel
 
     let displayFileName: String
+    let onBackgroundTap: () -> Void
 
     var body: some View {
-        VStack {
-            topBar
-
-            Spacer()
-
-            centerControls
-
-            Spacer()
-
-            bottomControls
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 18)
-        .padding(.bottom, bottomPadding)
-        .foregroundStyle(.white)
-        .background(
+        ZStack {
             LinearGradient(
                 colors: [
                     .black.opacity(0.55),
@@ -413,21 +641,106 @@ private struct NCVideoVLCControlsView: View {
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-        )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onBackgroundTap()
+            }
+
+            VStack {
+                topBar
+
+                Spacer()
+
+                centerControls
+
+                Spacer()
+
+                bottomControls
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, topPadding)
+            .padding(.bottom, bottomPadding)
+            .foregroundStyle(.white)
+        }
     }
 
     // MARK: - Sections
 
     private var topBar: some View {
-        HStack {
+        HStack(spacing: 12) {
             Text(displayFileName)
                 .font(.headline)
                 .lineLimit(1)
                 .truncationMode(.middle)
 
             Spacer()
+
+            subtitleTrackButton
+            audioTrackButton
         }
-        .foregroundStyle(.white.opacity(0.9))
+        .foregroundStyle(.white.opacity(0.95))
+    }
+
+    private var subtitleTrackButton: some View {
+        Menu {
+            if model.subtitleTracks.isEmpty {
+                Button("No subtitles") { }
+                    .disabled(true)
+            } else {
+                ForEach(model.subtitleTracks) { track in
+                    Button {
+                        model.selectSubtitleTrack(index: track.id)
+                    } label: {
+                        HStack {
+                            Text(track.name)
+
+                            if track.id == model.currentSubtitleTrackIndex {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "captions.bubble.fill")
+                .font(.system(size: 26, weight: .regular))
+                .foregroundStyle(.white)
+                .padding(8)
+                .background(.black.opacity(0.55))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var audioTrackButton: some View {
+        Menu {
+            if model.audioTracks.isEmpty {
+                Button("No audio tracks") { }
+                    .disabled(true)
+            } else {
+                ForEach(model.audioTracks) { track in
+                    Button {
+                        model.selectAudioTrack(index: track.id)
+                    } label: {
+                        HStack {
+                            Text(track.name)
+
+                            if track.id == model.currentAudioTrackIndex {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "waveform.circle.fill")
+                .font(.system(size: 28, weight: .regular))
+                .foregroundStyle(.white)
+                .padding(8)
+                .background(.black.opacity(0.55))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var centerControls: some View {
@@ -490,6 +803,22 @@ private struct NCVideoVLCControlsView: View {
     }
 
     // MARK: - Helpers
+
+    /// Top padding used to keep VLC controls below the navigation bar.
+    ///
+    /// VLC controls are rendered inside the viewer content, while the UIKit
+    /// navigation bar can still be visible above them. This extra inset prevents
+    /// the top bar from overlapping the navigation area.
+    private var topPadding: CGFloat {
+        let windowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+
+        let window = windowScene?.windows.first { $0.isKeyWindow }
+        let safeTop = window?.safeAreaInsets.top ?? 0
+
+        return safeTop + 64
+    }
 
     private var bottomPadding: CGFloat {
         let windowScene = UIApplication.shared.connectedScenes
