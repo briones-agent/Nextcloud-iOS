@@ -10,15 +10,15 @@ import NextcloudKit
 /// Displays a video using the shared video playback controller.
 ///
 /// This view does not own the AVPlayer directly.
-/// VLC playback is delegated to `NCVideoVLCViewerContentView`, which uses a
-/// legacy-style UIKit controller with a stable drawable view.
+/// VLC playback is rendered through `NCVideoVLCViewerContentView`, which returns
+/// a stable UIKit controller owned by `NCVideoVLCStablePlayer`.
 ///
 /// Loading rules:
 /// - If the same video is already loaded, the existing player is reused.
 /// - If the page is not selected, the view does not load a new video.
-/// - `isSelected == false` does not stop playback because SwiftUI can temporarily
-///   report non-selected states during rotation or cell rebuilds.
-/// - Real stop events are handled through `.ncMediaViewerStopPlayback`.
+/// - AVFoundation is paused/resumed when page selection changes.
+/// - VLC is paused/resumed when page selection changes.
+/// - Real global stop events are handled through `.ncMediaViewerStopPlayback`.
 struct NCVideoViewerContentView: View {
     let metadata: tableMetadata
     let localURL: URL?
@@ -103,6 +103,11 @@ struct NCVideoViewerContentView: View {
                 ocId: metadata.ocId,
                 etag: metadata.etag
             ) {
+                guard isSelected else {
+                    return
+                }
+
+                resumeCurrentPlaybackIfNeeded()
                 fadeInPlayer()
                 return
             }
@@ -115,9 +120,13 @@ struct NCVideoViewerContentView: View {
                 expectedTaskIdentifier: expectedTaskIdentifier
             )
         }
+        .onChange(of: isSelected) { _, selected in
+            handleSelectionChange(selected)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             playerOpacity = 0
             playback.stop()
+            NCVideoVLCStablePlayer.shared.stop()
         }
         .onDisappear {
             // Do not stop here.
@@ -164,7 +173,7 @@ struct NCVideoViewerContentView: View {
     // MARK: - Loading
 
     private var taskIdentifier: String {
-        "\(metadata.ocId)|\(metadata.etag)"
+        "\(metadata.ocId)|\(metadata.etag)|\(isSelected)"
     }
 
     /// Resolves the playable video URL and loads it into the shared playback controller.
@@ -272,6 +281,66 @@ struct NCVideoViewerContentView: View {
         return [
             "User-Agent": userAgent
         ]
+    }
+
+    // MARK: - Playback Selection
+
+    /// Handles page selection changes for AVFoundation and VLC.
+    ///
+    /// Page changes should pause playback, not release media.
+    /// The full media viewer close event is responsible for releasing resources.
+    ///
+    /// - Parameter selected: Whether this page is currently selected.
+    @MainActor
+    private func handleSelectionChange(_ selected: Bool) {
+        switch playback.engine {
+        case .avFoundation(let player):
+            if selected {
+                if player.timeControlStatus != .playing {
+                    player.play()
+                }
+            } else {
+                player.pause()
+            }
+
+        case .vlc:
+            if selected {
+                resumeCurrentPlaybackIfNeeded()
+            } else {
+                NCVideoVLCStablePlayer.shared.pause()
+            }
+
+        case .loading,
+             .failed:
+            break
+        }
+    }
+
+    /// Resumes the already selected current playback engine.
+    ///
+    /// AVFoundation resumes the existing player.
+    /// VLC reconfigures the stable UIKit controller and resumes the existing media
+    /// if it was only paused during page scrolling.
+    @MainActor
+    private func resumeCurrentPlaybackIfNeeded() {
+        switch playback.engine {
+        case .avFoundation(let player):
+            if player.timeControlStatus != .playing {
+                player.play()
+            }
+
+        case .vlc(let url):
+            NCVideoVLCStablePlayer.shared.configure(
+                metadata: metadata,
+                url: url,
+                userAgent: userAgent,
+                shouldAutoPlay: true
+            )
+
+        case .loading,
+             .failed:
+            break
+        }
     }
 
     // MARK: - Helpers
