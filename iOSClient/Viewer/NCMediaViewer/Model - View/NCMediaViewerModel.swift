@@ -45,6 +45,8 @@ enum NCMediaViewerPageState {
     /// Non-image media is locally available.
     case ready(localURL: URL, previewURL: URL?)
 
+    case deleted
+
     /// The page failed while resolving metadata, checking local content, or downloading.
     case failed(previewURL: URL?, message: String)
 }
@@ -286,6 +288,26 @@ final class NCMediaViewerModel: ObservableObject {
 
         autoPlayTargetIndex = nil
         revision &+= 1
+    }
+
+    /// Marks a page as deleted without removing it from the viewer list.
+    ///
+    /// This is used for optimistic UI updates when a delete operation has been
+    /// requested but the transfer delegate has not confirmed it yet.
+    ///
+    /// - Parameter ocId: Deleted file identifier.
+    @MainActor
+    func markPageAsDeleted(ocId: String) {
+        NotificationCenter.default.post(
+            name: .ncMediaViewerStopPlayback,
+            object: nil
+        )
+
+        updatePage(ocId: ocId) { page in
+            page.state = .deleted
+        }
+
+        revision += 1
     }
 
     // MARK: - Init
@@ -822,6 +844,7 @@ final class NCMediaViewerModel: ObservableObject {
         case .idle,
              .loadingMetadata,
              .metadataMissing,
+             .deleted,
              .checkingLocalFile:
             return nil
         }
@@ -966,6 +989,7 @@ private extension NCMediaViewerPageState {
              .video,
              .downloading,
              .ready,
+             .deleted,
              .failed:
             return false
         }
@@ -995,6 +1019,7 @@ private extension NCMediaViewerPageState {
              .metadataMissing,
              .checkingLocalFile,
              .ready,
+             .deleted,
              .failed:
             return false
         }
