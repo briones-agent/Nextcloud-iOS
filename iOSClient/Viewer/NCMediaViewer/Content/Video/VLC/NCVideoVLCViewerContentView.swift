@@ -3,115 +3,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import AVFoundation
-import SwiftUI
 import UIKit
 import MobileVLCKit
 import NextcloudKit
-
-// MARK: - VLC Viewer SwiftUI Bridge
-
-/// Minimal SwiftUI bridge for VLC playback.
-///
-/// This view only mounts the stable UIKit VLC controller.
-/// It must never start playback by itself.
-struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
-    let metadata: tableMetadata
-    let url: URL
-    let userAgent: String?
-    let shouldAutoPlay: Bool
-
-    func makeUIViewController(context: Context) -> NCVideoVLCViewController {
-        NCVideoVLCStablePlayer.shared.viewController
-    }
-
-    func updateUIViewController(
-        _ viewController: NCVideoVLCViewController,
-        context: Context
-    ) {
-        // Intentionally empty.
-        // SwiftUI can call this during swipe, prefetch, rotation, and layout rebuilds.
-        // Playback is controlled only by NCVideoViewerContentView.
-    }
-
-    static func dismantleUIViewController(
-        _ viewController: NCVideoVLCViewController,
-        coordinator: Coordinator
-    ) {
-        // Do not stop here.
-        // SwiftUI can dismantle/rebuild this bridge during rotation or layout changes.
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    final class Coordinator { }
-}
-
-// MARK: - VLC Stable Player Owner
-
-/// Stable owner for the UIKit VLC controller.
-///
-/// This object keeps one UIKit controller and one VLCMediaPlayer alive across
-/// SwiftUI rebuilds.
-@MainActor
-final class NCVideoVLCStablePlayer {
-    static let shared = NCVideoVLCStablePlayer()
-
-    let viewController = NCVideoVLCViewController()
-
-    private init() { }
-
-    /// Configures the shared VLC controller and starts playback when requested.
-    ///
-    /// - Parameters:
-    ///   - metadata: Video metadata used for logging.
-    ///   - url: Local or remote playable URL.
-    ///   - userAgent: Optional HTTP User-Agent for remote playback.
-    ///   - shouldAutoPlay: Whether playback should start.
-    func configure(
-        metadata: tableMetadata,
-        url: URL,
-        userAgent: String?,
-        shouldAutoPlay: Bool
-    ) {
-        viewController.configure(
-            metadata: metadata,
-            url: url,
-            userAgent: userAgent,
-            shouldAutoPlay: shouldAutoPlay
-        )
-    }
-
-    /// Pauses the shared VLC player without releasing media.
-    ///
-    /// Use this when the page loses selection.
-    func pause() {
-        viewController.pause()
-    }
-
-    /// Stops the shared VLC player and releases media.
-    ///
-    /// Use this only when the whole media viewer closes.
-    func stop() {
-        viewController.stop()
-    }
-}
 
 // MARK: - VLC View Controller
 
 /// Minimal UIKit-only VLC video controller.
 ///
-/// This controller intentionally does only:
-/// - keep one stable drawable view
-/// - keep one stable VLCMediaPlayer
-/// - load and play the requested URL
-///
-/// No controls.
-/// No overlays.
-/// No SwiftUI state.
-@MainActor
+/// This controller is intentionally outside the SwiftUI paging hierarchy.
+/// It owns one stable drawable view and one VLCMediaPlayer.
 final class NCVideoVLCViewController: UIViewController {
+
+    // MARK: - Input
+
+    private var metadata: tableMetadata
+    private var url: URL
+    private var userAgent: String?
 
     // MARK: - Views
 
@@ -121,16 +29,61 @@ final class NCVideoVLCViewController: UIViewController {
 
     private let mediaPlayer = VLCMediaPlayer()
 
-    // MARK: - State
+    // MARK: - Init
 
-    private var metadata: tableMetadata?
-    private var url: URL?
-    private var userAgent: String?
-    private var shouldAutoPlay = false
+    init(
+        metadata: tableMetadata,
+        url: URL,
+        userAgent: String?
+    ) {
+        self.metadata = metadata
+        self.url = url
+        self.userAgent = userAgent
 
-    private var loadedURL: URL?
-    private var isViewVisible = false
-    private var needsDrawableRefresh = false
+        super.init(
+            nibName: nil,
+            bundle: nil
+        )
+
+        modalPresentationStyle = .fullScreen
+        modalTransitionStyle = .crossDissolve
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc
+    private func closeTapped() {
+        stop()
+
+        dismiss(animated: false) {
+            Task { @MainActor in
+                NCVideoVLCPresenter.clearCurrent(self)
+            }
+        }
+    }
+
+    /// Updates the current VLC input.
+    ///
+    /// If the URL changes, the current media is stopped and the new media starts.
+    func update(
+        metadata: tableMetadata,
+        url: URL,
+        userAgent: String?
+    ) {
+        guard self.url != url else {
+            return
+        }
+
+        stop()
+
+        self.metadata = metadata
+        self.url = url
+        self.userAgent = userAgent
+
+        start()
+    }
 
     // MARK: - Lifecycle
 
@@ -161,28 +114,19 @@ final class NCVideoVLCViewController: UIViewController {
         super.viewDidLoad()
 
         configureAudioSession()
+        configureCloseGesture()
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
-        isViewVisible = true
-        startIfPossible()
-    }
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-
-        isViewVisible = false
-
-        // Do not stop here.
-        // Rotation can trigger transient disappearance.
+        start()
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
-        attachDrawableIfNeeded()
+        attachDrawable()
     }
 
     override func viewWillTransition(
@@ -197,122 +141,15 @@ final class NCVideoVLCViewController: UIViewController {
         coordinator.animate(alongsideTransition: { [weak self] _ in
             self?.view.layoutIfNeeded()
         }, completion: { [weak self] _ in
-            self?.attachDrawableIfNeeded()
+            self?.attachDrawable()
         })
-    }
-
-    // MARK: - Public API
-
-    /// Configures and starts VLC only when explicitly requested by the selected page.
-    ///
-    /// - Parameters:
-    ///   - metadata: Video metadata used for logging.
-    ///   - url: Local or remote playable URL.
-    ///   - userAgent: Optional HTTP User-Agent for remote playback.
-    ///   - shouldAutoPlay: Whether playback should start.
-    func configure(
-        metadata: tableMetadata,
-        url: URL,
-        userAgent: String?,
-        shouldAutoPlay: Bool
-    ) {
-        self.metadata = metadata
-        self.userAgent = userAgent
-        self.shouldAutoPlay = shouldAutoPlay
-
-        guard shouldAutoPlay else {
-            return
-        }
-
-        if self.url != url {
-            self.url = url
-            loadedURL = nil
-
-            mediaPlayer.stop()
-            mediaPlayer.media = nil
-            mediaPlayer.drawable = nil
-            needsDrawableRefresh = true
-        }
-
-        startIfPossible()
-    }
-
-    /// Pauses VLC playback without releasing media.
-    func pause() {
-        shouldAutoPlay = false
-        mediaPlayer.pause()
-
-        log(
-            emoji: .debug,
-            message: "VIDEO VLC pause requested"
-        )
-    }
-
-    /// Stops VLC playback and releases media.
-    func stop() {
-        log(
-            emoji: .debug,
-            message: "VIDEO VLC stop requested"
-        )
-
-        shouldAutoPlay = false
-
-        mediaPlayer.stop()
-        mediaPlayer.media = nil
-        mediaPlayer.drawable = nil
-
-        url = nil
-        loadedURL = nil
-        metadata = nil
-        needsDrawableRefresh = false
     }
 
     // MARK: - Playback
 
-    private func startIfPossible() {
-        guard shouldAutoPlay else {
-            return
-        }
-
-        guard isViewLoaded,
-              isViewVisible,
-              view.window != nil else {
-            return
-        }
-
-        attachDrawableIfNeeded()
-        loadMediaIfNeeded()
-        refreshDrawableAfterMediaChangeIfNeeded()
-
-        guard mediaPlayer.media != nil else {
-            log(
-                emoji: .error,
-                message: "VIDEO VLC start skipped because media is nil"
-            )
-            return
-        }
-
-        if !mediaPlayer.isPlaying {
-            mediaPlayer.play()
-
-            log(
-                emoji: .debug,
-                message: "VIDEO VLC play requested"
-            )
-        }
-    }
-
-    private func loadMediaIfNeeded() {
-        guard let url else {
-            return
-        }
-
-        guard loadedURL != url ||
-              mediaPlayer.media == nil else {
-            return
-        }
-
-        loadedURL = url
+    /// Starts VLC playback.
+    private func start() {
+        attachDrawable()
 
         let media = VLCMedia(url: url)
 
@@ -323,56 +160,49 @@ final class NCVideoVLCViewController: UIViewController {
         }
 
         mediaPlayer.media = media
+        mediaPlayer.play()
 
-        needsDrawableRefresh = true
-
-        log(
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
             emoji: .debug,
-            message: "VIDEO VLC media loaded url \(url.absoluteString), isFileURL \(url.isFileURL)"
+            message: "VIDEO VLC UIKit presented play requested ocId \(metadata.ocId), url \(url.absoluteString)",
+            consoleOnly: true
         )
     }
 
-    private func refreshDrawableAfterMediaChangeIfNeeded() {
-        guard needsDrawableRefresh else {
-            return
-        }
-
-        guard drawableView.bounds.width > 0,
-              drawableView.bounds.height > 0 else {
-            return
-        }
-
+    /// Stops VLC playback and releases resources.
+    private func stop() {
+        mediaPlayer.stop()
+        mediaPlayer.media = nil
         mediaPlayer.drawable = nil
-        mediaPlayer.drawable = drawableView
-        needsDrawableRefresh = false
-
-        log(
-            emoji: .debug,
-            message: "VIDEO VLC drawable refreshed after media change bounds \(drawableView.bounds)"
-        )
     }
 
-    private func attachDrawableIfNeeded() {
+    /// Attaches the drawable view to VLC.
+    private func attachDrawable() {
         guard drawableView.bounds.width > 0,
               drawableView.bounds.height > 0 else {
             return
         }
 
-        if let currentDrawable = mediaPlayer.drawable as? UIView,
-           currentDrawable === drawableView {
-            return
-        }
-
         mediaPlayer.drawable = drawableView
+    }
 
-        log(
-            emoji: .debug,
-            message: "VIDEO VLC drawable attached bounds \(drawableView.bounds)"
+    // MARK: - Close
+
+    /// Adds a temporary tap-to-close gesture for this minimal test.
+    private func configureCloseGesture() {
+        let tapGesture = UITapGestureRecognizer(
+            target: self,
+            action: #selector(closeTapped)
         )
+
+        tapGesture.numberOfTapsRequired = 2
+        view.addGestureRecognizer(tapGesture)
     }
 
     // MARK: - Helpers
 
+    /// Configures the audio session for movie playback.
     private func configureAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(
@@ -383,24 +213,12 @@ final class NCVideoVLCViewController: UIViewController {
 
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            log(
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
                 emoji: .error,
-                message: "VIDEO VLC audio session error: \(error.localizedDescription)"
+                message: "VIDEO VLC audio session error: \(error.localizedDescription)",
+                consoleOnly: true
             )
         }
-    }
-
-    private func log(
-        emoji: NKLogTagEmoji,
-        message: String
-    ) {
-        let ocId = metadata?.ocId ?? "-"
-
-        nkLog(
-            tag: NCGlobal.shared.logTagViewer,
-            emoji: emoji,
-            message: "\(message), ocId \(ocId)",
-            consoleOnly: true
-        )
     }
 }

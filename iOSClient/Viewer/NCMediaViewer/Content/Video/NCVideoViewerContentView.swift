@@ -10,14 +10,15 @@ import NextcloudKit
 /// Displays a video using the shared video playback controller.
 ///
 /// This view does not own the AVPlayer directly.
-/// VLC playback is rendered through `NCVideoVLCViewerContentView`, which returns
-/// a stable UIKit controller owned by `NCVideoVLCStablePlayer`.
+/// AVFoundation playback remains embedded in SwiftUI.
+/// VLC playback is presented as a separate UIKit-only controller through
+/// `NCVideoVLCPresenter`, outside the SwiftUI paging hierarchy.
 ///
 /// Loading rules:
 /// - If the same video is already loaded, the existing player is reused.
 /// - If the page is not selected, the view does not load a new video.
 /// - AVFoundation is paused/resumed when page selection changes.
-/// - VLC is paused/resumed when page selection changes.
+/// - VLC is presented outside SwiftUI when selected.
 /// - Real global stop events are handled through `.ncMediaViewerStopPlayback`.
 struct NCVideoViewerContentView: View {
     let metadata: tableMetadata
@@ -30,6 +31,7 @@ struct NCVideoViewerContentView: View {
 
     @State private var errorMessage: String?
     @State private var playerOpacity: Double = 0
+    @State private var presentedVLCURL: URL?
 
     private let resolver = NCVideoURLResolver()
 
@@ -75,28 +77,22 @@ struct NCVideoViewerContentView: View {
                     }
 
                 case .vlc(let url):
-                    NCVideoVLCViewerContentView(
-                        metadata: metadata,
-                        url: url,
-                        userAgent: userAgent,
-                        shouldAutoPlay: isSelected
-                    )
-                    .ignoresSafeArea()
-                    .opacity(playerOpacity)
-                    .onAppear {
-                        fadeInPlayer()
-                        startVLCIfSelected(url: url)
-                    }
-                    .onChange(of: url) { _, newURL in
-                        fadeInPlayer()
-                        startVLCIfSelected(url: newURL)
-                    }
-                    .onChange(of: isSelected) { _, selected in
-                        if selected {
-                            fadeInPlayer()
-                            startVLCIfSelected(url: url)
+                    Color.black
+                        .ignoresSafeArea()
+                        .onAppear {
+                            presentVLCIfSelected(url: url)
                         }
-                    }
+                        .onChange(of: url) { _, newURL in
+                            presentedVLCURL = nil
+                            presentVLCIfSelected(url: newURL)
+                        }
+                        .onChange(of: isSelected) { _, selected in
+                            guard selected else {
+                                return
+                            }
+
+                            presentVLCIfSelected(url: url)
+                        }
 
                 case .failed(let message):
                     failedView(message)
@@ -136,8 +132,8 @@ struct NCVideoViewerContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             playerOpacity = 0
+            presentedVLCURL = nil
             playback.stop()
-            NCVideoVLCStablePlayer.shared.stop()
         }
         .onDisappear {
             // Do not stop here.
@@ -296,10 +292,9 @@ struct NCVideoViewerContentView: View {
 
     // MARK: - Playback Selection
 
-    /// Handles page selection changes for AVFoundation and VLC.
+    /// Handles page selection changes for embedded AVFoundation playback.
     ///
-    /// Page changes should pause playback, not release media.
-    /// The full media viewer close event is responsible for releasing resources.
+    /// VLC playback is presented outside SwiftUI and is not paused/resumed here.
     ///
     /// - Parameter selected: Whether this page is currently selected.
     @MainActor
@@ -317,8 +312,6 @@ struct NCVideoViewerContentView: View {
         case .vlc:
             if selected {
                 resumeCurrentPlaybackIfNeeded()
-            } else {
-                NCVideoVLCStablePlayer.shared.pause()
             }
 
         case .loading,
@@ -327,11 +320,10 @@ struct NCVideoViewerContentView: View {
         }
     }
 
-    /// Resumes the already selected current playback engine.
+    /// Resumes the current playback engine when this page becomes selected again.
     ///
-    /// AVFoundation resumes the existing player.
-    /// VLC reconfigures the stable UIKit controller and resumes the existing media
-    /// if it was only paused during page scrolling.
+    /// AVFoundation resumes in place.
+    /// VLC is presented as a separate UIKit controller.
     @MainActor
     private func resumeCurrentPlaybackIfNeeded() {
         switch playback.engine {
@@ -341,7 +333,7 @@ struct NCVideoViewerContentView: View {
             }
 
         case .vlc(let url):
-            startVLCIfSelected(url: url)
+            presentVLCIfSelected(url: url)
 
         case .loading,
              .failed:
@@ -349,26 +341,29 @@ struct NCVideoViewerContentView: View {
         }
     }
 
-    // MARK: - Helpers
-
-    /// Starts or resumes VLC only when this page is selected.
+    /// Presents the UIKit-only VLC fallback viewer when this page is selected.
     ///
-    /// This is intentionally controlled here instead of inside the VLC bridge,
-    /// because `UIViewControllerRepresentable.updateUIViewController` can be called
-    /// during swipe, prefetch, rotation, and layout rebuilds.
+    /// - Parameter url: Local or remote playable URL.
     @MainActor
-    private func startVLCIfSelected(url: URL) {
+    private func presentVLCIfSelected(url: URL) {
         guard isSelected else {
             return
         }
 
-        NCVideoVLCStablePlayer.shared.configure(
+        guard presentedVLCURL != url else {
+            return
+        }
+
+        presentedVLCURL = url
+
+        NCVideoVLCPresenter.present(
             metadata: metadata,
             url: url,
-            userAgent: userAgent,
-            shouldAutoPlay: true
+            userAgent: userAgent
         )
     }
+
+    // MARK: - Helpers
 
     /// Fades the active video player over the preview placeholder.
     @MainActor
@@ -382,8 +377,7 @@ struct NCVideoViewerContentView: View {
 
     /// Extra bottom padding used only for the native AVPlayer controller.
     ///
-    /// This keeps the native playback scrubber away from the bottom edge / home indicator
-    /// without changing image, Live Photo, audio, or VLC layout.
+    /// This keeps the native playback scrubber away from the bottom edge / home indicator.
     private var videoPlayerBottomPadding: CGFloat {
         let windowScene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
