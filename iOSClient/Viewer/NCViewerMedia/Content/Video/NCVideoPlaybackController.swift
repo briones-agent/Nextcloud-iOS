@@ -281,7 +281,8 @@ final class NCVideoPlaybackController: ObservableObject {
         player: AVPlayer,
         token: UUID
     ) {
-        guard loadToken == token else {
+        guard loadToken == token,
+              avPlayer === player else {
             return
         }
 
