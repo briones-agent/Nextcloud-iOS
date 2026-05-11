@@ -10,11 +10,9 @@ import NextcloudKit
 
 /// SwiftUI wrapper around `AVPlayerViewController`.
 ///
-/// This view is used when AVFoundation can play the video URL.
-/// It provides native playback controls and Picture in Picture support where available.
-///
-/// Picture in Picture requires the app target to enable:
-/// `Background Modes` -> `Audio, AirPlay, and Picture in Picture`.
+/// This view renders a controller-owned `AVPlayer`.
+/// It does not own or stop playback resources, because SwiftUI can dismantle
+/// and recreate the view controller during rotation or layout rebuilds.
 struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
     let player: AVPlayer
     let allowsPictureInPicture: Bool
@@ -33,14 +31,10 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
 
-        controller.player = player
-        controller.showsPlaybackControls = true
-        controller.allowsPictureInPicturePlayback = allowsPictureInPicture
-        controller.canStartPictureInPictureAutomaticallyFromInline = false
-        controller.requiresLinearPlayback = false
-        controller.videoGravity = .resizeAspect
-        controller.view.backgroundColor = .black
-        controller.delegate = context.coordinator
+        configure(
+            controller,
+            context: context
+        )
 
         context.coordinator.playIfNeeded(
             player: player,
@@ -59,13 +53,10 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
             context.coordinator.resetAutoplay()
         }
 
-        controller.showsPlaybackControls = true
-        controller.allowsPictureInPicturePlayback = allowsPictureInPicture
-        controller.canStartPictureInPictureAutomaticallyFromInline = false
-        controller.requiresLinearPlayback = false
-        controller.videoGravity = .resizeAspect
-        controller.view.backgroundColor = .black
-        controller.delegate = context.coordinator
+        configure(
+            controller,
+            context: context
+        )
 
         context.coordinator.playIfNeeded(
             player: player,
@@ -77,13 +68,29 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
         _ controller: AVPlayerViewController,
         coordinator: Coordinator
     ) {
-        controller.player?.pause()
+        // Do not pause or clear the player here.
+        // SwiftUI can dismantle this controller during rotation while playback is still valid.
         controller.delegate = nil
-        controller.player = nil
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
+    }
+
+    // MARK: - Private
+
+    private func configure(
+        _ controller: AVPlayerViewController,
+        context: Context
+    ) {
+        controller.player = player
+        controller.showsPlaybackControls = true
+        controller.allowsPictureInPicturePlayback = allowsPictureInPicture
+        controller.canStartPictureInPictureAutomaticallyFromInline = false
+        controller.requiresLinearPlayback = false
+        controller.videoGravity = .resizeAspect
+        controller.view.backgroundColor = .black
+        controller.delegate = context.coordinator
     }
 
     final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
@@ -105,6 +112,10 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
             didAutoplay = true
 
             DispatchQueue.main.async {
+                guard player.timeControlStatus != .playing else {
+                    return
+                }
+
                 player.play()
 
                 nkLog(

@@ -2,10 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Marino Faggiana
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import SwiftUI
-import UIKit
-import MobileVLCKit
-import NextcloudKit
+import Foundation
 
 // MARK: - VLC Audio Track
 
@@ -21,57 +18,47 @@ struct NCVideoVLCSubtitleTrack: Identifiable, Equatable {
     let name: String
 }
 
+// SPDX-FileCopyrightText: Nextcloud GmbH
+// SPDX-FileCopyrightText: 2026 Marino Faggiana
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import SwiftUI
+
 // MARK: - VLC Video Viewer Content View
 
-/// Displays a video using MobileVLCKit with SwiftUI overlay controls.
+/// Displays the singleton VLC player with SwiftUI controls.
 ///
-/// This view is used as fallback when AVFoundation cannot prepare the video.
-/// The implementation is isolated from image, Live Photo, audio, and AVFoundation logic.
+/// This view does not own playback. It only renders the VLC drawable and controls.
 struct NCVideoVLCViewerContentView: View {
-    let metadata: tableMetadata
-    let url: URL
-    let userAgent: String?
-    let shouldAutoPlay: Bool
+    @ObservedObject var controller: NCVideoVLCPlayerController
 
-    @StateObject private var model = NCVideoVLCPlayerModel()
-
-    init(
-        metadata: tableMetadata,
-        url: URL,
-        userAgent: String? = nil,
-        shouldAutoPlay: Bool = true
-    ) {
-        self.metadata = metadata
-        self.url = url
-        self.userAgent = userAgent
-        self.shouldAutoPlay = shouldAutoPlay
-    }
+    let displayFileName: String
 
     var body: some View {
         ZStack {
             Color.black
                 .ignoresSafeArea()
 
-            NCVideoVLCRenderView(mediaPlayer: model.mediaPlayer)
+            NCVideoVLCRenderView(controller: controller)
                 .ignoresSafeArea()
                 .zIndex(0)
 
-            if !model.isControlsVisible {
+            if !controller.isControlsVisible {
                 Color.clear
                     .contentShape(Rectangle())
                     .ignoresSafeArea()
                     .zIndex(1)
                     .onTapGesture {
-                        model.showControls()
+                        controller.showControls()
                     }
             }
 
-            if model.isControlsVisible {
+            if controller.isControlsVisible {
                 NCVideoVLCControlsView(
-                    model: model,
+                    controller: controller,
                     displayFileName: displayFileName,
                     onBackgroundTap: {
-                        model.toggleControls()
+                        controller.toggleControls()
                     }
                 )
                 .transition(.opacity)
@@ -79,62 +66,76 @@ struct NCVideoVLCViewerContentView: View {
             }
         }
         .background(Color.black)
-        .task(id: taskIdentifier) {
-            model.load(
-                metadata: metadata,
-                url: url,
-                userAgent: userAgent,
-                shouldAutoPlay: shouldAutoPlay
-            )
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
-            model.stop()
-        }
-        .onDisappear {
-            model.stop()
-        }
-        .animation(.easeInOut(duration: 0.18), value: model.isControlsVisible)
-    }
-
-    private var taskIdentifier: String {
-        "\(metadata.ocId)|\(metadata.etag)|\(url.absoluteString)|\(shouldAutoPlay)"
-    }
-
-    private var displayFileName: String {
-        if !metadata.fileNameView.isEmpty {
-            return metadata.fileNameView
-        }
-
-        return metadata.fileName
+        .animation(.easeInOut(duration: 0.18), value: controller.isControlsVisible)
     }
 }
 
+// SPDX-FileCopyrightText: Nextcloud GmbH
+// SPDX-FileCopyrightText: 2026 Marino Faggiana
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import SwiftUI
+import UIKit
+
 // MARK: - VLC Render View
 
-/// UIKit render surface used by `VLCMediaPlayer`.
-private struct NCVideoVLCRenderView: UIViewRepresentable {
-    let mediaPlayer: VLCMediaPlayer
+// MARK: - VLC Render View
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+/// UIKit render surface used by the shared VLC playback controller.
+///
+/// This view only provides a drawable surface for VLC.
+/// It does not own playback, does not stop playback, and does not detach the
+/// drawable during dismantle because SwiftUI can dismantle views during rotation.
+struct NCVideoVLCRenderView: UIViewRepresentable {
+    let controller: NCVideoVLCPlayerController
+
+    func makeUIView(context: Context) -> NCVideoVLCDrawableView {
+        let view = NCVideoVLCDrawableView()
         view.backgroundColor = .black
         view.clipsToBounds = true
 
-        mediaPlayer.drawable = view
+        view.onDrawableReady = { [weak controller] drawableView in
+            controller?.attachDrawable(drawableView)
+        }
+
+        controller.attachDrawable(view)
+
+        DispatchQueue.main.async { [weak controller, weak view] in
+            guard let view else {
+                return
+            }
+
+            controller?.attachDrawable(view)
+        }
 
         return view
     }
 
-    func updateUIView(_ view: UIView, context: Context) {
-        if mediaPlayer.drawable == nil {
-            mediaPlayer.drawable = view
+    func updateUIView(
+        _ view: NCVideoVLCDrawableView,
+        context: Context
+    ) {
+        controller.attachDrawable(view)
+
+        DispatchQueue.main.async { [weak controller, weak view] in
+            guard let view else {
+                return
+            }
+
+            controller?.attachDrawable(view)
         }
     }
 
     static func dismantleUIView(
-        _ view: UIView,
+        _ view: NCVideoVLCDrawableView,
         coordinator: Coordinator
-    ) { }
+    ) {
+        // Do not stop VLC here.
+        // Do not detach the drawable here.
+        // SwiftUI can call dismantle during rotation/layout rebuilds while
+        // playback is still valid.
+        view.onDrawableReady = nil
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -143,11 +144,310 @@ private struct NCVideoVLCRenderView: UIViewRepresentable {
     final class Coordinator { }
 }
 
-// MARK: - VLC Player Model
+// MARK: - VLC Drawable View
 
-/// Lightweight VLC playback model.
+/// UIView used as VLC drawable target.
+///
+/// VLC can keep playing audio while losing its video surface after rotation.
+/// This view re-attaches the drawable when it enters a window and whenever its
+/// bounds become valid after layout.
+final class NCVideoVLCDrawableView: UIView {
+    var onDrawableReady: ((_ view: NCVideoVLCDrawableView) -> Void)?
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+
+        guard window != nil else {
+            return
+        }
+
+        requestDrawableAttach()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+
+        guard bounds.width > 0,
+              bounds.height > 0 else {
+            return
+        }
+
+        requestDrawableAttach()
+    }
+
+    private func requestDrawableAttach() {
+        onDrawableReady?(self)
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.window != nil,
+                  self.bounds.width > 0,
+                  self.bounds.height > 0 else {
+                return
+            }
+
+            self.onDrawableReady?(self)
+        }
+    }
+}
+
+// SPDX-FileCopyrightText: Nextcloud GmbH
+// SPDX-FileCopyrightText: 2026 Marino Faggiana
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import SwiftUI
+import UIKit
+
+// MARK: - VLC Controls View
+
+/// SwiftUI controls overlay for VLC playback.
+///
+/// This view does not own the VLC player. It only sends control commands to the
+/// singleton VLC playback controller.
+struct NCVideoVLCControlsView: View {
+    @ObservedObject var controller: NCVideoVLCPlayerController
+
+    let displayFileName: String
+    let onBackgroundTap: () -> Void
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    .black.opacity(0.55),
+                    .clear,
+                    .black.opacity(0.7)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            Color.clear
+                .contentShape(Rectangle())
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onBackgroundTap()
+                }
+
+            VStack {
+                topBar
+
+                Spacer()
+
+                centerControls
+
+                Spacer()
+
+                bottomControls
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, topPadding)
+            .padding(.bottom, bottomPadding)
+            .foregroundStyle(.white)
+        }
+    }
+
+    // MARK: - Sections
+
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            Text(displayFileName)
+                .font(.headline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer()
+
+            subtitleTrackButton
+            audioTrackButton
+        }
+        .foregroundStyle(.white.opacity(0.95))
+    }
+
+    private var subtitleTrackButton: some View {
+        Menu {
+            if controller.subtitleTracks.isEmpty {
+                Button("No subtitles") { }
+                    .disabled(true)
+            } else {
+                ForEach(controller.subtitleTracks) { track in
+                    Button {
+                        controller.selectSubtitleTrack(index: track.id)
+                    } label: {
+                        HStack {
+                            Text(track.name)
+
+                            if track.id == controller.currentSubtitleTrackIndex {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "captions.bubble.fill")
+                .font(.system(size: 26, weight: .regular))
+                .foregroundStyle(.white)
+                .padding(8)
+                .background(.black.opacity(0.55))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var audioTrackButton: some View {
+        Menu {
+            if controller.audioTracks.isEmpty {
+                Button("No audio tracks") { }
+                    .disabled(true)
+            } else {
+                ForEach(controller.audioTracks) { track in
+                    Button {
+                        controller.selectAudioTrack(index: track.id)
+                    } label: {
+                        HStack {
+                            Text(track.name)
+
+                            if track.id == controller.currentAudioTrackIndex {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "waveform.circle.fill")
+                .font(.system(size: 28, weight: .regular))
+                .foregroundStyle(.white)
+                .padding(8)
+                .background(.black.opacity(0.55))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var centerControls: some View {
+        HStack(spacing: 36) {
+            Button {
+                controller.skip(by: -15)
+            } label: {
+                Image(systemName: "gobackward.15")
+                    .font(.system(size: 36, weight: .regular))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                controller.togglePlayback()
+            } label: {
+                Image(systemName: controller.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 72, weight: .regular))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                controller.skip(by: 15)
+            } label: {
+                Image(systemName: "goforward.15")
+                    .font(.system(size: 36, weight: .regular))
+            }
+            .buttonStyle(.plain)
+        }
+        .shadow(radius: 4)
+    }
+
+    private var bottomControls: some View {
+        VStack(spacing: 8) {
+            Slider(
+                value: Binding(
+                    get: { controller.currentTime },
+                    set: { controller.currentTime = $0 }
+                ),
+                in: 0...max(controller.duration, 1),
+                onEditingChanged: { isEditing in
+                    controller.showControls()
+
+                    if !isEditing {
+                        controller.seek(to: controller.currentTime)
+                    }
+                }
+            )
+            .disabled(controller.duration <= 0)
+
+            HStack {
+                Text(formatTime(controller.currentTime))
+
+                Spacer()
+
+                Text(formatTime(controller.duration))
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.white.opacity(0.75))
+        }
+    }
+
+    // MARK: - Helpers
+
+    /// Top padding used to keep VLC controls below the navigation bar.
+    private var topPadding: CGFloat {
+        let windowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+
+        let window = windowScene?.windows.first { $0.isKeyWindow }
+        let safeTop = window?.safeAreaInsets.top ?? 0
+
+        return safeTop + 64
+    }
+
+    private var bottomPadding: CGFloat {
+        let windowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+
+        let window = windowScene?.windows.first { $0.isKeyWindow }
+        let safeBottom = window?.safeAreaInsets.bottom ?? 0
+
+        return max(safeBottom + 8, 24)
+    }
+
+    private func formatTime(_ seconds: Double) -> String {
+        guard seconds.isFinite,
+              seconds >= 0 else {
+            return "00:00"
+        }
+
+        let totalSeconds = Int(seconds.rounded())
+        let minutes = totalSeconds / 60
+        let remainingSeconds = totalSeconds % 60
+
+        return String(
+            format: "%02d:%02d",
+            minutes,
+            remainingSeconds
+        )
+    }
+}
+
+// SPDX-FileCopyrightText: Nextcloud GmbH
+// SPDX-FileCopyrightText: 2026 Marino Faggiana
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import Foundation
+import MobileVLCKit
+import NextcloudKit
+import UIKit
+
+// MARK: - VLC Player Controller
+
+/// Singleton VLC playback controller.
+///
+/// This object owns the only `VLCMediaPlayer` used by the media viewer.
+/// SwiftUI views can be recreated during rotation or layout updates, but the
+/// VLC player remains stable and only receives a new drawable surface.
 @MainActor
-final class NCVideoVLCPlayerModel: ObservableObject {
+final class NCVideoVLCPlayerController: ObservableObject {
+    static let shared = NCVideoVLCPlayerController()
 
     // MARK: - Published State
 
@@ -173,9 +473,35 @@ final class NCVideoVLCPlayerModel: ObservableObject {
     private var controlsHideTask: Task<Void, Never>?
     private var trackRefreshTask: Task<Void, Never>?
 
+    private init() { }
+
     // MARK: - Public API
 
-    /// Loads a VLC media item and optionally starts playback.
+    /// Attaches the current VLC drawable view.
+    ///
+    /// This method is intentionally idempotent and can be called repeatedly after
+    /// rotation, layout changes, or SwiftUI view reconstruction.
+    @MainActor
+    func attachDrawable(_ view: UIView) {
+        if let currentDrawable = mediaPlayer.drawable as? UIView,
+           currentDrawable === view {
+            return
+        }
+
+        mediaPlayer.drawable = view
+
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO VLC drawable attached bounds \(view.bounds)",
+            consoleOnly: true
+        )
+    }
+
+    /// Loads a VLC media item when needed and optionally starts playback.
+    ///
+    /// Calling this method again with the same URL is idempotent and does not
+    /// recreate the media player or restart playback.
     ///
     /// - Parameters:
     ///   - metadata: Video metadata used for logging.
@@ -189,7 +515,8 @@ final class NCVideoVLCPlayerModel: ObservableObject {
         shouldAutoPlay: Bool
     ) {
         if currentURL == url {
-            if shouldAutoPlay {
+            if shouldAutoPlay,
+               !mediaPlayer.isPlaying {
                 play()
             }
 
@@ -316,6 +643,13 @@ final class NCVideoVLCPlayerModel: ObservableObject {
         )
     }
 
+    /// Shows controls immediately.
+    func showControls() {
+        controlsHideTask?.cancel()
+        controlsHideTask = nil
+        isControlsVisible = true
+    }
+
     /// Shows or hides controls.
     func toggleControls() {
         isControlsVisible.toggle()
@@ -325,14 +659,10 @@ final class NCVideoVLCPlayerModel: ObservableObject {
         }
     }
 
-    /// Shows controls immediately.
-    func showControls() {
-        controlsHideTask?.cancel()
-        controlsHideTask = nil
-        isControlsVisible = true
-    }
-
     /// Stops playback and releases VLC resources.
+    ///
+    /// This is called only by the global video playback controller when playback
+    /// really has to stop. It should not be called by SwiftUI view teardown.
     func stop() {
         trackRefreshTask?.cancel()
         trackRefreshTask = nil
@@ -345,6 +675,7 @@ final class NCVideoVLCPlayerModel: ObservableObject {
 
         mediaPlayer.stop()
         mediaPlayer.media = nil
+        mediaPlayer.drawable = nil
 
         currentURL = nil
         currentTime = 0
@@ -431,8 +762,8 @@ final class NCVideoVLCPlayerModel: ObservableObject {
 
     /// Updates available VLC audio tracks.
     private func updateAudioTracks() {
-        let names = readAudioTrackNames()
-        let indexes = readAudioTrackIndexes()
+        let names = readStringArray(mediaPlayer.audioTrackNames)
+        let indexes = readInt32Array(mediaPlayer.audioTrackIndexes)
         let currentIndex = mediaPlayer.currentAudioTrackIndex
 
         let tracks = indexes.enumerated().map { offset, index in
@@ -466,8 +797,8 @@ final class NCVideoVLCPlayerModel: ObservableObject {
 
     /// Updates available VLC subtitle tracks.
     private func updateSubtitleTracks() {
-        let names = readSubtitleTrackNames()
-        let indexes = readSubtitleTrackIndexes()
+        let names = readStringArray(mediaPlayer.videoSubTitlesNames)
+        let indexes = readInt32Array(mediaPlayer.videoSubTitlesIndexes)
         let currentIndex = mediaPlayer.currentVideoSubTitleIndex
 
         let tracks = indexes.enumerated().map { offset, index in
@@ -497,34 +828,6 @@ final class NCVideoVLCPlayerModel: ObservableObject {
         if currentSubtitleTrackIndex != currentIndex {
             currentSubtitleTrackIndex = currentIndex
         }
-    }
-
-    /// Reads VLC audio track names using tolerant casting.
-    ///
-    /// - Returns: Audio track names exposed by VLC.
-    private func readAudioTrackNames() -> [String] {
-        readStringArray(mediaPlayer.audioTrackNames)
-    }
-
-    /// Reads VLC audio track indexes using tolerant casting.
-    ///
-    /// - Returns: Audio track indexes exposed by VLC.
-    private func readAudioTrackIndexes() -> [Int32] {
-        readInt32Array(mediaPlayer.audioTrackIndexes)
-    }
-
-    /// Reads VLC subtitle track names using tolerant casting.
-    ///
-    /// - Returns: Subtitle track names exposed by VLC.
-    private func readSubtitleTrackNames() -> [String] {
-        readStringArray(mediaPlayer.videoSubTitlesNames)
-    }
-
-    /// Reads VLC subtitle track indexes using tolerant casting.
-    ///
-    /// - Returns: Subtitle track indexes exposed by VLC.
-    private func readSubtitleTrackIndexes() -> [Int32] {
-        readInt32Array(mediaPlayer.videoSubTitlesIndexes)
     }
 
     /// Converts an Objective-C array-like value into strings.
@@ -617,234 +920,5 @@ final class NCVideoVLCPlayerModel: ObservableObject {
                 self?.isControlsVisible = false
             }
         }
-    }
-}
-
-// MARK: - VLC Controls View
-
-/// SwiftUI controls overlay for VLC playback.
-private struct NCVideoVLCControlsView: View {
-    @ObservedObject var model: NCVideoVLCPlayerModel
-
-    let displayFileName: String
-    let onBackgroundTap: () -> Void
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    .black.opacity(0.55),
-                    .clear,
-                    .black.opacity(0.7)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            .contentShape(Rectangle())
-            .onTapGesture {
-                onBackgroundTap()
-            }
-
-            VStack {
-                topBar
-
-                Spacer()
-
-                centerControls
-
-                Spacer()
-
-                bottomControls
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, topPadding)
-            .padding(.bottom, bottomPadding)
-            .foregroundStyle(.white)
-        }
-    }
-
-    // MARK: - Sections
-
-    private var topBar: some View {
-        HStack(spacing: 12) {
-            Text(displayFileName)
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Spacer()
-
-            subtitleTrackButton
-            audioTrackButton
-        }
-        .foregroundStyle(.white.opacity(0.95))
-    }
-
-    private var subtitleTrackButton: some View {
-        Menu {
-            if model.subtitleTracks.isEmpty {
-                Button("No subtitles") { }
-                    .disabled(true)
-            } else {
-                ForEach(model.subtitleTracks) { track in
-                    Button {
-                        model.selectSubtitleTrack(index: track.id)
-                    } label: {
-                        HStack {
-                            Text(track.name)
-
-                            if track.id == model.currentSubtitleTrackIndex {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "captions.bubble.fill")
-                .font(.system(size: 26, weight: .regular))
-                .foregroundStyle(.white)
-                .padding(8)
-                .background(.black.opacity(0.55))
-                .clipShape(Circle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var audioTrackButton: some View {
-        Menu {
-            if model.audioTracks.isEmpty {
-                Button("No audio tracks") { }
-                    .disabled(true)
-            } else {
-                ForEach(model.audioTracks) { track in
-                    Button {
-                        model.selectAudioTrack(index: track.id)
-                    } label: {
-                        HStack {
-                            Text(track.name)
-
-                            if track.id == model.currentAudioTrackIndex {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "waveform.circle.fill")
-                .font(.system(size: 28, weight: .regular))
-                .foregroundStyle(.white)
-                .padding(8)
-                .background(.black.opacity(0.55))
-                .clipShape(Circle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var centerControls: some View {
-        HStack(spacing: 36) {
-            Button {
-                model.skip(by: -15)
-            } label: {
-                Image(systemName: "gobackward.15")
-                    .font(.system(size: 36, weight: .regular))
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                model.togglePlayback()
-            } label: {
-                Image(systemName: model.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 72, weight: .regular))
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                model.skip(by: 15)
-            } label: {
-                Image(systemName: "goforward.15")
-                    .font(.system(size: 36, weight: .regular))
-            }
-            .buttonStyle(.plain)
-        }
-        .shadow(radius: 4)
-    }
-
-    private var bottomControls: some View {
-        VStack(spacing: 8) {
-            Slider(
-                value: Binding(
-                    get: { model.currentTime },
-                    set: { model.currentTime = $0 }
-                ),
-                in: 0...max(model.duration, 1),
-                onEditingChanged: { isEditing in
-                    model.showControls()
-
-                    if !isEditing {
-                        model.seek(to: model.currentTime)
-                    }
-                }
-            )
-            .disabled(model.duration <= 0)
-
-            HStack {
-                Text(formatTime(model.currentTime))
-
-                Spacer()
-
-                Text(formatTime(model.duration))
-            }
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.white.opacity(0.75))
-        }
-    }
-
-    // MARK: - Helpers
-
-    /// Top padding used to keep VLC controls below the navigation bar.
-    ///
-    /// VLC controls are rendered inside the viewer content, while the UIKit
-    /// navigation bar can still be visible above them. This extra inset prevents
-    /// the top bar from overlapping the navigation area.
-    private var topPadding: CGFloat {
-        let windowScene = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { $0.activationState == .foregroundActive }
-
-        let window = windowScene?.windows.first { $0.isKeyWindow }
-        let safeTop = window?.safeAreaInsets.top ?? 0
-
-        return safeTop + 64
-    }
-
-    private var bottomPadding: CGFloat {
-        let windowScene = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { $0.activationState == .foregroundActive }
-
-        let window = windowScene?.windows.first { $0.isKeyWindow }
-        let safeBottom = window?.safeAreaInsets.bottom ?? 0
-
-        return max(safeBottom + 8, 24)
-    }
-
-    private func formatTime(_ seconds: Double) -> String {
-        guard seconds.isFinite,
-              seconds >= 0 else {
-            return "00:00"
-        }
-
-        let totalSeconds = Int(seconds.rounded())
-        let minutes = totalSeconds / 60
-        let remainingSeconds = totalSeconds % 60
-
-        return String(
-            format: "%02d:%02d",
-            minutes,
-            remainingSeconds
-        )
     }
 }
