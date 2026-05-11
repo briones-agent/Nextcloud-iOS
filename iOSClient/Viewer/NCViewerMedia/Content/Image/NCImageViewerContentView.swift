@@ -110,62 +110,79 @@ struct NCImageViewerContentView: View {
     // MARK: - Loading
 
     /// Loads the best available image for the current URLs.
+    @MainActor
     private func loadBestAvailableImage() async {
-        if loadedIdentifier != identifier {
+        let expectedIdentifier = identifier
+        let expectedPreviewURL = previewURL
+        let expectedFullURL = fullURL
+
+        if loadedIdentifier != expectedIdentifier {
             currentImage = nil
             loadedPreviewURL = nil
             loadedFullURL = nil
             failedMessage = nil
-            loadedIdentifier = identifier
+            loadedIdentifier = expectedIdentifier
         }
 
         failedMessage = nil
 
-        if let previewURL,
+        if let expectedPreviewURL,
            currentImage == nil,
-           loadedPreviewURL != previewURL {
-            if let previewImage = await decodeImageIfPossible(url: previewURL) {
-                guard !Task.isCancelled else {
+           loadedPreviewURL != expectedPreviewURL {
+            if let previewImage = await decodePreviewImageIfPossible(url: expectedPreviewURL) {
+                guard !Task.isCancelled,
+                      identifier == expectedIdentifier,
+                      previewURL == expectedPreviewURL else {
                     return
                 }
 
-                loadedPreviewURL = previewURL
+                loadedPreviewURL = expectedPreviewURL
                 failedMessage = nil
                 currentImage = previewImage
+
+                await Task.yield()
             }
         }
 
-        guard let fullURL else {
+        guard let expectedFullURL else {
             return
         }
 
-        guard loadedFullURL != fullURL else {
+        guard loadedFullURL != expectedFullURL else {
+            return
+        }
+
+        if loadedPreviewURL == expectedFullURL,
+           currentImage != nil {
+            loadedFullURL = expectedFullURL
             return
         }
 
         let fullImage: UIImage?
 
-        if isGIF(fullURL) {
-            fullImage = await decodeGIFImageIfPossible(url: fullURL)
-        } else if isSVG(fullURL) {
-            fullImage = await decodeSVGImageIfPossible(url: fullURL)
+        if isGIF(expectedFullURL) {
+            fullImage = await decodeGIFImageIfPossible(url: expectedFullURL)
+        } else if isSVG(expectedFullURL) {
+            fullImage = await decodeSVGImageIfPossible(url: expectedFullURL)
         } else {
-            fullImage = await decodeImageIfPossible(url: fullURL)
+            fullImage = await decodeImageIfPossible(url: expectedFullURL)
         }
 
-        guard !Task.isCancelled else {
+        guard !Task.isCancelled,
+              identifier == expectedIdentifier,
+              fullURL == expectedFullURL else {
             return
         }
 
         if let fullImage {
-            loadedFullURL = fullURL
+            loadedFullURL = expectedFullURL
             failedMessage = nil
             currentImage = fullImage
             return
         }
 
         if currentImage == nil {
-            failedMessage = imageDecodeFailedMessage(for: fullURL)
+            failedMessage = imageDecodeFailedMessage(for: expectedFullURL)
         }
     }
 
@@ -195,6 +212,28 @@ struct NCImageViewerContentView: View {
                 }
 
                 return image.preparingForDisplay() ?? image
+            }
+        }.value
+    }
+
+    /// Decodes a local preview image file as quickly as possible.
+    ///
+    /// Preview images are intentionally not display-prepared here.
+    /// They are small temporary placeholders and should become visible before the
+    /// full image starts its heavier display preparation.
+    ///
+    /// - Parameter url: Local preview file URL.
+    /// - Returns: Preview image if possible.
+    private func decodePreviewImageIfPossible(url: URL) async -> UIImage? {
+        guard isValidLocalFile(url: url) else {
+            return nil
+        }
+
+        let path = url.path
+
+        return await Task.detached(priority: .userInitiated) {
+            autoreleasepool {
+                UIImage(contentsOfFile: path)
             }
         }.value
     }
