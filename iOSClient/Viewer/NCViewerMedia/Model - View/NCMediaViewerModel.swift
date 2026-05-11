@@ -585,6 +585,17 @@ final class NCMediaViewerModel: ObservableObject {
                 return
             }
 
+            if isImage(metadata), previewURL == nil {
+                previewURL = await loader.previewURL(
+                    for: metadata,
+                    index: index
+                )
+
+                guard !Task.isCancelled else {
+                    return
+                }
+            }
+
             await setReadyState(
                 metadata: metadata,
                 previewURL: previewURL,
@@ -673,19 +684,19 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Prefetch
 
-    /// Prefetches nearby pages around the selected index.
+    /// Prefetches only the immediate neighbor pages around the selected index.
     ///
-    /// Prefetch resolves metadata and preview only.
-    /// It never downloads the full media file.
+    /// The prefetch window is intentionally small.
+    /// This keeps swipe navigation responsive without creating too many metadata,
+    /// preview, or playback preparation tasks while the user scrolls quickly.
     ///
     /// - Parameter index: Current selected absolute index.
     private func prefetchNeighborPages(around index: Int) {
-        let prefetchRadius = 4
-
-        let neighborIndexes = (-prefetchRadius...prefetchRadius)
-            .map { index + $0 }
-            .filter { $0 != index }
-            .filter { ocIds.indices.contains($0) }
+        let neighborIndexes = [
+            index - 1,
+            index + 1
+        ]
+        .filter { ocIds.indices.contains($0) }
 
         for neighborIndex in neighborIndexes {
             Task { [weak self] in
@@ -742,8 +753,8 @@ final class NCMediaViewerModel: ObservableObject {
 
     /// Loads a page for neighbor prefetch.
     ///
-    /// Prefetch resolves and stores the preview only.
-    /// It never downloads the full media file.
+    /// Prefetch resolves metadata and preview only.
+    /// It never downloads the full media file and never starts playback.
     ///
     /// - Parameter index: Absolute page index inside the full `ocIds` array.
     private func loadPageForPrefetch(index: Int) async {
@@ -751,7 +762,12 @@ final class NCMediaViewerModel: ObservableObject {
             return
         }
 
-        nkLog(tag: NCGlobal.shared.logTagViewer, emoji: .debug, message: "LOAD PREFETCH \(index)", consoleOnly: true)
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "LOAD PREFETCH \(index)",
+            consoleOnly: true
+        )
 
         let ocId = ocIds[index]
 
@@ -767,25 +783,35 @@ final class NCMediaViewerModel: ObservableObject {
 
         setMetadata(metadata, for: ocId)
 
-        let previewURL = await loader.previewURL(for: metadata, index: index)
+        let previewURL = await loader.previewURL(
+            for: metadata,
+            index: index
+        )
 
         guard !Task.isCancelled else {
             return
         }
 
-        guard isImage(metadata), let previewURL else {
+        if isImage(metadata), let previewURL {
+            setState(
+                .image(
+                    previewURL: previewURL,
+                    localURL: nil,
+                    livePhotoURL: nil,
+                    progress: nil
+                ),
+                for: ocId
+            )
             return
         }
 
-        setState(
-            .image(
-                previewURL: previewURL,
-                localURL: nil,
-                livePhotoURL: nil,
-                progress: nil
-            ),
-            for: ocId
-        )
+        if isVideo(metadata) {
+            setState(
+                .video(previewURL: previewURL),
+                for: ocId
+            )
+            return
+        }
     }
 
     // MARK: - Page Updates
