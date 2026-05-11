@@ -116,10 +116,10 @@ final class NCVideoVLCViewController: UIViewController {
         title = metadata.fileNameView.isEmpty ? metadata.fileName : metadata.fileNameView
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(
-            systemItem: .close,
-            primaryAction: UIAction { [weak self] _ in
-                self?.close()
-            }
+            image: UIImage(systemName: "chevron.backward"),
+            style: .plain,
+            target: self,
+            action: #selector(closeTapped)
         )
 
         configureAudioSession()
@@ -164,7 +164,6 @@ final class NCVideoVLCViewController: UIViewController {
     }
 
     // MARK: - Playback
-
 
     /// Starts VLC playback.
     private func start() {
