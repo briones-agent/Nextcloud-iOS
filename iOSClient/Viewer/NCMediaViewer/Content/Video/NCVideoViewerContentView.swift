@@ -256,6 +256,7 @@ struct NCVideoViewerContentView: View {
 
         hub.load(
             url: url,
+            fileName: resolvedFileName,
             httpHeaders: httpHeaders(for: url)
         )
     }
@@ -284,6 +285,14 @@ struct NCVideoViewerContentView: View {
     // MARK: - Helpers
 
     private var displayFileName: String {
+        if !metadata.fileNameView.isEmpty {
+            return metadata.fileNameView
+        }
+
+        return metadata.fileName
+    }
+
+    private var resolvedFileName: String {
         if !metadata.fileNameView.isEmpty {
             return metadata.fileNameView
         }
