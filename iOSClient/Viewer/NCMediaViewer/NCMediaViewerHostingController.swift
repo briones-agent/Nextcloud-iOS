@@ -166,6 +166,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     }
 
     /// Observes model changes and refreshes navigation UI.
+    /// Observes model changes and refreshes navigation UI.
     private func observeModel() {
         model.$selectedIndex
             .receive(on: RunLoop.main)
@@ -185,6 +186,22 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
             .receive(on: RunLoop.main)
             .sink { [weak self] isHidden in
                 self?.setChromeHidden(isHidden, animated: true)
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .ncMediaVLCViewerClose)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else {
+                    return
+                }
+
+                NotificationCenter.default.post(
+                    name: .ncMediaViewerStopPlayback,
+                    object: nil
+                )
+
+                self.close()
             }
             .store(in: &cancellables)
     }

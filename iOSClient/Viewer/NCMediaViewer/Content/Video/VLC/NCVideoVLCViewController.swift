@@ -160,7 +160,12 @@ final class NCVideoVLCViewController: UIViewController {
             NCVideoVLCPresenter.clearCurrent(self)
         }
 
-        dismiss(animated: false)
+        dismiss(animated: false) {
+            NotificationCenter.default.post(
+                name: .ncMediaVLCViewerClose,
+                object: nil
+            )
+        }
     }
 
     // MARK: - Playback
