@@ -175,8 +175,9 @@ struct NCImageViewerContentView: View {
     /// when UIKit first draws it. Complex or large images can therefore produce a short
     /// blank frame before becoming visible.
     ///
-    /// This method synchronously prepares the image for display in a detached task before publishing it
-    /// to SwiftUI, so the viewer replaces the preview only when the image is really ready.
+    /// This method synchronously prepares the image for display in a detached task
+    /// before publishing it to SwiftUI, so the viewer replaces the preview only when
+    /// the image is really ready.
     ///
     /// - Parameter url: Local file URL.
     /// - Returns: Display-prepared image if possible.
