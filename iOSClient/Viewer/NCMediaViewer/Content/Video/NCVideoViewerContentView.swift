@@ -9,8 +9,9 @@ import NextcloudKit
 
 /// Displays a video using the shared video playback controller.
 ///
-/// This view does not own any AVPlayer or VLCMediaPlayer directly.
-/// Playback ownership is centralized in `NCVideoPlaybackController.shared`.
+/// This view does not own the AVPlayer directly.
+/// VLC playback is delegated to `NCVideoVLCViewerContentView`, which uses a
+/// legacy-style UIKit controller with a stable drawable view.
 ///
 /// Loading rules:
 /// - If the same video is already loaded, the existing player is reused.
@@ -25,7 +26,7 @@ struct NCVideoViewerContentView: View {
     let userAgent: String?
     let isSelected: Bool
 
-    @StateObject var playback = NCVideoPlaybackController.shared
+    @StateObject private var playback = NCVideoPlaybackController.shared
 
     @State private var errorMessage: String?
     @State private var playerOpacity: Double = 0
@@ -73,10 +74,12 @@ struct NCVideoViewerContentView: View {
                         fadeInPlayer()
                     }
 
-                case .vlc:
+                case .vlc(let url):
                     NCVideoVLCViewerContentView(
-                        controller: playback.vlcController,
-                        displayFileName: resolvedFileName
+                        metadata: metadata,
+                        url: url,
+                        userAgent: userAgent,
+                        shouldAutoPlay: isSelected
                     )
                     .ignoresSafeArea()
                     .opacity(playerOpacity)
@@ -246,7 +249,7 @@ struct NCVideoViewerContentView: View {
             fileName: resolvedFileName,
             userAgent: userAgent,
             httpHeaders: httpHeaders(for: url),
-            shouldAutoPlay: true
+            shouldAutoPlay: result.autoplay || isSelected
         )
     }
 
