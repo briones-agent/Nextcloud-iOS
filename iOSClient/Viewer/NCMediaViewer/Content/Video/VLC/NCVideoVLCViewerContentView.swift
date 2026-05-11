@@ -12,8 +12,9 @@ import NextcloudKit
 
 /// Minimal SwiftUI bridge for VLC playback.
 ///
-/// This bridge always returns the same UIKit controller instance.
-/// This prevents SwiftUI rotation/layout rebuilds from creating multiple VLC players.
+/// This view only mounts the stable UIKit VLC controller.
+/// Playback is started only when `shouldAutoPlay == true`.
+/// Pause/stop decisions are controlled by `NCVideoViewerContentView`.
 struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
     let metadata: tableMetadata
     let url: URL
@@ -23,12 +24,14 @@ struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> NCVideoVLCViewController {
         let viewController = NCVideoVLCStablePlayer.shared.viewController
 
-        viewController.configure(
-            metadata: metadata,
-            url: url,
-            userAgent: userAgent,
-            shouldAutoPlay: shouldAutoPlay
-        )
+        if shouldAutoPlay {
+            viewController.configure(
+                metadata: metadata,
+                url: url,
+                userAgent: userAgent,
+                shouldAutoPlay: true
+            )
+        }
 
         return viewController
     }
@@ -37,11 +40,15 @@ struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
         _ viewController: NCVideoVLCViewController,
         context: Context
     ) {
+        guard shouldAutoPlay else {
+            return
+        }
+
         viewController.configure(
             metadata: metadata,
             url: url,
             userAgent: userAgent,
-            shouldAutoPlay: shouldAutoPlay
+            shouldAutoPlay: true
         )
     }
 
@@ -49,9 +56,8 @@ struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
         _ viewController: NCVideoVLCViewController,
         coordinator: Coordinator
     ) {
-        // Do not stop VLC here.
-        // SwiftUI can dismantle/rebuild during rotation.
-        // Playback lifetime is owned by NCVideoVLCStablePlayer.
+        // Do not stop here.
+        // SwiftUI can dismantle/rebuild this bridge during rotation or layout changes.
     }
 
     func makeCoordinator() -> Coordinator {
@@ -63,9 +69,6 @@ struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
 
 // MARK: - VLC Stable Player Owner
 
-/// Stable owner for the UIKit VLC controller.
-///
-/// The controller and VLCMediaPlayer survive SwiftUI view rebuilds.
 @MainActor
 final class NCVideoVLCStablePlayer {
     static let shared = NCVideoVLCStablePlayer()
@@ -74,7 +77,24 @@ final class NCVideoVLCStablePlayer {
 
     private init() { }
 
-    /// Stops the shared VLC player explicitly.
+    func configure(
+        metadata: tableMetadata,
+        url: URL,
+        userAgent: String?,
+        shouldAutoPlay: Bool
+    ) {
+        viewController.configure(
+            metadata: metadata,
+            url: url,
+            userAgent: userAgent,
+            shouldAutoPlay: shouldAutoPlay
+        )
+    }
+
+    func pause() {
+        viewController.pause()
+    }
+
     func stop() {
         viewController.stop()
     }
@@ -82,17 +102,6 @@ final class NCVideoVLCStablePlayer {
 
 // MARK: - VLC View Controller
 
-/// Minimal UIKit-only VLC video controller.
-///
-/// This controller intentionally does only:
-/// - keep one stable drawable view
-/// - keep one stable VLCMediaPlayer
-/// - load and play the requested URL
-///
-/// No controls.
-/// No overlays.
-/// No rotation hacks.
-/// No SwiftUI state.
 @MainActor
 final class NCVideoVLCViewController: UIViewController {
 
@@ -109,7 +118,7 @@ final class NCVideoVLCViewController: UIViewController {
     private var metadata: tableMetadata?
     private var url: URL?
     private var userAgent: String?
-    private var shouldAutoPlay = true
+    private var shouldAutoPlay = false
 
     private var loadedURL: URL?
     private var isViewVisible = false
@@ -185,13 +194,13 @@ final class NCVideoVLCViewController: UIViewController {
 
     // MARK: - Public API
 
-    /// Configures the VLC controller with the requested video.
+    /// Configures and starts VLC only when explicitly requested by the selected page.
     ///
     /// - Parameters:
     ///   - metadata: Video metadata used for logging.
     ///   - url: Local or remote playable URL.
     ///   - userAgent: Optional HTTP User-Agent for remote playback.
-    ///   - shouldAutoPlay: Whether playback should start automatically.
+    ///   - shouldAutoPlay: Whether playback should start.
     func configure(
         metadata: tableMetadata,
         url: URL,
@@ -201,6 +210,10 @@ final class NCVideoVLCViewController: UIViewController {
         self.metadata = metadata
         self.userAgent = userAgent
         self.shouldAutoPlay = shouldAutoPlay
+
+        guard shouldAutoPlay else {
+            return
+        }
 
         if self.url != url {
             self.url = url
@@ -213,8 +226,21 @@ final class NCVideoVLCViewController: UIViewController {
         startIfPossible()
     }
 
-    /// Stops VLC playback and releases the current media.
+    /// Pauses VLC playback without releasing media.
+    func pause() {
+        shouldAutoPlay = false
+        mediaPlayer.pause()
+
+        log(
+            emoji: .debug,
+            message: "VIDEO VLC pause requested"
+        )
+    }
+
+    /// Stops VLC playback and releases media.
     func stop() {
+        shouldAutoPlay = false
+
         mediaPlayer.stop()
         mediaPlayer.media = nil
         mediaPlayer.drawable = nil
@@ -222,12 +248,20 @@ final class NCVideoVLCViewController: UIViewController {
         url = nil
         loadedURL = nil
         metadata = nil
+
+        log(
+            emoji: .debug,
+            message: "VIDEO VLC stop requested"
+        )
     }
 
     // MARK: - Playback
 
-    /// Starts playback when the view and URL are ready.
     private func startIfPossible() {
+        guard shouldAutoPlay else {
+            return
+        }
+
         guard isViewLoaded,
               isViewVisible,
               view.window != nil else {
@@ -236,10 +270,6 @@ final class NCVideoVLCViewController: UIViewController {
 
         attachDrawableIfNeeded()
         loadMediaIfNeeded()
-
-        guard shouldAutoPlay else {
-            return
-        }
 
         guard mediaPlayer.media != nil else {
             log(
@@ -259,7 +289,6 @@ final class NCVideoVLCViewController: UIViewController {
         }
     }
 
-    /// Loads media only when the URL changes or media is missing.
     private func loadMediaIfNeeded() {
         guard let url else {
             return
@@ -288,7 +317,6 @@ final class NCVideoVLCViewController: UIViewController {
         )
     }
 
-    /// Attaches the stable drawable view to VLC.
     private func attachDrawableIfNeeded() {
         guard drawableView.bounds.width > 0,
               drawableView.bounds.height > 0 else {
@@ -310,7 +338,6 @@ final class NCVideoVLCViewController: UIViewController {
 
     // MARK: - Helpers
 
-    /// Configures the audio session for movie playback.
     private func configureAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(
@@ -328,11 +355,6 @@ final class NCVideoVLCViewController: UIViewController {
         }
     }
 
-    /// Writes a VLC debug log.
-    ///
-    /// - Parameters:
-    ///   - emoji: Log emoji.
-    ///   - message: Log message.
     private func log(
         emoji: NKLogTagEmoji,
         message: String
