@@ -69,38 +69,50 @@ struct NCVideoViewerContentView: View {
                     EmptyView()
 
                 case .avFoundation(let player):
-                    NCVideoAVPlayerContentView(
-                        player: player,
-                        allowsPictureInPicture: true,
-                        shouldAutoPlay: isSelected
-                    )
-                    .padding(.bottom, videoPlayerBottomPadding)
-                    .ignoresSafeArea(edges: [.top, .leading, .trailing])
-                    .opacity(playerOpacity)
-                    .onAppear {
-                        fadeInPlayer()
+                    if isSelected {
+                        NCVideoAVPlayerContentView(
+                            player: player,
+                            allowsPictureInPicture: true,
+                            shouldAutoPlay: true
+                        )
+                        .padding(.bottom, videoPlayerBottomPadding)
+                        .ignoresSafeArea(edges: [.top, .leading, .trailing])
+                        .opacity(playerOpacity)
+                        .onAppear {
+                            fadeInPlayer()
+                        }
+                    } else {
+                        EmptyView()
                     }
 
                 case .vlc(let url):
-                    Color.black
-                        .ignoresSafeArea()
-                        .onAppear {
-                            presentVLCIfSelected(url: url)
-                        }
-                        .onChange(of: url) { _, newURL in
-                            presentedVLCURL = nil
-                            presentVLCIfSelected(url: newURL)
-                        }
-                        .onChange(of: isSelected) { _, selected in
-                            guard selected else {
-                                return
+                    if isSelected {
+                        Color.black
+                            .ignoresSafeArea()
+                            .onAppear {
+                                presentVLCIfSelected(url: url)
                             }
+                            .onChange(of: url) { _, newURL in
+                                presentedVLCURL = nil
+                                presentVLCIfSelected(url: newURL)
+                            }
+                            .onChange(of: isSelected) { _, selected in
+                                guard selected else {
+                                    return
+                                }
 
-                            presentVLCIfSelected(url: url)
-                        }
+                                presentVLCIfSelected(url: url)
+                            }
+                    } else {
+                        EmptyView()
+                    }
 
                 case .failed(let message):
-                    failedView(message)
+                    if isSelected {
+                        failedView(message)
+                    } else {
+                        EmptyView()
+                    }
                 }
             }
         }
