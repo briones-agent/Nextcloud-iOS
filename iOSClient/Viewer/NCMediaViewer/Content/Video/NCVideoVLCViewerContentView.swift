@@ -3,6 +3,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
+import MobileVLCKit
+import NextcloudKit
+import UIKit
+import SwiftUI
 
 // MARK: - VLC Audio Track
 
@@ -17,12 +21,6 @@ struct NCVideoVLCSubtitleTrack: Identifiable, Equatable {
     let id: Int32
     let name: String
 }
-
-// SPDX-FileCopyrightText: Nextcloud GmbH
-// SPDX-FileCopyrightText: 2026 Marino Faggiana
-// SPDX-License-Identifier: GPL-3.0-or-later
-
-import SwiftUI
 
 // MARK: - VLC Video Viewer Content View
 
@@ -70,15 +68,6 @@ struct NCVideoVLCViewerContentView: View {
     }
 }
 
-// SPDX-FileCopyrightText: Nextcloud GmbH
-// SPDX-FileCopyrightText: 2026 Marino Faggiana
-// SPDX-License-Identifier: GPL-3.0-or-later
-
-import SwiftUI
-import UIKit
-
-// MARK: - VLC Render View
-
 // MARK: - VLC Render View
 
 /// UIKit render surface used by the shared VLC playback controller.
@@ -94,19 +83,17 @@ struct NCVideoVLCRenderView: UIViewRepresentable {
         view.backgroundColor = .black
         view.clipsToBounds = true
 
-        view.onDrawableReady = { [weak controller] drawableView in
-            controller?.attachDrawable(drawableView)
+        view.onDrawableReady = { [weak controller] drawableView, force in
+            controller?.attachDrawable(
+                drawableView,
+                force: force
+            )
         }
 
-        controller.attachDrawable(view)
-
-        DispatchQueue.main.async { [weak controller, weak view] in
-            guard let view else {
-                return
-            }
-
-            controller?.attachDrawable(view)
-        }
+        controller.attachDrawable(
+            view,
+            force: true
+        )
 
         return view
     }
@@ -115,14 +102,20 @@ struct NCVideoVLCRenderView: UIViewRepresentable {
         _ view: NCVideoVLCDrawableView,
         context: Context
     ) {
-        controller.attachDrawable(view)
+        controller.attachDrawable(
+            view,
+            force: false
+        )
 
         DispatchQueue.main.async { [weak controller, weak view] in
             guard let view else {
                 return
             }
 
-            controller?.attachDrawable(view)
+            controller?.attachDrawable(
+                view,
+                force: true
+            )
         }
     }
 
@@ -149,10 +142,10 @@ struct NCVideoVLCRenderView: UIViewRepresentable {
 /// UIView used as VLC drawable target.
 ///
 /// VLC can keep playing audio while losing its video surface after rotation.
-/// This view re-attaches the drawable when it enters a window and whenever its
-/// bounds become valid after layout.
+/// This view force-rebinds the drawable when it enters a window and whenever
+/// its bounds become valid after layout.
 final class NCVideoVLCDrawableView: UIView {
-    var onDrawableReady: ((_ view: NCVideoVLCDrawableView) -> Void)?
+    var onDrawableReady: ((_ view: NCVideoVLCDrawableView, _ force: Bool) -> Void)?
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -161,7 +154,7 @@ final class NCVideoVLCDrawableView: UIView {
             return
         }
 
-        requestDrawableAttach()
+        requestDrawableAttach(force: true)
     }
 
     override func layoutSubviews() {
@@ -172,11 +165,11 @@ final class NCVideoVLCDrawableView: UIView {
             return
         }
 
-        requestDrawableAttach()
+        requestDrawableAttach(force: true)
     }
 
-    private func requestDrawableAttach() {
-        onDrawableReady?(self)
+    private func requestDrawableAttach(force: Bool) {
+        onDrawableReady?(self, force)
 
         DispatchQueue.main.async { [weak self] in
             guard let self,
@@ -186,17 +179,10 @@ final class NCVideoVLCDrawableView: UIView {
                 return
             }
 
-            self.onDrawableReady?(self)
+            self.onDrawableReady?(self, true)
         }
     }
 }
-
-// SPDX-FileCopyrightText: Nextcloud GmbH
-// SPDX-FileCopyrightText: 2026 Marino Faggiana
-// SPDX-License-Identifier: GPL-3.0-or-later
-
-import SwiftUI
-import UIKit
 
 // MARK: - VLC Controls View
 
@@ -429,15 +415,6 @@ struct NCVideoVLCControlsView: View {
     }
 }
 
-// SPDX-FileCopyrightText: Nextcloud GmbH
-// SPDX-FileCopyrightText: 2026 Marino Faggiana
-// SPDX-License-Identifier: GPL-3.0-or-later
-
-import Foundation
-import MobileVLCKit
-import NextcloudKit
-import UIKit
-
 // MARK: - VLC Player Controller
 
 /// Singleton VLC playback controller.
@@ -479,21 +456,44 @@ final class NCVideoVLCPlayerController: ObservableObject {
 
     /// Attaches the current VLC drawable view.
     ///
-    /// This method is intentionally idempotent and can be called repeatedly after
-    /// rotation, layout changes, or SwiftUI view reconstruction.
+    /// This method can be called repeatedly after rotation or layout changes.
+    /// VLC can keep audio alive while losing the video output surface, so when
+    /// `force` is true the drawable is rebound even if it appears to be the same view.
+    ///
+    /// - Parameters:
+    ///   - view: UIView used as VLC drawable target.
+    ///   - force: Whether the drawable should be rebound even if it is already attached.
     @MainActor
-    func attachDrawable(_ view: UIView) {
-        if let currentDrawable = mediaPlayer.drawable as? UIView,
+    func attachDrawable(
+        _ view: UIView,
+        force: Bool = false
+    ) {
+        guard view.window != nil,
+              view.bounds.width > 0,
+              view.bounds.height > 0 else {
+            return
+        }
+
+        let currentDrawable = mediaPlayer.drawable as? UIView
+
+        if !force,
            currentDrawable === view {
             return
         }
 
+        let wasPlaying = mediaPlayer.isPlaying
+
+        mediaPlayer.drawable = nil
         mediaPlayer.drawable = view
+
+        if wasPlaying {
+            mediaPlayer.play()
+        }
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
             emoji: .debug,
-            message: "VIDEO VLC drawable attached bounds \(view.bounds)",
+            message: "VIDEO VLC drawable attached force \(force), bounds \(view.bounds)",
             consoleOnly: true
         )
     }
