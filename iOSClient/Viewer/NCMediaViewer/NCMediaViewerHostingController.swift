@@ -78,7 +78,12 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         self.onClose = onClose
         self.onCloseToTransitionSource = onCloseToTransitionSource
 
-        super.init(rootView: NCMediaViewerView(model: model))
+        super.init(
+            rootView: NCMediaViewerView(
+                model: model,
+                contextMenuController: contextMenuController
+            )
+        )
 
         self.transferDelegate = NCMediaViewerTransferDelegate { [weak self] deletedOcId in
             guard let self else {

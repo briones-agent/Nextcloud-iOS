@@ -15,12 +15,14 @@ import SwiftUI
 /// Navigation buttons and title are provided by `NCMediaViewerHostingController`.
 struct NCMediaViewerView: View {
     @StateObject private var model: NCMediaViewerModel
+    let contextMenuController: NCMainTabBarController?
 
     /// Creates the media viewer view.
     ///
     /// - Parameter model: Media viewer model containing page state and loading logic.
-    init(model: NCMediaViewerModel) {
+    init(model: NCMediaViewerModel, contextMenuController: NCMainTabBarController? = nil) {
         _model = StateObject(wrappedValue: model)
+        self.contextMenuController = contextMenuController
     }
 
     var body: some View {
@@ -28,8 +30,11 @@ struct NCMediaViewerView: View {
             Color.ncViewerBackground(.system)
                 .ignoresSafeArea()
 
-            NCMediaViewerPagingView(model: model)
-                .ignoresSafeArea()
+            NCMediaViewerPagingView(
+                model: model,
+                contextMenuController: contextMenuController
+            )
+            .ignoresSafeArea()
         }
         .background(Color.ncViewerBackground(.system))
         .ignoresSafeArea()

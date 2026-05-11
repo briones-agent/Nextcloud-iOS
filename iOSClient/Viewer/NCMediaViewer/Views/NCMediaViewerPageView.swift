@@ -35,6 +35,8 @@ struct NCMediaViewerPageView: View {
     let onNextPage: (_ shouldAutoPlay: Bool) -> Void
     let onAutoPlayConsumed: () -> Void
 
+    let contextMenuController: NCMainTabBarController?
+
     // MARK: - Body
 
     var body: some View {
@@ -176,7 +178,8 @@ struct NCMediaViewerPageView: View {
                 metadata: metadata,
                 localURL: nil,
                 previewURL: previewURL,
-                isSelected: isSelected
+                isSelected: isSelected,
+                contextMenuController: contextMenuController
             )
             .id(page.ocId)
             .background(Color.ncViewerBackground(backgroundStyle))
