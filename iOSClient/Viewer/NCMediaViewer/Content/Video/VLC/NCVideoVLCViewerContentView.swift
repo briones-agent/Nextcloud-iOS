@@ -8,95 +8,50 @@ import UIKit
 import MobileVLCKit
 import NextcloudKit
 
-// MARK: - VLC Video Viewer Content View
+// MARK: - VLC Viewer SwiftUI Bridge
 
-/// Minimal SwiftUI placeholder for VLC playback.
+/// Minimal SwiftUI bridge for VLC playback.
 ///
-/// This view intentionally contains only:
-/// - a UIKit drawable view
-/// - one VLCMediaPlayer
-/// - one URL
-struct NCVideoVLCViewerContentView: View {
+/// This bridge always returns the same UIKit controller instance.
+/// This prevents SwiftUI rotation/layout rebuilds from creating multiple VLC players.
+struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
     let metadata: tableMetadata
     let url: URL
     let userAgent: String?
     let shouldAutoPlay: Bool
 
-    @StateObject private var playerModel = NCVideoVLCPlaceholderModel()
+    func makeUIViewController(context: Context) -> NCVideoVLCViewController {
+        let viewController = NCVideoVLCStablePlayer.shared.viewController
 
-    init(
-        metadata: tableMetadata,
-        url: URL,
-        userAgent: String? = nil,
-        shouldAutoPlay: Bool = true
-    ) {
-        self.metadata = metadata
-        self.url = url
-        self.userAgent = userAgent
-        self.shouldAutoPlay = shouldAutoPlay
-    }
-
-    var body: some View {
-        NCVideoVLCDrawableView(
-            mediaPlayer: playerModel.mediaPlayer,
-            onDrawableReady: {
-                playerModel.load(
-                    metadata: metadata,
-                    url: url,
-                    userAgent: userAgent,
-                    shouldAutoPlay: shouldAutoPlay
-                )
-            }
+        viewController.configure(
+            metadata: metadata,
+            url: url,
+            userAgent: userAgent,
+            shouldAutoPlay: shouldAutoPlay
         )
-        .background(Color.black)
-        .ignoresSafeArea()
-        .onDisappear {
-            playerModel.stop()
-        }
-    }
-}
 
-// MARK: - VLC Drawable View
-
-/// UIKit drawable surface used directly by MobileVLCKit.
-private struct NCVideoVLCDrawableView: UIViewRepresentable {
-    let mediaPlayer: VLCMediaPlayer
-    let onDrawableReady: () -> Void
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.backgroundColor = .black
-        view.isOpaque = true
-        view.clipsToBounds = true
-
-        mediaPlayer.drawable = view
-
-        DispatchQueue.main.async {
-            onDrawableReady()
-        }
-
-        return view
+        return viewController
     }
 
-    func updateUIView(
-        _ view: UIView,
+    func updateUIViewController(
+        _ viewController: NCVideoVLCViewController,
         context: Context
     ) {
-        if mediaPlayer.drawable == nil {
-            mediaPlayer.drawable = view
-        }
-
-        DispatchQueue.main.async {
-            onDrawableReady()
-        }
+        viewController.configure(
+            metadata: metadata,
+            url: url,
+            userAgent: userAgent,
+            shouldAutoPlay: shouldAutoPlay
+        )
     }
 
-    static func dismantleUIView(
-        _ view: UIView,
+    static func dismantleUIViewController(
+        _ viewController: NCVideoVLCViewController,
         coordinator: Coordinator
     ) {
-        // The model owns stop().
-        // Do not touch VLC from the drawable teardown.
+        // Do not stop VLC here.
+        // SwiftUI can dismantle/rebuild during rotation.
+        // Playback lifetime is owned by NCVideoVLCStablePlayer.
     }
 
     func makeCoordinator() -> Coordinator {
@@ -106,43 +61,216 @@ private struct NCVideoVLCDrawableView: UIViewRepresentable {
     final class Coordinator { }
 }
 
-// MARK: - VLC Placeholder Model
+// MARK: - VLC Stable Player Owner
 
-/// Minimal VLC owner used only to test whether VLC can play inside SwiftUI.
+/// Stable owner for the UIKit VLC controller.
+///
+/// The controller and VLCMediaPlayer survive SwiftUI view rebuilds.
 @MainActor
-private final class NCVideoVLCPlaceholderModel: ObservableObject {
-    let mediaPlayer = VLCMediaPlayer()
+final class NCVideoVLCStablePlayer {
+    static let shared = NCVideoVLCStablePlayer()
 
-    private var currentURL: URL?
-    private var didStartPlayback = false
+    let viewController = NCVideoVLCViewController()
 
-    /// Loads and optionally starts playback.
+    private init() { }
+
+    /// Stops the shared VLC player explicitly.
+    func stop() {
+        viewController.stop()
+    }
+}
+
+// MARK: - VLC View Controller
+
+/// Minimal UIKit-only VLC video controller.
+///
+/// This controller intentionally does only:
+/// - keep one stable drawable view
+/// - keep one stable VLCMediaPlayer
+/// - load and play the requested URL
+///
+/// No controls.
+/// No overlays.
+/// No rotation hacks.
+/// No SwiftUI state.
+@MainActor
+final class NCVideoVLCViewController: UIViewController {
+
+    // MARK: - Views
+
+    private let drawableView = UIView()
+
+    // MARK: - VLC
+
+    private let mediaPlayer = VLCMediaPlayer()
+
+    // MARK: - State
+
+    private var metadata: tableMetadata?
+    private var url: URL?
+    private var userAgent: String?
+    private var shouldAutoPlay = true
+
+    private var loadedURL: URL?
+    private var isViewVisible = false
+
+    // MARK: - Lifecycle
+
+    override func loadView() {
+        let rootView = UIView()
+        rootView.backgroundColor = .black
+        rootView.isOpaque = true
+        rootView.clipsToBounds = true
+
+        drawableView.backgroundColor = .black
+        drawableView.isOpaque = true
+        drawableView.clipsToBounds = true
+        drawableView.translatesAutoresizingMaskIntoConstraints = false
+
+        rootView.addSubview(drawableView)
+
+        NSLayoutConstraint.activate([
+            drawableView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+            drawableView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+            drawableView.topAnchor.constraint(equalTo: rootView.topAnchor),
+            drawableView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+        ])
+
+        view = rootView
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        configureAudioSession()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+
+        isViewVisible = true
+        startIfPossible()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+
+        isViewVisible = false
+
+        // Do not stop here.
+        // Rotation can trigger transient disappearance.
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+
+        attachDrawableIfNeeded()
+    }
+
+    override func viewWillTransition(
+        to size: CGSize,
+        with coordinator: UIViewControllerTransitionCoordinator
+    ) {
+        super.viewWillTransition(
+            to: size,
+            with: coordinator
+        )
+
+        coordinator.animate(alongsideTransition: { [weak self] _ in
+            self?.view.layoutIfNeeded()
+        }, completion: { [weak self] _ in
+            self?.attachDrawableIfNeeded()
+        })
+    }
+
+    // MARK: - Public API
+
+    /// Configures the VLC controller with the requested video.
     ///
     /// - Parameters:
     ///   - metadata: Video metadata used for logging.
-    ///   - url: Local or remote video URL.
+    ///   - url: Local or remote playable URL.
     ///   - userAgent: Optional HTTP User-Agent for remote playback.
     ///   - shouldAutoPlay: Whether playback should start automatically.
-    func load(
+    func configure(
         metadata: tableMetadata,
         url: URL,
         userAgent: String?,
         shouldAutoPlay: Bool
     ) {
-        guard currentURL != url || mediaPlayer.media == nil else {
-            if shouldAutoPlay,
-               !mediaPlayer.isPlaying,
-               !didStartPlayback {
-                play(metadata: metadata)
-            }
+        self.metadata = metadata
+        self.userAgent = userAgent
+        self.shouldAutoPlay = shouldAutoPlay
 
+        if self.url != url {
+            self.url = url
+            loadedURL = nil
+
+            mediaPlayer.stop()
+            mediaPlayer.media = nil
+        }
+
+        startIfPossible()
+    }
+
+    /// Stops VLC playback and releases the current media.
+    func stop() {
+        mediaPlayer.stop()
+        mediaPlayer.media = nil
+        mediaPlayer.drawable = nil
+
+        url = nil
+        loadedURL = nil
+        metadata = nil
+    }
+
+    // MARK: - Playback
+
+    /// Starts playback when the view and URL are ready.
+    private func startIfPossible() {
+        guard isViewLoaded,
+              isViewVisible,
+              view.window != nil else {
             return
         }
 
-        configureAudioSession()
+        attachDrawableIfNeeded()
+        loadMediaIfNeeded()
 
-        currentURL = url
-        didStartPlayback = false
+        guard shouldAutoPlay else {
+            return
+        }
+
+        guard mediaPlayer.media != nil else {
+            log(
+                emoji: .error,
+                message: "VIDEO VLC start skipped because media is nil"
+            )
+            return
+        }
+
+        if !mediaPlayer.isPlaying {
+            mediaPlayer.play()
+
+            log(
+                emoji: .debug,
+                message: "VIDEO VLC play requested"
+            )
+        }
+    }
+
+    /// Loads media only when the URL changes or media is missing.
+    private func loadMediaIfNeeded() {
+        guard let url else {
+            return
+        }
+
+        guard loadedURL != url ||
+              mediaPlayer.media == nil else {
+            return
+        }
+
+        loadedURL = url
 
         let media = VLCMedia(url: url)
 
@@ -154,58 +282,33 @@ private final class NCVideoVLCPlaceholderModel: ObservableObject {
 
         mediaPlayer.media = media
 
-        nkLog(
-            tag: NCGlobal.shared.logTagViewer,
+        log(
             emoji: .debug,
-            message: "VIDEO VLC placeholder media set ocId \(metadata.ocId), url \(url.absoluteString), isFileURL \(url.isFileURL)",
-            consoleOnly: true
-        )
-
-        guard shouldAutoPlay else {
-            return
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            Task { @MainActor in
-                self?.play(metadata: metadata)
-            }
-        }
-    }
-
-    /// Starts VLC playback.
-    ///
-    /// - Parameter metadata: Video metadata used for logging.
-    private func play(metadata: tableMetadata) {
-        guard mediaPlayer.media != nil else {
-            nkLog(
-                tag: NCGlobal.shared.logTagViewer,
-                emoji: .error,
-                message: "VIDEO VLC placeholder play skipped because media is nil ocId \(metadata.ocId)",
-                consoleOnly: true
-            )
-            return
-        }
-
-        mediaPlayer.play()
-        didStartPlayback = true
-
-        nkLog(
-            tag: NCGlobal.shared.logTagViewer,
-            emoji: .debug,
-            message: "VIDEO VLC placeholder play requested ocId \(metadata.ocId), isPlaying \(mediaPlayer.isPlaying)",
-            consoleOnly: true
+            message: "VIDEO VLC media loaded url \(url.absoluteString), isFileURL \(url.isFileURL)"
         )
     }
 
-    /// Stops VLC playback and releases media resources.
-    func stop() {
-        mediaPlayer.stop()
-        mediaPlayer.media = nil
-        mediaPlayer.drawable = nil
+    /// Attaches the stable drawable view to VLC.
+    private func attachDrawableIfNeeded() {
+        guard drawableView.bounds.width > 0,
+              drawableView.bounds.height > 0 else {
+            return
+        }
 
-        currentURL = nil
-        didStartPlayback = false
+        if let currentDrawable = mediaPlayer.drawable as? UIView,
+           currentDrawable === drawableView {
+            return
+        }
+
+        mediaPlayer.drawable = drawableView
+
+        log(
+            emoji: .debug,
+            message: "VIDEO VLC drawable attached bounds \(drawableView.bounds)"
+        )
     }
+
+    // MARK: - Helpers
 
     /// Configures the audio session for movie playback.
     private func configureAudioSession() {
@@ -218,12 +321,29 @@ private final class NCVideoVLCPlaceholderModel: ObservableObject {
 
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            nkLog(
-                tag: NCGlobal.shared.logTagViewer,
+            log(
                 emoji: .error,
-                message: "VIDEO VLC placeholder audio session error: \(error.localizedDescription)",
-                consoleOnly: true
+                message: "VIDEO VLC audio session error: \(error.localizedDescription)"
             )
         }
+    }
+
+    /// Writes a VLC debug log.
+    ///
+    /// - Parameters:
+    ///   - emoji: Log emoji.
+    ///   - message: Log message.
+    private func log(
+        emoji: NKLogTagEmoji,
+        message: String
+    ) {
+        let ocId = metadata?.ocId ?? "-"
+
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: emoji,
+            message: "\(message), ocId \(ocId)",
+            consoleOnly: true
+        )
     }
 }
