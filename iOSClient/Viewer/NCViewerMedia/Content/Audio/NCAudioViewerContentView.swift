@@ -151,7 +151,11 @@ struct NCAudioViewerContentView: View {
             await model.load(url: localURL)
             consumeAutoPlayIfNeeded()
         }
-        .onChange(of: shouldAutoPlay) { _, _ in
+        .onChange(of: shouldAutoPlay) { _, newValue in
+            guard newValue else {
+                return
+            }
+
             consumeAutoPlayIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
@@ -241,10 +245,13 @@ final class NCAudioViewerPlaybackRegistry {
         return model
     }
 
-    /// Stops and removes all cached audio models.
+    /// Stops all cached audio models without removing them.
+    ///
+    /// SwiftUI pages may still hold `@StateObject` references to these models.
+    /// Removing them while views are alive can create duplicate playback models for
+    /// the same `ocId` after a later cell refresh or rebuild.
     func stopAll() {
         modelsByOcId.values.forEach { $0.stop() }
-        modelsByOcId.removeAll()
     }
 }
 
@@ -297,12 +304,23 @@ final class NCAudioViewerModel: ObservableObject {
 
         self.player = player
 
+        let loadedDuration: Double
+
         if let duration = try? await asset.load(.duration),
            duration.seconds.isFinite {
-            self.duration = duration.seconds
+            loadedDuration = duration.seconds
         } else {
-            self.duration = 0
+            loadedDuration = 0
         }
+
+        guard !Task.isCancelled,
+              currentURL == url,
+              self.player === player else {
+            player.pause()
+            return
+        }
+
+        self.duration = loadedDuration
 
         addTimeObserver(to: player)
         addEndObserver(for: item, player: player)
@@ -446,6 +464,10 @@ final class NCAudioViewerModel: ObservableObject {
             }
 
             Task { @MainActor in
+                guard self.player === player else {
+                    return
+                }
+
                 self.currentTime = time.seconds.isFinite ? time.seconds : 0
             }
         }
@@ -471,6 +493,10 @@ final class NCAudioViewerModel: ObservableObject {
             }
 
             Task { @MainActor in
+                guard self.player === player else {
+                    return
+                }
+
                 if self.isLoopEnabled {
                     self.currentTime = 0
 
@@ -480,6 +506,10 @@ final class NCAudioViewerModel: ObservableObject {
                         toleranceAfter: .zero
                     ) { _ in
                         Task { @MainActor in
+                            guard self.player === player else {
+                                return
+                            }
+
                             player.play()
                             self.isPlaying = true
                         }
