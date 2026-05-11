@@ -26,6 +26,7 @@ struct NCVideoViewerContentView: View {
     @StateObject private var hub = NCVideoPlaybackHub()
 
     @State private var errorMessage: String?
+    @State private var playerOpacity: Double = 0
 
     private let resolver = NCVideoURLResolver()
 
@@ -48,12 +49,14 @@ struct NCVideoViewerContentView: View {
             Color.black
                 .ignoresSafeArea()
 
+            previewPlaceholderView
+
             if let errorMessage {
                 failedView(errorMessage)
             } else {
                 switch hub.engine {
                 case .loading:
-                    loadingView
+                    EmptyView()
 
                 case .avFoundation(let player):
                     NCVideoAVPlayerContentView(
@@ -61,8 +64,11 @@ struct NCVideoViewerContentView: View {
                         allowsPictureInPicture: true,
                         shouldAutoPlay: isSelected
                     )
-                    .padding(.bottom, videoPlayerBottomPadding)
-                    .ignoresSafeArea(edges: [.top, .leading, .trailing])
+                    .ignoresSafeArea()
+                    .opacity(playerOpacity)
+                    .onAppear {
+                        fadeInPlayer()
+                    }
 
                 case .vlc(let url):
                     NCVideoVLCViewerContentView(
@@ -72,6 +78,10 @@ struct NCVideoViewerContentView: View {
                         shouldAutoPlay: isSelected
                     )
                     .ignoresSafeArea()
+                    .opacity(playerOpacity)
+                    .onAppear {
+                        fadeInPlayer()
+                    }
 
                 case .failed(let message):
                     failedView(message)
@@ -82,6 +92,7 @@ struct NCVideoViewerContentView: View {
         .task(id: taskIdentifier) {
             let expectedTaskIdentifier = taskIdentifier
 
+            playerOpacity = 0
             hub.stop()
             errorMessage = nil
 
@@ -95,13 +106,16 @@ struct NCVideoViewerContentView: View {
         }
         .onChange(of: isSelected) { _, selected in
             if !selected {
+                playerOpacity = 0
                 hub.stop()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
+            playerOpacity = 0
             hub.stop()
         }
         .onDisappear {
+            playerOpacity = 0
             hub.stop()
         }
     }
@@ -124,7 +138,7 @@ struct NCVideoViewerContentView: View {
     }
 
     @ViewBuilder
-    private var loadingView: some View {
+    private var previewPlaceholderView: some View {
         if let previewURL {
             NCImageViewerContentView(
                 identifier: metadata.ocId,
@@ -135,6 +149,16 @@ struct NCVideoViewerContentView: View {
         } else {
             Color.black
                 .ignoresSafeArea()
+        }
+    }
+
+    /// Fades the active video player over the preview placeholder.
+    @MainActor
+    private func fadeInPlayer() {
+        playerOpacity = 0
+
+        withAnimation(.easeInOut(duration: 0.30)) {
+            playerOpacity = 1
         }
     }
 
