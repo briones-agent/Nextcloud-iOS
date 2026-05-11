@@ -10,11 +10,12 @@ import NextcloudKit
 
 // MARK: - VLC Viewer SwiftUI Bridge
 
+// MARK: - VLC Viewer SwiftUI Bridge
+
 /// Minimal SwiftUI bridge for VLC playback.
 ///
 /// This view only mounts the stable UIKit VLC controller.
-/// Playback is started only when `shouldAutoPlay == true`.
-/// Pause/stop decisions are controlled by `NCVideoViewerContentView`.
+/// It must never start playback by itself.
 struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
     let metadata: tableMetadata
     let url: URL
@@ -22,34 +23,16 @@ struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
     let shouldAutoPlay: Bool
 
     func makeUIViewController(context: Context) -> NCVideoVLCViewController {
-        let viewController = NCVideoVLCStablePlayer.shared.viewController
-
-        if shouldAutoPlay {
-            viewController.configure(
-                metadata: metadata,
-                url: url,
-                userAgent: userAgent,
-                shouldAutoPlay: true
-            )
-        }
-
-        return viewController
+        NCVideoVLCStablePlayer.shared.viewController
     }
 
     func updateUIViewController(
         _ viewController: NCVideoVLCViewController,
         context: Context
     ) {
-        guard shouldAutoPlay else {
-            return
-        }
-
-        viewController.configure(
-            metadata: metadata,
-            url: url,
-            userAgent: userAgent,
-            shouldAutoPlay: true
-        )
+        // Intentionally empty.
+        // SwiftUI can call this during swipe, prefetch, rotation, and layout rebuilds.
+        // Playback is controlled only by NCVideoViewerContentView.
     }
 
     static func dismantleUIViewController(
@@ -57,7 +40,6 @@ struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
         coordinator: Coordinator
     ) {
         // Do not stop here.
-        // SwiftUI can dismantle/rebuild this bridge during rotation or layout changes.
     }
 
     func makeCoordinator() -> Coordinator {
@@ -66,7 +48,6 @@ struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
 
     final class Coordinator { }
 }
-
 // MARK: - VLC Stable Player Owner
 
 @MainActor

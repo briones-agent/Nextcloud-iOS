@@ -85,6 +85,17 @@ struct NCVideoViewerContentView: View {
                     .opacity(playerOpacity)
                     .onAppear {
                         fadeInPlayer()
+
+                        guard isSelected else {
+                            return
+                        }
+
+                        NCVideoVLCStablePlayer.shared.configure(
+                            metadata: metadata,
+                            url: url,
+                            userAgent: userAgent,
+                            shouldAutoPlay: true
+                        )
                     }
 
                 case .failed(let message):
