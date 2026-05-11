@@ -2845,6 +2845,7 @@
 			isa = PBXGroup;
 			children = (
 				F78448A32FB1BE9000F2909A /* NCVideoPlaybackController.swift */,
+				F78448A82FB1BE9000F2909A /* NCVideoViewerContentView.swift */,
 				F78448C02FB1C79A00F2909A /* VLC */,
 				F78448BF2FB1C78900F2909A /* AVPlayer */,
 			);
@@ -2862,7 +2863,6 @@
 		F78448C02FB1C79A00F2909A /* VLC */ = {
 			isa = PBXGroup;
 			children = (
-				F78448A82FB1BE9000F2909A /* NCVideoViewerContentView.swift */,
 				F78448BD2FB1C33B00F2909A /* NCVideoVLCViewerContentView.swift */,
 			);
 			path = VLC;
