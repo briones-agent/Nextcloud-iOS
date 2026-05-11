@@ -74,6 +74,12 @@ struct NCMediaViewerPageView: View {
                     previewURL: previewURL
                 )
 
+            case .deleted:
+                deletedView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .gesture(chromeToggleGesture())
+
             case .failed(let previewURL, let message):
                 failedStateView(
                     previewURL: previewURL,
@@ -124,6 +130,23 @@ struct NCMediaViewerPageView: View {
         .foregroundStyle(primaryForegroundStyle)
         .multilineTextAlignment(.center)
         .padding()
+    }
+
+    private var deletedView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "trash")
+                .font(.system(size: 44, weight: .regular))
+
+            Text("Media no longer available")
+                .font(.headline)
+
+            Text("This item has been deleted.")
+                .font(.caption)
+                .foregroundStyle(secondaryForegroundStyle)
+        }
+        .foregroundStyle(primaryForegroundStyle)
+        .multilineTextAlignment(.center)
+        .padding(24)
     }
 
     @ViewBuilder

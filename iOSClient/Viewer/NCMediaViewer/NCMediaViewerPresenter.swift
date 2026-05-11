@@ -460,7 +460,8 @@ final class NCMediaViewerPresenter: NSObject {
 
             return UIImage(contentsOfFile: previewURL.path)
 
-        case .idle,
+        case .deleted,
+             .idle,
              .loadingMetadata,
              .metadataMissing,
              .checkingLocalFile:

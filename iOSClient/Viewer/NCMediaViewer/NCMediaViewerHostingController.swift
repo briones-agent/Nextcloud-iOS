@@ -80,13 +80,12 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
         super.init(rootView: NCMediaViewerView(model: model))
 
-        self.transferDelegate = NCMediaViewerTransferDelegate { [weak self, weak model] deletedOcId in
-            guard let self,
-                  deletedOcId == model?.selectedOcId else {
+        self.transferDelegate = NCMediaViewerTransferDelegate { [weak self] deletedOcId in
+            guard let self else {
                 return
             }
 
-            self.close()
+            self.model.markPageAsDeleted(ocId: deletedOcId)
         }
 
         view.backgroundColor = .ncViewerBackground(.system)
@@ -231,10 +230,26 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
     @objc
     private func imageDetailButtonTapped() {
+        guard !isSelectedPageDeleted else {
+            return
+        }
+
         openDetail(animated: true)
     }
 
     // MARK: - Detail
+
+    private var isSelectedPageDeleted: Bool {
+        guard let page = model.selectedPageModel() else {
+            return false
+        }
+
+        if case .deleted = page.state {
+            return true
+        }
+
+        return false
+    }
 
     /// Opens or closes the media detail panel for the currently selected media item.
     ///
@@ -328,6 +343,27 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
         detailHostingController = nil
         isShowingDetail = false
+    }
+
+    /// Marks the currently selected media item as deleted in the viewer.
+    ///
+    /// This is used immediately after the user confirms a delete action, before the
+    /// asynchronous transfer delegate reports the delete completion.
+    @MainActor
+    func markCurrentItemAsDeleted() {
+        guard let metadata = model.selectedMetadata else {
+            return
+        }
+
+        model.markPageAsDeleted(ocId: metadata.ocId)
+    }
+
+    /// Marks a specific media item as deleted in the viewer.
+    ///
+    /// - Parameter ocId: Deleted file identifier.
+    @MainActor
+    func markItemAsDeleted(ocId: String) {
+        model.markPageAsDeleted(ocId: ocId)
     }
 
     /// Downloads the full-resolution media file for the detail panel action.
