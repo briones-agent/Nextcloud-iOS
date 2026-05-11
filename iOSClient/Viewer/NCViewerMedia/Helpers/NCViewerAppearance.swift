@@ -56,6 +56,26 @@ extension Color {
     }
 }
 
+// MARK: - Color Viewer Progress Tint
+
+extension Color {
+    /// Returns a readable progress tint color for a viewer background style.
+    ///
+    /// - Parameter style: Viewer background style.
+    /// - Returns: SwiftUI tint color suitable for loading indicators.
+    static func ncViewerProgressTint(_ style: NCViewerBackgroundStyle = .system) -> Color {
+        switch style {
+        case .black:
+            return .white
+
+        case .system,
+             .white,
+             .custom:
+            return .accentColor
+        }
+    }
+}
+
 // MARK: - Viewer Background Resolution
 
 /// Returns the preferred viewer background style for a metadata item.

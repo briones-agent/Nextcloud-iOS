@@ -320,13 +320,14 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - Page Navigation
 
-    /// Moves the media viewer to a page relative to the current selected index.
+    /// Moves to the previous or next page using the paging collection view.
     ///
-    /// This is used by inline media controls, for example audio previous/next buttons.
+    /// The target page becomes selected only after the scrolling animation finishes.
+    /// This keeps programmatic navigation consistent with manual swipe navigation.
     ///
     /// - Parameters:
     ///   - offset: Relative page offset. Use `-1` for previous and `1` for next.
-    ///   - shouldAutoPlay: Whether the target audio page should start playback automatically.
+    ///   - shouldAutoPlay: Whether the target page should autoplay after selection.
     private func moveToPage(
         offset: Int,
         shouldAutoPlay: Bool
@@ -335,6 +336,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         guard targetIndex >= 0,
               targetIndex < model.numberOfPages else {
+            return
+        }
+
+        guard let collectionView else {
             return
         }
 
@@ -347,23 +352,17 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             model.requestAutoPlay(at: targetIndex)
         }
 
-        model.setSelectedIndex(targetIndex)
-        updateCollectionBackground(for: targetIndex)
-
-        isUserPaging = false
+        isUserPaging = true
         lastVisibleIndex = targetIndex
 
+        updateCollectionBackground(for: targetIndex)
         refreshVisibleCells()
 
-        collectionView?.scrollToItem(
+        collectionView.scrollToItem(
             at: IndexPath(item: targetIndex, section: 0),
             at: .centeredHorizontally,
             animated: true
         )
-
-        Task {
-            await model.displayPage(at: targetIndex)
-        }
     }
 
     /// Configures a paging cell with all callbacks required by the hosted SwiftUI page.
