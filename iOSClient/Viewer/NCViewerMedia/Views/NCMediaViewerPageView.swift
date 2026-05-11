@@ -114,6 +114,51 @@ struct NCMediaViewerPageView: View {
         }
     }
 
+    /// Returns whether this page should consume an auto-play request.
+    ///
+    /// Auto-play is valid only for the currently selected page.
+    /// Neighbor pages can be prefetched and rendered, but they must not start playback
+    /// or consume a pending auto-play request.
+    private var effectiveShouldAutoPlay: Bool {
+        isSelected && shouldAutoPlay
+    }
+
+
+    /// Moves to the previous page using the coordinator callback.
+    ///
+    /// - Parameter requestedAutoPlay: Whether the hosted content requests auto-play on the target page.
+    private func goToPreviousPage(_ requestedAutoPlay: Bool) {
+        guard canGoPrevious else {
+            return
+        }
+
+        onPreviousPage(
+            isSelected && requestedAutoPlay
+        )
+    }
+
+    /// Moves to the next page using the coordinator callback.
+    ///
+    /// - Parameter requestedAutoPlay: Whether the hosted content requests auto-play on the target page.
+    private func goToNextPage(_ requestedAutoPlay: Bool) {
+        guard canGoNext else {
+            return
+        }
+
+        onNextPage(
+            isSelected && requestedAutoPlay
+        )
+    }
+
+    /// Consumes the pending auto-play request only when this page is selected.
+    private func consumeAutoPlayIfNeeded() {
+        guard isSelected else {
+            return
+        }
+
+        onAutoPlayConsumed()
+    }
+
     // MARK: - State Views
 
     private var loadingView: some View {
@@ -237,10 +282,10 @@ struct NCMediaViewerPageView: View {
                     localURL: localURL,
                     canGoPrevious: canGoPrevious,
                     canGoNext: canGoNext,
-                    shouldAutoPlay: shouldAutoPlay,
-                    onPrevious: onPreviousPage,
-                    onNext: onNextPage,
-                    onAutoPlayConsumed: onAutoPlayConsumed
+                    shouldAutoPlay: effectiveShouldAutoPlay,
+                    onPrevious: goToPreviousPage,
+                    onNext: goToNextPage,
+                    onAutoPlayConsumed: consumeAutoPlayIfNeeded
                 )
                 .background(Color.black)
             }

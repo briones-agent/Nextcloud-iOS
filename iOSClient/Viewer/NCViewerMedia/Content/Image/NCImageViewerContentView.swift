@@ -52,8 +52,8 @@ struct NCImageViewerContentView: View {
             } else if let failedMessage {
                 failedView(failedMessage)
             } else {
-                Color.ncViewerBackground(backgroundStyle)
-                    .ignoresSafeArea()
+                ProgressView()
+                    .tint(.ncViewerProgressTint(backgroundStyle))
             }
         }
         .background(Color.ncViewerBackground(backgroundStyle))
@@ -169,10 +169,17 @@ struct NCImageViewerContentView: View {
         }
     }
 
-    /// Decodes a local standard image file.
+    /// Decodes and prepares a local standard image file for display.
+    ///
+    /// `UIImage(contentsOfFile:)` can return a lazy image whose bitmap is decoded only
+    /// when UIKit first draws it. Complex or large images can therefore produce a short
+    /// blank frame before becoming visible.
+    ///
+    /// This method synchronously prepares the image for display in a detached task before publishing it
+    /// to SwiftUI, so the viewer replaces the preview only when the image is really ready.
     ///
     /// - Parameter url: Local file URL.
-    /// - Returns: Decoded image if possible.
+    /// - Returns: Display-prepared image if possible.
     private func decodeImageIfPossible(url: URL) async -> UIImage? {
         guard isValidLocalFile(url: url) else {
             return nil
@@ -182,7 +189,11 @@ struct NCImageViewerContentView: View {
 
         return await Task.detached(priority: .userInitiated) {
             autoreleasepool {
-                UIImage(contentsOfFile: path)
+                guard let image = UIImage(contentsOfFile: path) else {
+                    return nil
+                }
+
+                return image.preparingForDisplay() ?? image
             }
         }.value
     }
