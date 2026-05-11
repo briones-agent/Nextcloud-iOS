@@ -33,7 +33,7 @@ struct NCVideoViewerContentView: View {
     @ObservedObject private var playback = NCVideoPlaybackController.shared
 
     @State private var errorMessage: String?
-    @State private var playerOpacity: Double = 0
+    @State private var playerOpacity: Double = 1
     @State private var presentedVLCURL: URL?
 
     private let resolver = NCVideoURLResolver()
@@ -73,7 +73,7 @@ struct NCVideoViewerContentView: View {
                         NCVideoAVPlayerContentView(
                             player: player,
                             allowsPictureInPicture: true,
-                            shouldAutoPlay: true
+                            shouldAutoPlay: false
                         )
                         .padding(.bottom, videoPlayerBottomPadding)
                         .ignoresSafeArea(edges: [.top, .leading, .trailing])
@@ -120,25 +120,34 @@ struct NCVideoViewerContentView: View {
         .task(id: taskIdentifier) {
             let expectedTaskIdentifier = taskIdentifier
 
-            playerOpacity = 0
-            errorMessage = nil
+            let isAlreadyCurrentVideo: Bool
 
             if let localURL {
-                let isAlreadyPlayingSameLocalVideo = playback.isCurrentVideo(
+                isAlreadyCurrentVideo = playback.isCurrentVideo(
                     ocId: metadata.ocId,
                     etag: metadata.etag,
                     url: localURL
                 )
+            } else {
+                isAlreadyCurrentVideo = playback.isCurrentVideo(
+                    ocId: metadata.ocId,
+                    etag: metadata.etag
+                )
+            }
 
-                if isAlreadyPlayingSameLocalVideo {
-                    guard isSelected else {
-                        return
-                    }
+            if !isAlreadyCurrentVideo {
+                playerOpacity = 0
+            }
 
-                    resumeCurrentPlaybackIfNeeded()
-                    fadeInPlayer()
+            errorMessage = nil
+
+            if isAlreadyCurrentVideo {
+                guard isSelected else {
                     return
                 }
+
+                revealCurrentPlaybackIfNeeded()
+                return
             }
 
             guard isSelected else {
@@ -158,9 +167,9 @@ struct NCVideoViewerContentView: View {
             playback.stop()
         }
         .onDisappear {
-            // Do not stop here.
+            // Do not stop or hide the player here.
             // SwiftUI can call onDisappear during rotation or layout rebuilds.
-            playerOpacity = 0
+            // Real playback stops are driven by `.ncMediaViewerStopPlayback`.
         }
     }
 
@@ -203,7 +212,7 @@ struct NCVideoViewerContentView: View {
 
     private var taskIdentifier: String {
         let localIdentifier = localURL?.absoluteString ?? "remote"
-        return "\(metadata.ocId)|\(metadata.etag)|\(localIdentifier)|\(isSelected)"
+        return "\(metadata.ocId)|\(metadata.etag)|\(localIdentifier)"
     }
 
     /// Resolves the playable video URL and loads it into the shared playback controller.
@@ -322,7 +331,7 @@ struct NCVideoViewerContentView: View {
             fileName: resolvedFileName,
             userAgent: userAgent,
             httpHeaders: httpHeaders(for: url),
-            shouldAutoPlay: autoplay || isSelected
+            shouldAutoPlay: autoplay
         )
     }
 
@@ -349,45 +358,32 @@ struct NCVideoViewerContentView: View {
 
     // MARK: - Playback Selection
 
-    /// Handles page selection changes for embedded AVFoundation playback.
+    /// Handles page selection changes without changing AVFoundation playback state.
     ///
-    /// VLC playback is presented outside SwiftUI and is not paused/resumed here.
+    /// Real playback stops are driven by `.ncMediaViewerStopPlayback`.
+    /// Selection changes can happen during rotation or SwiftUI rebuilds, so this method
+    /// must not call `play()` or `pause()` for AVFoundation.
     ///
     /// - Parameter selected: Whether this page is currently selected.
     @MainActor
     private func handleSelectionChange(_ selected: Bool) {
-        switch playback.engine {
-        case .avFoundation(let player):
-            if selected {
-                if player.timeControlStatus != .playing {
-                    player.play()
-                }
-            } else {
-                player.pause()
-            }
-
-        case .vlc:
-            if selected {
-                resumeCurrentPlaybackIfNeeded()
-            }
-
-        case .loading,
-             .failed:
-            break
+        guard selected else {
+            return
         }
+
+        revealCurrentPlaybackIfNeeded()
     }
 
-    /// Resumes the current playback engine when this page becomes selected again.
+    /// Reveals the current playback engine without changing the playback state.
     ///
-    /// AVFoundation resumes in place.
-    /// VLC is presented as a separate UIKit controller.
+    /// This is used when SwiftUI rebuilds the selected page, for example during
+    /// rotation. It must not call `play()` because the user may have paused the video.
+    /// VLC is presented only when the selected page already owns a VLC engine.
     @MainActor
-    private func resumeCurrentPlaybackIfNeeded() {
+    private func revealCurrentPlaybackIfNeeded() {
         switch playback.engine {
-        case .avFoundation(let player):
-            if player.timeControlStatus != .playing {
-                player.play()
-            }
+        case .avFoundation:
+            fadeInPlayer()
 
         case .vlc(let url):
             presentVLCIfSelected(url: url)
@@ -423,10 +419,12 @@ struct NCVideoViewerContentView: View {
 
     // MARK: - Helpers
 
-    /// Fades the active video player over the preview placeholder.
+    /// Fades the active video player over the preview placeholder when needed.
     @MainActor
     private func fadeInPlayer() {
-        playerOpacity = 0
+        guard playerOpacity < 1 else {
+            return
+        }
 
         withAnimation(.easeInOut(duration: 0.30)) {
             playerOpacity = 1
