@@ -92,8 +92,18 @@ enum NCVideoVLCPresenter {
         currentViewController = viewController
         currentURL = url
 
+        let navigationController = UINavigationController(rootViewController: viewController)
+        navigationController.modalPresentationStyle = .fullScreen
+        navigationController.modalTransitionStyle = .crossDissolve
+        navigationController.navigationBar.prefersLargeTitles = false
+        navigationController.navigationBar.barStyle = .black
+        navigationController.navigationBar.tintColor = .white
+        navigationController.navigationBar.titleTextAttributes = [
+            .foregroundColor: UIColor.white
+        ]
+
         presenter.present(
-            viewController,
+            navigationController,
             animated: false
         ) {
             isPresenting = false

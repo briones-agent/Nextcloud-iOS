@@ -53,15 +53,13 @@ final class NCVideoVLCViewController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        stop()
+    }
+
     @objc
     private func closeTapped() {
-        stop()
-
-        dismiss(animated: false) {
-            Task { @MainActor in
-                NCVideoVLCPresenter.clearCurrent(self)
-            }
-        }
+        close()
     }
 
     /// Updates the current VLC input.
@@ -113,8 +111,18 @@ final class NCVideoVLCViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        view.backgroundColor = .black
+
+        title = metadata.fileNameView.isEmpty ? metadata.fileName : metadata.fileNameView
+
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            systemItem: .close,
+            primaryAction: UIAction { [weak self] _ in
+                self?.close()
+            }
+        )
+
         configureAudioSession()
-        configureCloseGesture()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -145,7 +153,18 @@ final class NCVideoVLCViewController: UIViewController {
         })
     }
 
+    private func close() {
+        stop()
+
+        Task { @MainActor in
+            NCVideoVLCPresenter.clearCurrent(self)
+        }
+
+        dismiss(animated: false)
+    }
+
     // MARK: - Playback
+
 
     /// Starts VLC playback.
     private func start() {
