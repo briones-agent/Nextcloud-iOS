@@ -85,17 +85,17 @@ struct NCVideoViewerContentView: View {
                     .opacity(playerOpacity)
                     .onAppear {
                         fadeInPlayer()
-
-                        guard isSelected else {
-                            return
+                        startVLCIfSelected(url: url)
+                    }
+                    .onChange(of: url) { _, newURL in
+                        fadeInPlayer()
+                        startVLCIfSelected(url: newURL)
+                    }
+                    .onChange(of: isSelected) { _, selected in
+                        if selected {
+                            fadeInPlayer()
+                            startVLCIfSelected(url: url)
                         }
-
-                        NCVideoVLCStablePlayer.shared.configure(
-                            metadata: metadata,
-                            url: url,
-                            userAgent: userAgent,
-                            shouldAutoPlay: true
-                        )
                     }
 
                 case .failed(let message):
@@ -341,12 +341,7 @@ struct NCVideoViewerContentView: View {
             }
 
         case .vlc(let url):
-            NCVideoVLCStablePlayer.shared.configure(
-                metadata: metadata,
-                url: url,
-                userAgent: userAgent,
-                shouldAutoPlay: true
-            )
+            startVLCIfSelected(url: url)
 
         case .loading,
              .failed:
@@ -355,6 +350,25 @@ struct NCVideoViewerContentView: View {
     }
 
     // MARK: - Helpers
+
+    /// Starts or resumes VLC only when this page is selected.
+    ///
+    /// This is intentionally controlled here instead of inside the VLC bridge,
+    /// because `UIViewControllerRepresentable.updateUIViewController` can be called
+    /// during swipe, prefetch, rotation, and layout rebuilds.
+    @MainActor
+    private func startVLCIfSelected(url: URL) {
+        guard isSelected else {
+            return
+        }
+
+        NCVideoVLCStablePlayer.shared.configure(
+            metadata: metadata,
+            url: url,
+            userAgent: userAgent,
+            shouldAutoPlay: true
+        )
+    }
 
     /// Fades the active video player over the preview placeholder.
     @MainActor
