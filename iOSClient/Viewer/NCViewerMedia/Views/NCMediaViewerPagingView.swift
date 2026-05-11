@@ -466,11 +466,15 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         refreshVisibleCells()
     }
 
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    /// Returns the nearest page index for the current horizontal scroll position.
+    ///
+    /// - Parameter scrollView: Source scroll view.
+    /// - Returns: Rounded page index if it is inside the media range.
+    private func pageIndex(for scrollView: UIScrollView) -> Int? {
         let width = scrollView.bounds.width
 
         guard width > 0 else {
-            return
+            return nil
         }
 
         let rawIndex = scrollView.contentOffset.x / width
@@ -478,6 +482,14 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         guard index >= 0,
               index < model.numberOfPages else {
+            return nil
+        }
+
+        return index
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard let index = pageIndex(for: scrollView) else {
             return
         }
 
@@ -512,19 +524,12 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     /// Updates the selected page index after paging has settled.
     ///
+    /// This is the only place where a finished swipe becomes the real selected page.
+    /// During dragging, pages may be prefetched, but they are not considered selected.
+    ///
     /// - Parameter scrollView: Source scroll view.
     private func updateSelectedIndexFromScrollView(_ scrollView: UIScrollView) {
-        let width = scrollView.bounds.width
-
-        guard width > 0 else {
-            return
-        }
-
-        let rawIndex = scrollView.contentOffset.x / width
-        let index = Int(round(rawIndex))
-
-        guard index >= 0,
-              index < model.numberOfPages else {
+        guard let index = pageIndex(for: scrollView) else {
             return
         }
 
