@@ -35,9 +35,13 @@ enum NCVideoPlaybackEngine {
 /// - a local file URL
 /// - a remote direct-download URL
 ///
-/// The hub first tries AVFoundation. If the item reaches `.readyToPlay`,
-/// the viewer uses AVFoundation. If the item fails or does not become ready
-/// before the fallback timeout, the hub switches to VLC.
+/// The hub first tries AVFoundation for modern formats. If the item reaches
+/// `.readyToPlay`, the viewer uses AVFoundation. If the item fails or does not
+/// become ready before the fallback timeout, the hub switches to VLC.
+///
+/// Legacy containers such as AVI can sometimes become `readyToPlay` in
+/// AVFoundation while still rendering black video or muted audio. Those formats
+/// are sent directly to VLC.
 ///
 /// A generation token is used to ignore stale AVFoundation callbacks or timeout
 /// tasks produced by an older load request.
@@ -64,15 +68,18 @@ final class NCVideoPlaybackHub: ObservableObject {
 
     /// Loads a video URL and resolves the preferred playback engine.
     ///
-    /// AVFoundation is attempted first. VLC is selected only when AVFoundation
-    /// fails, reports an unsupported item, or does not become ready before the
-    /// fallback timeout.
+    /// AVFoundation is attempted first for modern formats. VLC is selected when:
+    /// - the file extension is known to be a legacy/container format better handled by VLC
+    /// - AVFoundation fails
+    /// - AVFoundation does not become ready before the fallback timeout
     ///
     /// - Parameters:
     ///   - url: Local or remote video URL.
+    ///   - fileName: Original file name used to resolve the media extension when the URL has no useful extension.
     ///   - httpHeaders: Optional HTTP headers used by AVFoundation for remote playback.
     func load(
         url: URL,
+        fileName: String? = nil,
         httpHeaders: [String: String] = [:]
     ) {
         guard currentURL != url else {
@@ -93,6 +100,22 @@ final class NCVideoPlaybackHub: ObservableObject {
         }
 
         configureAudioSession()
+
+        if shouldUseVLCWithoutAVFoundation(
+            url: url,
+            fileName: fileName
+        ) {
+            engine = .vlc(url: url)
+
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO engine VLC direct for legacy format \(resolvedVideoExtension(url: url, fileName: fileName))",
+                consoleOnly: true
+            )
+
+            return
+        }
 
         prepareAVFoundation(
             url: url,
@@ -346,6 +369,64 @@ final class NCVideoPlaybackHub: ObservableObject {
                 consoleOnly: true
             )
         }
+    }
+
+    /// Returns whether a video format should bypass AVFoundation and use VLC directly.
+    ///
+    /// Some legacy containers can reach `AVPlayerItem.Status.readyToPlay` but still
+    /// render black video or muted audio. For those formats, VLC is a safer default.
+    ///
+    /// - Parameters:
+    ///   - url: Local or remote video URL.
+    ///   - fileName: Original file name used when the resolved URL has no useful extension.
+    /// - Returns: True when VLC should be used without trying AVFoundation first.
+    private func shouldUseVLCWithoutAVFoundation(
+        url: URL,
+        fileName: String?
+    ) -> Bool {
+        let pathExtension = resolvedVideoExtension(
+            url: url,
+            fileName: fileName
+        )
+
+        let legacyVideoExtensions: Set<String> = [
+            "avi",
+            "divx",
+            "xvid",
+            "wmv",
+            "flv",
+            "vob",
+            "mkv"
+        ]
+
+        return legacyVideoExtensions.contains(pathExtension)
+    }
+
+    /// Resolves the best available video extension.
+    ///
+    /// Direct download URLs may not contain the original file extension, so the
+    /// original metadata file name is preferred when available.
+    ///
+    /// - Parameters:
+    ///   - url: Local or remote video URL.
+    ///   - fileName: Original file name from metadata.
+    /// - Returns: Lowercased file extension.
+    private func resolvedVideoExtension(
+        url: URL,
+        fileName: String?
+    ) -> String {
+        if let fileName,
+           !fileName.isEmpty {
+            let metadataExtension = URL(fileURLWithPath: fileName)
+                .pathExtension
+                .lowercased()
+
+            if !metadataExtension.isEmpty {
+                return metadataExtension
+            }
+        }
+
+        return url.pathExtension.lowercased()
     }
 
     /// Checks whether a local file exists and has a non-zero size.
