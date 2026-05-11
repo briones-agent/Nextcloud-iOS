@@ -94,6 +94,7 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
     }
 
     final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+        private static var autoplayedPlayerIDs = Set<ObjectIdentifier>()
         private var didAutoplay = false
 
         func resetAutoplay() {
@@ -104,12 +105,16 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
             player: AVPlayer,
             shouldAutoPlay: Bool
         ) {
+            let playerIdentifier = ObjectIdentifier(player)
+
             guard shouldAutoPlay,
-                  !didAutoplay else {
+                  !didAutoplay,
+                  !Self.autoplayedPlayerIDs.contains(playerIdentifier) else {
                 return
             }
 
             didAutoplay = true
+            Self.autoplayedPlayerIDs.insert(playerIdentifier)
 
             DispatchQueue.main.async {
                 guard player.timeControlStatus != .playing else {
