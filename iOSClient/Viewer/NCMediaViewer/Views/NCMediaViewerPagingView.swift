@@ -18,6 +18,7 @@ import NextcloudKit
 /// Each cell hosts a SwiftUI `NCMediaViewerPageView`.
 struct NCMediaViewerPagingView: UIViewRepresentable {
     @ObservedObject var model: NCMediaViewerModel
+    let contextMenuController: NCMainTabBarController?
 
     // MARK: - UIViewRepresentable
 
@@ -91,7 +92,10 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> NCMediaViewerPagingCoordinator {
-        NCMediaViewerPagingCoordinator(model: model)
+        NCMediaViewerPagingCoordinator(
+            model: model,
+            contextMenuController: contextMenuController
+        )
     }
 }
 
@@ -124,6 +128,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
                                             UICollectionViewDelegateFlowLayout {
     var model: NCMediaViewerModel
     weak var collectionView: UICollectionView?
+    let contextMenuController: NCMainTabBarController?
 
     private var didScrollToInitialIndex = false
     private var lastCollectionViewBoundsSize: CGSize = .zero
@@ -133,8 +138,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - Init
 
-    init(model: NCMediaViewerModel) {
+    init(model: NCMediaViewerModel, contextMenuController: NCMainTabBarController?) {
         self.model = model
+        self.contextMenuController = contextMenuController
+
         super.init()
 
         self.cancellable = model.$revision
@@ -395,7 +402,8 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             },
             onAutoPlayConsumed: { [weak model] in
                 model?.clearAutoPlayIfNeeded(for: page.index)
-            }
+            },
+            contextMenuController: contextMenuController
         )
     }
 
@@ -605,7 +613,8 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         onToggleChrome: @escaping () -> Void,
         onPreviousPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
         onNextPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
-        onAutoPlayConsumed: @escaping () -> Void
+        onAutoPlayConsumed: @escaping () -> Void,
+        contextMenuController: NCMainTabBarController?
     ) {
         self.backgroundColor = backgroundColor
         contentView.backgroundColor = backgroundColor
@@ -621,7 +630,8 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
                 shouldAutoPlay: shouldAutoPlay,
                 onPreviousPage: onPreviousPage,
                 onNextPage: onNextPage,
-                onAutoPlayConsumed: onAutoPlayConsumed
+                onAutoPlayConsumed: onAutoPlayConsumed,
+                contextMenuController: contextMenuController
             )
             .id(page.ocId)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

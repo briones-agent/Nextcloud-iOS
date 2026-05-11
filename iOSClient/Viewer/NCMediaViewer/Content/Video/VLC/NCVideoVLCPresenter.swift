@@ -30,10 +30,12 @@ enum NCVideoVLCPresenter {
     ///   - metadata: Video metadata used for logging.
     ///   - url: Local or remote playable URL.
     ///   - userAgent: Optional HTTP User-Agent for remote playback.
+    ///   - contextMenuController: Main tab bar controller used by context menu actions.
     static func present(
         metadata: tableMetadata,
         url: URL,
-        userAgent: String?
+        userAgent: String?,
+        contextMenuController: NCMainTabBarController?
     ) {
         if currentURL == url,
            currentViewController != nil {
@@ -60,7 +62,8 @@ enum NCVideoVLCPresenter {
             currentViewController.update(
                 metadata: metadata,
                 url: url,
-                userAgent: userAgent
+                userAgent: userAgent,
+                contextMenuController: contextMenuController
             )
 
             currentURL = url
@@ -81,18 +84,27 @@ enum NCVideoVLCPresenter {
             return
         }
 
+        if presenter is UINavigationController,
+           (presenter as? UINavigationController)?.topViewController is NCVideoVLCViewController {
+            return
+        }
+
         isPresenting = true
 
         let viewController = NCVideoVLCViewController(
             metadata: metadata,
             url: url,
-            userAgent: userAgent
+            userAgent: userAgent,
+            contextMenuController: contextMenuController
         )
 
         currentViewController = viewController
         currentURL = url
 
-        let navigationController = UINavigationController(rootViewController: viewController)
+        let navigationController = UINavigationController(
+            rootViewController: viewController
+        )
+
         navigationController.modalPresentationStyle = .fullScreen
         navigationController.modalTransitionStyle = .crossDissolve
         navigationController.navigationBar.prefersLargeTitles = false
@@ -113,6 +125,8 @@ enum NCVideoVLCPresenter {
     /// Clears the current VLC presentation state.
     ///
     /// Call this from `NCVideoVLCViewController` when it closes.
+    ///
+    /// - Parameter viewController: VLC view controller being closed.
     static func clearCurrent(
         _ viewController: NCVideoVLCViewController
     ) {
@@ -123,6 +137,17 @@ enum NCVideoVLCPresenter {
         currentViewController = nil
         currentURL = nil
         isPresenting = false
+    }
+
+    /// Dismisses the current VLC viewer if one is currently presented.
+    static func dismissCurrent() {
+        guard let currentViewController else {
+            return
+        }
+
+        currentViewController.dismiss(animated: false) {
+            clearCurrent(currentViewController)
+        }
     }
 
     // MARK: - Private

@@ -34,19 +34,22 @@ struct NCVideoViewerContentView: View {
     @State private var presentedVLCURL: URL?
 
     private let resolver = NCVideoURLResolver()
+    let contextMenuController: NCMainTabBarController?
 
     init(
         metadata: tableMetadata,
         localURL: URL?,
         previewURL: URL? = nil,
         userAgent: String? = nil,
-        isSelected: Bool = true
+        isSelected: Bool = true,
+        contextMenuController: NCMainTabBarController? = nil
     ) {
         self.metadata = metadata
         self.localURL = localURL
         self.previewURL = previewURL
         self.userAgent = userAgent
         self.isSelected = isSelected
+        self.contextMenuController = contextMenuController
     }
 
     var body: some View {
@@ -359,7 +362,8 @@ struct NCVideoViewerContentView: View {
         NCVideoVLCPresenter.present(
             metadata: metadata,
             url: url,
-            userAgent: userAgent
+            userAgent: userAgent,
+            contextMenuController: contextMenuController
         )
     }
 

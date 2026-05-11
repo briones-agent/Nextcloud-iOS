@@ -9,7 +9,7 @@ import NextcloudKit
 
 // MARK: - VLC View Controller
 
-/// Minimal UIKit-only VLC video controller.
+/// UIKit-only VLC video controller.
 ///
 /// This controller is intentionally outside the SwiftUI paging hierarchy.
 /// It owns one stable drawable view and one VLCMediaPlayer.
@@ -20,6 +20,7 @@ final class NCVideoVLCViewController: UIViewController {
     private var metadata: tableMetadata
     private var url: URL
     private var userAgent: String?
+    private weak var contextMenuController: NCMainTabBarController?
 
     // MARK: - Views
 
@@ -29,16 +30,26 @@ final class NCVideoVLCViewController: UIViewController {
 
     private let mediaPlayer = VLCMediaPlayer()
 
+    // MARK: - Navigation Items
+
+    private lazy var moreNavigationItem = UIBarButtonItem(
+        image: NCImageCache.shared.getImageButtonMore(),
+        primaryAction: nil,
+        menu: makeMoreMenu()
+    )
+
     // MARK: - Init
 
     init(
         metadata: tableMetadata,
         url: URL,
-        userAgent: String?
+        userAgent: String?,
+        contextMenuController: NCMainTabBarController?
     ) {
         self.metadata = metadata
         self.url = url
         self.userAgent = userAgent
+        self.contextMenuController = contextMenuController
 
         super.init(
             nibName: nil,
@@ -55,32 +66,6 @@ final class NCVideoVLCViewController: UIViewController {
 
     deinit {
         stop()
-    }
-
-    @objc
-    private func closeTapped() {
-        close()
-    }
-
-    /// Updates the current VLC input.
-    ///
-    /// If the URL changes, the current media is stopped and the new media starts.
-    func update(
-        metadata: tableMetadata,
-        url: URL,
-        userAgent: String?
-    ) {
-        guard self.url != url else {
-            return
-        }
-
-        stop()
-
-        self.metadata = metadata
-        self.url = url
-        self.userAgent = userAgent
-
-        start()
     }
 
     // MARK: - Lifecycle
@@ -113,15 +98,7 @@ final class NCVideoVLCViewController: UIViewController {
 
         view.backgroundColor = .black
 
-        title = metadata.fileNameView.isEmpty ? metadata.fileName : metadata.fileNameView
-
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            image: UIImage(systemName: "chevron.backward"),
-            style: .plain,
-            target: self,
-            action: #selector(closeTapped)
-        )
-
+        configureNavigationItem()
         configureAudioSession()
     }
 
@@ -151,6 +128,101 @@ final class NCVideoVLCViewController: UIViewController {
         }, completion: { [weak self] _ in
             self?.attachDrawable()
         })
+    }
+
+    // MARK: - Public API
+
+    /// Updates the current VLC input.
+    ///
+    /// If the URL changes, the current media is stopped and the new media starts.
+    /// The navigation title and context menu are refreshed for the new metadata.
+    ///
+    /// - Parameters:
+    ///   - metadata: Updated video metadata.
+    ///   - url: Updated playable URL.
+    ///   - userAgent: Optional HTTP User-Agent.
+    func update(
+        metadata: tableMetadata,
+        url: URL,
+        userAgent: String?,
+        contextMenuController: NCMainTabBarController?
+    ) {
+        let urlChanged = self.url != url
+
+        if urlChanged {
+            stop()
+        }
+
+        self.metadata = metadata
+        self.url = url
+        self.userAgent = userAgent
+        self.contextMenuController = contextMenuController
+        
+        updateTitle()
+        refreshMoreMenu()
+
+        if urlChanged {
+            start()
+        }
+    }
+
+    // MARK: - Navigation
+
+    /// Configures the navigation bar items.
+    private func configureNavigationItem() {
+        updateTitle()
+
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "chevron.backward"),
+            style: .plain,
+            target: self,
+            action: #selector(closeTapped)
+        )
+
+        navigationItem.rightBarButtonItem = moreNavigationItem
+    }
+
+    /// Updates the navigation title from the current metadata.
+    private func updateTitle() {
+        title = metadata.fileNameView.isEmpty
+            ? metadata.fileName
+            : metadata.fileNameView
+    }
+
+    /// Rebuilds the More menu using the current metadata.
+    private func refreshMoreMenu() {
+        moreNavigationItem.menu = makeMoreMenu()
+    }
+
+    /// Builds the VLC-specific More menu.
+    ///
+    /// The menu uses `sender: self`, so menu actions present from the visible
+    /// VLC controller instead of the SwiftUI viewer underneath.
+    private func makeMoreMenu() -> UIMenu {
+        UIMenu(title: "", children: [
+            UIDeferredMenuElement.uncached { [weak self] completion in
+                guard let self else {
+                    completion([])
+                    return
+                }
+
+                if let menu = NCContextMenuViewer(
+                    metadata: self.metadata,
+                    controller: self.contextMenuController,
+                    webView: false,
+                    sender: self
+                ).viewMenu() {
+                    completion(menu.children)
+                } else {
+                    completion([])
+                }
+            }
+        ])
+    }
+
+    @objc
+    private func closeTapped() {
+        close()
     }
 
     private func close() {
@@ -208,19 +280,6 @@ final class NCVideoVLCViewController: UIViewController {
         }
 
         mediaPlayer.drawable = drawableView
-    }
-
-    // MARK: - Close
-
-    /// Adds a temporary tap-to-close gesture for this minimal test.
-    private func configureCloseGesture() {
-        let tapGesture = UITapGestureRecognizer(
-            target: self,
-            action: #selector(closeTapped)
-        )
-
-        tapGesture.numberOfTapsRequired = 2
-        view.addGestureRecognizer(tapGesture)
     }
 
     // MARK: - Helpers
