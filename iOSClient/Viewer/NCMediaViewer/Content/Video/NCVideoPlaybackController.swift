@@ -8,81 +8,112 @@ import NextcloudKit
 
 // MARK: - Video Playback Engine
 
-/// Describes the currently selected video playback engine.
+/// Describes the currently rendered video playback engine.
 ///
-/// AVFoundation is preferred because it supports native iOS playback features,
-/// including Picture in Picture where available. VLC is used as fallback when
-/// AVFoundation cannot prepare the asset.
+/// The engine is owned by `NCVideoPlaybackController`.
+/// Views only render the selected engine; they do not own playback resources.
 enum NCVideoPlaybackEngine {
-    /// The hub is resolving the best playback engine.
+    /// No playable engine is currently ready.
     case loading
 
-    /// Native AVFoundation playback using an `AVPlayer`.
+    /// Native AVFoundation playback using the shared controller-owned `AVPlayer`.
     case avFoundation(player: AVPlayer)
 
-    /// VLC fallback playback using a local or remote URL.
-    case vlc(url: URL)
+    /// VLC fallback playback using the shared VLC playback controller.
+    case vlc(controller: NCVideoVLCPlayerController)
 
     /// Playback could not be prepared.
     case failed(message: String)
 }
 
-// MARK: - Video Playback Hub
+// MARK: - Video Playback Controller
 
-/// Resolves and owns the best playback engine for a video URL.
+/// Singleton video playback controller used by the SwiftUI media viewer.
 ///
-/// The input URL can be either:
-/// - a local file URL
-/// - a remote direct-download URL
+/// This controller is the only owner of video playback resources:
+/// - one AVFoundation player at a time
+/// - one VLC player controller at a time
 ///
-/// The hub first tries AVFoundation for modern formats. If the item reaches
-/// `.readyToPlay`, the viewer uses AVFoundation. If the item fails or does not
-/// become ready before the fallback timeout, the hub switches to VLC.
-///
-/// Legacy containers such as AVI can sometimes become `readyToPlay` in
-/// AVFoundation while still rendering black video or muted audio. Those formats
-/// are sent directly to VLC.
-///
-/// A generation token is used to ignore stale AVFoundation callbacks or timeout
-/// tasks produced by an older load request.
+/// SwiftUI views can be recreated during rotation, paging, or layout rebuilds.
+/// Playback must therefore not be owned by individual views.
 @MainActor
-final class NCVideoPlaybackHub: ObservableObject {
+final class NCVideoPlaybackController: ObservableObject {
+    static let shared = NCVideoPlaybackController()
 
     // MARK: - Published State
 
-    /// Current resolved playback engine.
     @Published private(set) var engine: NCVideoPlaybackEngine = .loading
 
     // MARK: - Private State
 
-    private var player: AVPlayer?
-    private var playerItem: AVPlayerItem?
+    private var avPlayer: AVPlayer?
+    private var avPlayerItem: AVPlayerItem?
     private var statusObservation: NSKeyValueObservation?
     private var timeoutTask: Task<Void, Never>?
+
+    let vlcController = NCVideoVLCPlayerController.shared
+
+    private var currentOcId: String?
+    private var currentEtag: String?
     private var currentURL: URL?
+    private var currentFileName: String?
     private var loadToken = UUID()
 
     private let fallbackTimeoutMilliseconds = 1_500
 
+    private init() { }
+
     // MARK: - Public API
 
-    /// Loads a video URL and resolves the preferred playback engine.
+    /// Returns whether the requested metadata is already owned by this controller.
     ///
-    /// AVFoundation is attempted first for modern formats. VLC is selected when:
-    /// - the file extension is known to be a legacy/container format better handled by VLC
-    /// - AVFoundation fails
-    /// - AVFoundation does not become ready before the fallback timeout
+    /// This check is used by views to avoid resolving/reloading the same media during
+    /// rotation or SwiftUI rebuilds.
     ///
     /// - Parameters:
-    ///   - url: Local or remote video URL.
-    ///   - fileName: Original file name used to resolve the media extension when the URL has no useful extension.
+    ///   - ocId: Nextcloud file identifier.
+    ///   - etag: Metadata ETag.
+    /// - Returns: True when the current loaded media matches the supplied identity.
+    func isCurrentVideo(
+        ocId: String,
+        etag: String
+    ) -> Bool {
+        currentOcId == ocId && currentEtag == etag && currentURL != nil
+    }
+
+    /// Loads a video URL if it is not already loaded.
+    ///
+    /// Calling this method again for the same `ocId`, `etag`, and URL is idempotent.
+    /// It does not stop, recreate, or restart the existing player.
+    ///
+    /// - Parameters:
+    ///   - metadata: Video metadata used as playback identity.
+    ///   - url: Local or remote playable URL.
+    ///   - fileName: Original metadata file name used to detect legacy formats.
+    ///   - userAgent: Optional User-Agent used by VLC for remote playback.
     ///   - httpHeaders: Optional HTTP headers used by AVFoundation for remote playback.
-    func load(
+    ///   - shouldAutoPlay: Whether playback should start automatically.
+    func loadVideo(
+        metadata: tableMetadata,
         url: URL,
-        fileName: String? = nil,
-        httpHeaders: [String: String] = [:]
+        fileName: String,
+        userAgent: String?,
+        httpHeaders: [String: String],
+        shouldAutoPlay: Bool
     ) {
-        guard currentURL != url else {
+        if isSameLoadedVideo(
+            metadata: metadata,
+            url: url
+        ) {
+            resumeCurrentPlaybackIfNeeded(shouldAutoPlay: shouldAutoPlay)
+
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO controller reuse existing player ocId \(metadata.ocId)",
+                consoleOnly: true
+            )
+
             return
         }
 
@@ -90,7 +121,10 @@ final class NCVideoPlaybackHub: ObservableObject {
 
         let token = UUID()
         loadToken = token
+        currentOcId = metadata.ocId
+        currentEtag = metadata.etag
         currentURL = url
+        currentFileName = fileName
         engine = .loading
 
         if url.isFileURL,
@@ -105,34 +139,47 @@ final class NCVideoPlaybackHub: ObservableObject {
             url: url,
             fileName: fileName
         ) {
-            engine = .vlc(url: url)
-
-            nkLog(
-                tag: NCGlobal.shared.logTagViewer,
-                emoji: .debug,
-                message: "VIDEO engine VLC direct for legacy format \(resolvedVideoExtension(url: url, fileName: fileName))",
-                consoleOnly: true
+            loadVLC(
+                metadata: metadata,
+                url: url,
+                userAgent: userAgent,
+                shouldAutoPlay: shouldAutoPlay,
+                reason: "direct legacy format \(resolvedVideoExtension(url: url, fileName: fileName))",
+                token: token
             )
-
             return
         }
 
         prepareAVFoundation(
+            metadata: metadata,
             url: url,
             httpHeaders: url.isFileURL ? [:] : httpHeaders,
+            userAgent: userAgent,
+            shouldAutoPlay: shouldAutoPlay,
             token: token
         )
 
         startFallbackTimeout(
+            metadata: metadata,
             url: url,
+            userAgent: userAgent,
+            shouldAutoPlay: shouldAutoPlay,
             token: token
         )
     }
 
-    /// Stops playback and releases all current resources.
+    /// Stops the current video only if the supplied page owns playback.
     ///
-    /// This also invalidates the current load generation so stale timeout tasks
-    /// and AVFoundation status callbacks cannot update the engine anymore.
+    /// - Parameter ocId: Page file identifier.
+    func stopIfCurrent(ocId: String) {
+        guard currentOcId == ocId else {
+            return
+        }
+
+        stop()
+    }
+
+    /// Stops all video playback and releases AVFoundation and VLC resources.
     func stop() {
         loadToken = UUID()
 
@@ -142,32 +189,29 @@ final class NCVideoPlaybackHub: ObservableObject {
         statusObservation?.invalidate()
         statusObservation = nil
 
-        player?.pause()
-        player = nil
-        playerItem = nil
+        avPlayer?.pause()
+        avPlayer = nil
+        avPlayerItem = nil
+
+        vlcController.stop()
+
+        currentOcId = nil
+        currentEtag = nil
         currentURL = nil
+        currentFileName = nil
 
         engine = .loading
     }
 
-    /// Pauses the current AVFoundation player if active.
-    ///
-    /// VLC playback is stopped by the VLC view when it is dismantled.
-    func pause() {
-        player?.pause()
-    }
+    // MARK: - AVFoundation
 
-    // MARK: - AVFoundation Resolution
-
-    /// Prepares an AVFoundation player item and observes its status.
-    ///
-    /// - Parameters:
-    ///   - url: Local or remote video URL.
-    ///   - httpHeaders: Optional HTTP headers used by AVFoundation for remote playback.
-    ///   - token: Load generation token used to ignore stale callbacks.
+    /// Prepares an AVFoundation player item and observes its readiness.
     private func prepareAVFoundation(
+        metadata: tableMetadata,
         url: URL,
         httpHeaders: [String: String],
+        userAgent: String?,
+        shouldAutoPlay: Bool,
         token: UUID
     ) {
         let assetOptions: [String: Any]? = httpHeaders.isEmpty
@@ -186,8 +230,8 @@ final class NCVideoPlaybackHub: ObservableObject {
 
         player.actionAtItemEnd = .pause
 
-        playerItem = item
-        self.player = player
+        avPlayerItem = item
+        avPlayer = player
 
         statusObservation = item.observe(
             \.status,
@@ -213,8 +257,11 @@ final class NCVideoPlaybackHub: ObservableObject {
                     )
 
                 case .failed:
-                    self.fallbackToVLC(
+                    self.loadVLC(
+                        metadata: metadata,
                         url: url,
+                        userAgent: userAgent,
+                        shouldAutoPlay: shouldAutoPlay,
                         reason: item.error?.localizedDescription ?? "AVFoundation failed.",
                         token: token
                     )
@@ -223,8 +270,11 @@ final class NCVideoPlaybackHub: ObservableObject {
                     break
 
                 @unknown default:
-                    self.fallbackToVLC(
+                    self.loadVLC(
+                        metadata: metadata,
                         url: url,
+                        userAgent: userAgent,
+                        shouldAutoPlay: shouldAutoPlay,
                         reason: "AVFoundation returned an unknown status.",
                         token: token
                     )
@@ -233,11 +283,7 @@ final class NCVideoPlaybackHub: ObservableObject {
         }
     }
 
-    /// Selects AVFoundation as playback engine.
-    ///
-    /// - Parameters:
-    ///   - player: Prepared AVPlayer.
-    ///   - token: Load generation token used to ignore stale callbacks.
+    /// Selects AVFoundation as the active rendering engine.
     private func resolveWithAVFoundation(
         player: AVPlayer,
         token: UUID
@@ -260,12 +306,11 @@ final class NCVideoPlaybackHub: ObservableObject {
     }
 
     /// Starts a timeout after which VLC is selected if AVFoundation is still loading.
-    ///
-    /// - Parameters:
-    ///   - url: Local or remote video URL.
-    ///   - token: Load generation token used to ignore stale timeout tasks.
     private func startFallbackTimeout(
+        metadata: tableMetadata,
         url: URL,
+        userAgent: String?,
+        shouldAutoPlay: Bool,
         token: UUID
     ) {
         timeoutTask = Task { [weak self] in
@@ -286,8 +331,11 @@ final class NCVideoPlaybackHub: ObservableObject {
                 }
 
                 if case .loading = self.engine {
-                    self.fallbackToVLC(
+                    self.loadVLC(
+                        metadata: metadata,
                         url: url,
+                        userAgent: userAgent,
+                        shouldAutoPlay: shouldAutoPlay,
                         reason: "AVFoundation timeout.",
                         token: token
                     )
@@ -296,14 +344,14 @@ final class NCVideoPlaybackHub: ObservableObject {
         }
     }
 
-    /// Selects VLC as playback engine.
-    ///
-    /// - Parameters:
-    ///   - url: Local or remote video URL.
-    ///   - reason: Debug reason for the fallback.
-    ///   - token: Load generation token used to ignore stale callbacks.
-    private func fallbackToVLC(
+    // MARK: - VLC
+
+    /// Selects VLC as the active rendering engine.
+    private func loadVLC(
+        metadata: tableMetadata,
         url: URL,
+        userAgent: String?,
+        shouldAutoPlay: Bool,
         reason: String,
         token: UUID
     ) {
@@ -320,33 +368,68 @@ final class NCVideoPlaybackHub: ObservableObject {
         statusObservation?.invalidate()
         statusObservation = nil
 
-        player?.pause()
-        player = nil
-        playerItem = nil
+        avPlayer?.pause()
+        avPlayer = nil
+        avPlayerItem = nil
 
-        engine = .vlc(url: url)
+        vlcController.load(
+            metadata: metadata,
+            url: url,
+            userAgent: userAgent,
+            shouldAutoPlay: shouldAutoPlay
+        )
+
+        engine = .vlc(controller: vlcController)
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
             emoji: .debug,
-            message: "VIDEO engine VLC fallback: \(reason)",
+            message: "VIDEO engine VLC: \(reason)",
             consoleOnly: true
         )
     }
 
     // MARK: - State Helpers
 
+    /// Returns whether the supplied media request is already loaded.
+    private func isSameLoadedVideo(
+        metadata: tableMetadata,
+        url: URL
+    ) -> Bool {
+        currentOcId == metadata.ocId &&
+        currentEtag == metadata.etag &&
+        currentURL == url
+    }
+
     /// Returns whether a callback belongs to the current load request.
-    ///
-    /// - Parameters:
-    ///   - url: URL associated with the callback.
-    ///   - token: Load generation token associated with the callback.
-    /// - Returns: True when the callback belongs to the active load request.
     private func isCurrentLoad(
         url: URL,
         token: UUID
     ) -> Bool {
         loadToken == token && currentURL == url
+    }
+
+    /// Resumes the current player if requested.
+    private func resumeCurrentPlaybackIfNeeded(shouldAutoPlay: Bool) {
+        guard shouldAutoPlay else {
+            return
+        }
+
+        switch engine {
+        case .avFoundation(let player):
+            if player.timeControlStatus != .playing {
+                player.play()
+            }
+
+        case .vlc(let controller):
+            if !controller.isPlaying {
+                controller.play()
+            }
+
+        case .loading,
+             .failed:
+            break
+        }
     }
 
     // MARK: - Private Helpers
@@ -372,17 +455,9 @@ final class NCVideoPlaybackHub: ObservableObject {
     }
 
     /// Returns whether a video format should bypass AVFoundation and use VLC directly.
-    ///
-    /// Some legacy containers can reach `AVPlayerItem.Status.readyToPlay` but still
-    /// render black video or muted audio. For those formats, VLC is a safer default.
-    ///
-    /// - Parameters:
-    ///   - url: Local or remote video URL.
-    ///   - fileName: Original file name used when the resolved URL has no useful extension.
-    /// - Returns: True when VLC should be used without trying AVFoundation first.
     private func shouldUseVLCWithoutAVFoundation(
         url: URL,
-        fileName: String?
+        fileName: String
     ) -> Bool {
         let pathExtension = resolvedVideoExtension(
             url: url,
@@ -403,36 +478,22 @@ final class NCVideoPlaybackHub: ObservableObject {
     }
 
     /// Resolves the best available video extension.
-    ///
-    /// Direct download URLs may not contain the original file extension, so the
-    /// original metadata file name is preferred when available.
-    ///
-    /// - Parameters:
-    ///   - url: Local or remote video URL.
-    ///   - fileName: Original file name from metadata.
-    /// - Returns: Lowercased file extension.
     private func resolvedVideoExtension(
         url: URL,
-        fileName: String?
+        fileName: String
     ) -> String {
-        if let fileName,
-           !fileName.isEmpty {
-            let metadataExtension = URL(fileURLWithPath: fileName)
-                .pathExtension
-                .lowercased()
+        let metadataExtension = URL(fileURLWithPath: fileName)
+            .pathExtension
+            .lowercased()
 
-            if !metadataExtension.isEmpty {
-                return metadataExtension
-            }
+        if !metadataExtension.isEmpty {
+            return metadataExtension
         }
 
         return url.pathExtension.lowercased()
     }
 
     /// Checks whether a local file exists and has a non-zero size.
-    ///
-    /// - Parameter url: Local file URL.
-    /// - Returns: True when the file exists and is not empty.
     private func isValidLocalFile(url: URL) -> Bool {
         let path = url.path
 

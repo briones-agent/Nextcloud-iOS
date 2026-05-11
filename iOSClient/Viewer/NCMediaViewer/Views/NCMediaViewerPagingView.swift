@@ -150,7 +150,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     /// Updates the paging layout after bounds changes.
     ///
     /// This keeps the selected page centered after rotation, split view resizing,
-    /// or iPad window resizing.
+    /// or iPad floating window resizing.
     func updateLayoutAfterBoundsChangeIfNeeded() {
         guard let collectionView else {
             return
@@ -207,8 +207,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     }
 
     /// Applies the current page background to the collection view.
-    ///
-    /// - Parameter index: Optional page index. If omitted, the current selected index is used.
     func updateCollectionBackground(for index: Int? = nil) {
         let pageIndex = index ?? model.selectedIndex
         let page = model.pageModel(at: pageIndex)
@@ -252,8 +250,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         didScrollToInitialIndex = true
         lastVisibleIndex = index
-        isUserPaging = false
-
         updateCollectionBackground(for: index)
         refreshVisibleCells()
     }
@@ -289,8 +285,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         )
 
         lastVisibleIndex = index
-        isUserPaging = false
-
         updateCollectionBackground(for: index)
         refreshVisibleCells()
     }
@@ -346,11 +340,12 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             model.requestAutoPlay(at: targetIndex)
         }
 
+        model.setSelectedIndex(targetIndex)
+        updateCollectionBackground(for: targetIndex)
+
         isUserPaging = false
         lastVisibleIndex = targetIndex
 
-        model.setSelectedIndex(targetIndex)
-        updateCollectionBackground(for: targetIndex)
         refreshVisibleCells()
 
         collectionView?.scrollToItem(
@@ -374,11 +369,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         page: NCMediaViewerPageModel
     ) {
         let pageBackgroundColor = backgroundColor(for: page)
-        let isSelected = !isUserPaging && page.index == model.selectedIndex
 
         cell.configure(
             page: page,
-            isSelected: isSelected,
+            isSelected: !isUserPaging && page.index == model.selectedIndex,
             isChromeHidden: model.isChromeHidden,
             backgroundColor: pageBackgroundColor,
             canGoPrevious: page.index > 0,
@@ -483,15 +477,8 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             return
         }
 
-        NotificationCenter.default.post(
-            name: .ncMediaViewerStopPlayback,
-            object: nil
-        )
-
         lastVisibleIndex = index
-
         updateCollectionBackground(for: index)
-        refreshVisibleCells()
 
         Task {
             await model.prefetchVisiblePageIfNeeded(index: index)
@@ -516,10 +503,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     }
 
     /// Updates the selected page index after paging has settled.
-    ///
-    /// This is the only place where user-driven paging commits the selected index.
-    /// During dragging, cells are refreshed with `isSelected == false` to prevent
-    /// side pages from starting video playback while the collection view is still moving.
     ///
     /// - Parameter scrollView: Source scroll view.
     private func updateSelectedIndexFromScrollView(_ scrollView: UIScrollView) {

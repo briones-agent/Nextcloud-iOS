@@ -7,15 +7,17 @@ import NextcloudKit
 
 // MARK: - Video Viewer Content View
 
-/// Displays a video using the best available playback URL and playback engine.
+/// Displays a video using the shared video playback controller.
 ///
-/// The playable URL is resolved from:
-/// - explicit metadata URL
-/// - local provider storage
-/// - Nextcloud direct download URL
+/// This view does not own any AVPlayer or VLCMediaPlayer directly.
+/// Playback ownership is centralized in `NCVideoPlaybackController.shared`.
 ///
-/// AVFoundation is preferred. VLC is used as fallback when AVFoundation cannot
-/// prepare the resolved video URL.
+/// Loading rules:
+/// - If the same video is already loaded, the existing player is reused.
+/// - If the page is not selected, the view does not load a new video.
+/// - `isSelected == false` does not stop playback because SwiftUI can temporarily
+///   report non-selected states during rotation or cell rebuilds.
+/// - Real stop events are handled through `.ncMediaViewerStopPlayback`.
 struct NCVideoViewerContentView: View {
     let metadata: tableMetadata
     let localURL: URL?
@@ -23,7 +25,7 @@ struct NCVideoViewerContentView: View {
     let userAgent: String?
     let isSelected: Bool
 
-    @StateObject private var hub = NCVideoPlaybackHub()
+    @StateObject var playback = NCVideoPlaybackController.shared
 
     @State private var errorMessage: String?
     @State private var playerOpacity: Double = 0
@@ -54,7 +56,7 @@ struct NCVideoViewerContentView: View {
             if let errorMessage {
                 failedView(errorMessage)
             } else {
-                switch hub.engine {
+                switch playback.engine {
                 case .loading:
                     EmptyView()
 
@@ -64,18 +66,17 @@ struct NCVideoViewerContentView: View {
                         allowsPictureInPicture: true,
                         shouldAutoPlay: isSelected
                     )
-                    .ignoresSafeArea()
+                    .padding(.bottom, videoPlayerBottomPadding)
+                    .ignoresSafeArea(edges: [.top, .leading, .trailing])
                     .opacity(playerOpacity)
                     .onAppear {
                         fadeInPlayer()
                     }
 
-                case .vlc(let url):
+                case .vlc:
                     NCVideoVLCViewerContentView(
-                        metadata: metadata,
-                        url: url,
-                        userAgent: userAgent,
-                        shouldAutoPlay: isSelected
+                        controller: playback.vlcController,
+                        displayFileName: resolvedFileName
                     )
                     .ignoresSafeArea()
                     .opacity(playerOpacity)
@@ -93,8 +94,15 @@ struct NCVideoViewerContentView: View {
             let expectedTaskIdentifier = taskIdentifier
 
             playerOpacity = 0
-            hub.stop()
             errorMessage = nil
+
+            if playback.isCurrentVideo(
+                ocId: metadata.ocId,
+                etag: metadata.etag
+            ) {
+                fadeInPlayer()
+                return
+            }
 
             guard isSelected else {
                 return
@@ -104,38 +112,18 @@ struct NCVideoViewerContentView: View {
                 expectedTaskIdentifier: expectedTaskIdentifier
             )
         }
-        .onChange(of: isSelected) { _, selected in
-            if !selected {
-                playerOpacity = 0
-                hub.stop()
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             playerOpacity = 0
-            hub.stop()
+            playback.stop()
         }
         .onDisappear {
+            // Do not stop here.
+            // SwiftUI can call onDisappear during rotation or layout rebuilds.
             playerOpacity = 0
-            hub.stop()
         }
     }
 
     // MARK: - Views
-
-    /// Extra bottom padding used only for the native AVPlayer controller.
-    ///
-    /// This keeps the native playback scrubber away from the bottom edge / home indicator
-    /// without changing image, Live Photo, audio, or VLC layout.
-    private var videoPlayerBottomPadding: CGFloat {
-        let windowScene = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { $0.activationState == .foregroundActive }
-
-        let window = windowScene?.windows.first { $0.isKeyWindow }
-        let safeBottom = window?.safeAreaInsets.bottom ?? 0
-
-        return max(safeBottom, 16)
-    }
 
     @ViewBuilder
     private var previewPlaceholderView: some View {
@@ -149,16 +137,6 @@ struct NCVideoViewerContentView: View {
         } else {
             Color.black
                 .ignoresSafeArea()
-        }
-    }
-
-    /// Fades the active video player over the preview placeholder.
-    @MainActor
-    private func fadeInPlayer() {
-        playerOpacity = 0
-
-        withAnimation(.easeInOut(duration: 0.30)) {
-            playerOpacity = 1
         }
     }
 
@@ -183,10 +161,10 @@ struct NCVideoViewerContentView: View {
     // MARK: - Loading
 
     private var taskIdentifier: String {
-        "\(metadata.ocId)|\(metadata.etag)|\(metadata.url)|\(localURL?.absoluteString ?? "")|\(previewURL?.absoluteString ?? "")|\(isSelected)"
+        "\(metadata.ocId)|\(metadata.etag)"
     }
 
-    /// Resolves the playable video URL and loads it into the playback hub.
+    /// Resolves the playable video URL and loads it into the shared playback controller.
     ///
     /// - Parameter expectedTaskIdentifier: Task identity captured before starting async resolution.
     @MainActor
@@ -224,6 +202,10 @@ struct NCVideoViewerContentView: View {
             return
         }
 
+        guard isSelected else {
+            return
+        }
+
         guard result.error == .success,
               let url = result.url else {
             nkLog(
@@ -247,17 +229,24 @@ struct NCVideoViewerContentView: View {
             return
         }
 
+        guard isSelected else {
+            return
+        }
+
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
             emoji: .debug,
-            message: "VIDEO resolve done url \(url.absoluteString), isFileURL \(url.isFileURL)",
+            message: "VIDEO resolve done url \(url.absoluteString), isFileURL \(url.isFileURL), fileName \(resolvedFileName)",
             consoleOnly: true
         )
 
-        hub.load(
+        playback.loadVideo(
+            metadata: metadata,
             url: url,
             fileName: resolvedFileName,
-            httpHeaders: httpHeaders(for: url)
+            userAgent: userAgent,
+            httpHeaders: httpHeaders(for: url),
+            shouldAutoPlay: true
         )
     }
 
@@ -284,12 +273,29 @@ struct NCVideoViewerContentView: View {
 
     // MARK: - Helpers
 
-    private var displayFileName: String {
-        if !metadata.fileNameView.isEmpty {
-            return metadata.fileNameView
-        }
+    /// Fades the active video player over the preview placeholder.
+    @MainActor
+    private func fadeInPlayer() {
+        playerOpacity = 0
 
-        return metadata.fileName
+        withAnimation(.easeInOut(duration: 0.30)) {
+            playerOpacity = 1
+        }
+    }
+
+    /// Extra bottom padding used only for the native AVPlayer controller.
+    ///
+    /// This keeps the native playback scrubber away from the bottom edge / home indicator
+    /// without changing image, Live Photo, audio, or VLC layout.
+    private var videoPlayerBottomPadding: CGFloat {
+        let windowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+
+        let window = windowScene?.windows.first { $0.isKeyWindow }
+        let safeBottom = window?.safeAreaInsets.bottom ?? 0
+
+        return max(safeBottom, 16)
     }
 
     private var resolvedFileName: String {
