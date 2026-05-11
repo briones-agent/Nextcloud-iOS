@@ -12,8 +12,14 @@ import NextcloudKit
 /// Singleton VLC playback controller.
 ///
 /// This object owns the only `VLCMediaPlayer` used by the media viewer.
-/// SwiftUI views can be recreated during rotation or layout updates, but the
-/// VLC player remains stable and only receives a new drawable surface.
+/// The drawable is attached to a stable UIKit `UIImageView`, following the
+/// legacy media viewer behavior.
+///
+/// Design rules:
+/// - Do not hard-rebind the drawable during rotation.
+/// - Do not detach the drawable from SwiftUI or UIKit teardown.
+/// - Do not reload media during rotation.
+/// - Release VLC resources only from `stop()`.
 @MainActor
 final class NCVideoVLCPlayerController: ObservableObject {
     static let shared = NCVideoVLCPlayerController()
@@ -39,61 +45,56 @@ final class NCVideoVLCPlayerController: ObservableObject {
 
     private var currentURL: URL?
     private var currentUserAgent: String?
+
     private var monitorTask: Task<Void, Never>?
     private var controlsHideTask: Task<Void, Never>?
     private var trackRefreshTask: Task<Void, Never>?
 
     private init() { }
 
-    // MARK: - Public API
+    // MARK: - Drawable
 
-    /// Attaches the current VLC drawable view.
+    /// Returns whether VLC is already attached to the given drawable view.
     ///
-    /// This method can be called repeatedly after rotation or layout changes.
-    /// Normal attach does not detach the drawable. Forced attach performs a hard
-    /// rebind and should only be used when the drawable view enters a window or its
-    /// size changes.
+    /// - Parameter view: Candidate drawable view.
+    /// - Returns: True when the VLC drawable is already this view.
+    func isDrawableAttached(to view: UIView) -> Bool {
+        guard let currentDrawable = mediaPlayer.drawable as? UIView else {
+            return false
+        }
+
+        return currentDrawable === view
+    }
+
+    /// Attaches the VLC drawable only when needed.
     ///
-    /// - Parameters:
-    ///   - view: UIView used as VLC drawable target.
-    ///   - force: Whether the drawable should be rebound even if it is already attached.
-    func attachDrawable(
-        _ view: UIView,
-        force: Bool = false
-    ) {
+    /// This intentionally avoids hard-rebinding the drawable during rotation.
+    /// The legacy media viewer assigned the drawable to a stable `UIImageView`
+    /// and let UIKit layout handle rotation.
+    ///
+    /// - Parameter view: Stable UIKit drawable view.
+    func attachDrawableIfNeeded(_ view: UIView) {
         guard view.window != nil,
               view.bounds.width > 0,
               view.bounds.height > 0 else {
             return
         }
 
-        let currentDrawable = mediaPlayer.drawable as? UIView
-
-        if currentDrawable === view,
-           !force {
+        if isDrawableAttached(to: view) {
             return
         }
 
-        if force {
-            let wasPlaying = mediaPlayer.isPlaying
-
-            mediaPlayer.drawable = nil
-            mediaPlayer.drawable = view
-
-            if wasPlaying {
-                mediaPlayer.play()
-            }
-        } else {
-            mediaPlayer.drawable = view
-        }
+        mediaPlayer.drawable = view
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
             emoji: .debug,
-            message: "VIDEO VLC drawable attached force \(force), bounds \(view.bounds)",
+            message: "VIDEO VLC drawable attached to stable UIImageView bounds \(view.bounds)",
             consoleOnly: true
         )
     }
+
+    // MARK: - Loading
 
     /// Loads a VLC media item when needed and optionally starts playback.
     ///
@@ -159,6 +160,8 @@ final class NCVideoVLCPlayerController: ObservableObject {
         }
     }
 
+    // MARK: - Playback
+
     /// Starts playback.
     func play() {
         mediaPlayer.play()
@@ -210,6 +213,42 @@ final class NCVideoVLCPlayerController: ObservableObject {
         scheduleControlsAutoHide()
     }
 
+    /// Stops playback and releases VLC resources.
+    ///
+    /// This is the only place where the VLC drawable is detached.
+    /// SwiftUI and UIKit view teardown must not call this unless playback really
+    /// has to stop.
+    func stop() {
+        trackRefreshTask?.cancel()
+        trackRefreshTask = nil
+
+        controlsHideTask?.cancel()
+        controlsHideTask = nil
+
+        monitorTask?.cancel()
+        monitorTask = nil
+
+        mediaPlayer.stop()
+        mediaPlayer.media = nil
+        mediaPlayer.drawable = nil
+
+        currentURL = nil
+        currentUserAgent = nil
+
+        currentTime = 0
+        duration = 0
+        isPlaying = false
+        isControlsVisible = true
+
+        audioTracks = []
+        currentAudioTrackIndex = -1
+
+        subtitleTracks = []
+        currentSubtitleTrackIndex = -1
+    }
+
+    // MARK: - Tracks
+
     /// Selects a VLC audio track.
     ///
     /// - Parameter index: VLC audio track index.
@@ -242,6 +281,8 @@ final class NCVideoVLCPlayerController: ObservableObject {
         )
     }
 
+    // MARK: - Controls
+
     /// Shows controls immediately.
     func showControls() {
         controlsHideTask?.cancel()
@@ -258,40 +299,28 @@ final class NCVideoVLCPlayerController: ObservableObject {
         }
     }
 
-    /// Stops playback and releases VLC resources.
-    ///
-    /// This is called only by the global video playback controller when playback
-    /// really has to stop. It should not be called by SwiftUI view teardown.
-    func stop() {
-        trackRefreshTask?.cancel()
-        trackRefreshTask = nil
-
+    /// Hides controls after a short delay while playback is active.
+    private func scheduleControlsAutoHide() {
         controlsHideTask?.cancel()
-        controlsHideTask = nil
 
-        monitorTask?.cancel()
-        monitorTask = nil
+        guard isPlaying else {
+            return
+        }
 
-        mediaPlayer.stop()
-        mediaPlayer.media = nil
-        mediaPlayer.drawable = nil
+        controlsHideTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
 
-        currentURL = nil
-        currentUserAgent = nil
+            guard !Task.isCancelled else {
+                return
+            }
 
-        currentTime = 0
-        duration = 0
-        isPlaying = false
-        isControlsVisible = true
-
-        audioTracks = []
-        currentAudioTrackIndex = -1
-
-        subtitleTracks = []
-        currentSubtitleTrackIndex = -1
+            await MainActor.run {
+                self?.isControlsVisible = false
+            }
+        }
     }
 
-    // MARK: - Private
+    // MARK: - Monitoring
 
     /// Starts polling VLC playback state.
     private func startMonitoring() {
@@ -431,6 +460,8 @@ final class NCVideoVLCPlayerController: ObservableObject {
         }
     }
 
+    // MARK: - Helpers
+
     /// Converts an Objective-C array-like value into strings.
     ///
     /// - Parameter values: Values exposed by MobileVLCKit.
@@ -500,26 +531,5 @@ final class NCVideoVLCPlayerController: ObservableObject {
         }
 
         return "\(fallbackPrefix) \(offset + 1)"
-    }
-
-    /// Hides controls after a short delay while playback is active.
-    private func scheduleControlsAutoHide() {
-        controlsHideTask?.cancel()
-
-        guard isPlaying else {
-            return
-        }
-
-        controlsHideTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(3))
-
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                self?.isControlsVisible = false
-            }
-        }
     }
 }

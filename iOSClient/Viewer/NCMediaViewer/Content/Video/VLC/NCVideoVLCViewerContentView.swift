@@ -24,7 +24,8 @@ struct NCVideoVLCSubtitleTrack: Identifiable, Equatable {
 
 /// Displays the singleton VLC player with SwiftUI controls.
 ///
-/// This view does not own playback. It only renders the VLC drawable and controls.
+/// The VLC drawable is hosted by a stable UIKit `UIImageView`, matching the
+/// legacy media viewer behavior. SwiftUI is only used for the controls overlay.
 struct NCVideoVLCViewerContentView: View {
     @ObservedObject var controller: NCVideoVLCPlayerController
 
@@ -32,18 +33,13 @@ struct NCVideoVLCViewerContentView: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            NCVideoVLCUIKitContainer(controller: controller)
                 .ignoresSafeArea()
-
-            NCVideoVLCRenderView(controller: controller)
-                .ignoresSafeArea()
-                .zIndex(0)
 
             if !controller.isControlsVisible {
                 Color.clear
                     .contentShape(Rectangle())
                     .ignoresSafeArea()
-                    .zIndex(1)
                     .onTapGesture {
                         controller.showControls()
                     }
@@ -58,7 +54,6 @@ struct NCVideoVLCViewerContentView: View {
                     }
                 )
                 .transition(.opacity)
-                .zIndex(2)
             }
         }
         .background(Color.black)
@@ -66,66 +61,40 @@ struct NCVideoVLCViewerContentView: View {
     }
 }
 
-// MARK: - VLC Render View
+// MARK: - VLC UIKit Container
 
-/// UIKit render surface used by the shared VLC playback controller.
+/// SwiftUI wrapper around a UIKit-only VLC render controller.
 ///
-/// This view only provides a drawable surface for VLC.
-/// It does not own playback, does not stop playback, and does not detach the
-/// drawable during dismantle because SwiftUI can dismantle views during rotation.
-struct NCVideoVLCRenderView: UIViewRepresentable {
+/// The wrapped UIKit controller owns a stable `UIImageView` used as VLC drawable.
+/// This mirrors the legacy media viewer approach and avoids aggressive drawable
+/// rebinds during rotation.
+struct NCVideoVLCUIKitContainer: UIViewControllerRepresentable {
     let controller: NCVideoVLCPlayerController
 
-    func makeUIView(context: Context) -> NCVideoVLCDrawableView {
-        let view = NCVideoVLCDrawableView()
-        view.backgroundColor = .black
-        view.clipsToBounds = true
+    func makeUIViewController(context: Context) -> NCVideoVLCContainerViewController {
+        let viewController = NCVideoVLCContainerViewController()
+        viewController.controller = controller
 
-        view.onDrawableReady = { [weak controller] drawableView, force in
-            controller?.attachDrawable(
-                drawableView,
-                force: force
-            )
-        }
-
-        controller.attachDrawable(
-            view,
-            force: true
-        )
-
-        return view
+        return viewController
     }
 
-    func updateUIView(
-        _ view: NCVideoVLCDrawableView,
+    func updateUIViewController(
+        _ viewController: NCVideoVLCContainerViewController,
         context: Context
     ) {
-        controller.attachDrawable(
-            view,
-            force: false
-        )
-
-        DispatchQueue.main.async { [weak controller, weak view] in
-            guard let view else {
-                return
-            }
-
-            controller?.attachDrawable(
-                view,
-                force: false
-            )
-        }
+        viewController.controller = controller
+        viewController.attachDrawableIfNeeded()
     }
 
-    static func dismantleUIView(
-        _ view: NCVideoVLCDrawableView,
+    static func dismantleUIViewController(
+        _ viewController: NCVideoVLCContainerViewController,
         coordinator: Coordinator
     ) {
         // Do not stop VLC here.
         // Do not detach the drawable here.
-        // SwiftUI can call dismantle during rotation/layout rebuilds while
-        // playback is still valid.
-        view.onDrawableReady = nil
+        // SwiftUI can dismantle this wrapper during rotation/layout rebuilds
+        // while playback is still valid.
+        viewController.controller = nil
     }
 
     func makeCoordinator() -> Coordinator {
@@ -135,78 +104,103 @@ struct NCVideoVLCRenderView: UIViewRepresentable {
     final class Coordinator { }
 }
 
-// MARK: - VLC Drawable View
+// MARK: - VLC Container View Controller
 
-/// UIView used as VLC drawable target.
+/// UIKit-only controller used as the VLC drawable host.
 ///
-/// VLC can keep playing audio while losing its video surface after rotation.
-/// This view requests a forced drawable rebind only when entering a window or
-/// when its drawable size actually changes.
-final class NCVideoVLCDrawableView: UIView {
-    var onDrawableReady: ((_ view: NCVideoVLCDrawableView, _ force: Bool) -> Void)?
+/// This follows the legacy viewer model:
+/// - a stable UIKit controller
+/// - a stable `UIImageView` drawable
+/// - no drawable detach during rotation
+/// - no player reload during rotation
+final class NCVideoVLCContainerViewController: UIViewController {
+    weak var controller: NCVideoVLCPlayerController?
 
-    private var lastDrawableSize: CGSize = .zero
+    private let imageVideoContainer = UIImageView()
+    private var didAttachDrawable = false
 
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
+    override func loadView() {
+        let rootView = UIView()
+        rootView.backgroundColor = .black
+        rootView.clipsToBounds = true
+        rootView.isOpaque = true
 
-        guard window != nil else {
-            return
-        }
+        imageVideoContainer.backgroundColor = .black
+        imageVideoContainer.contentMode = .scaleAspectFit
+        imageVideoContainer.clipsToBounds = true
+        imageVideoContainer.isOpaque = true
+        imageVideoContainer.translatesAutoresizingMaskIntoConstraints = false
 
-        requestDrawableAttach(force: true)
+        rootView.addSubview(imageVideoContainer)
+
+        NSLayoutConstraint.activate([
+            imageVideoContainer.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+            imageVideoContainer.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+            imageVideoContainer.topAnchor.constraint(equalTo: rootView.topAnchor),
+            imageVideoContainer.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+        ])
+
+        view = rootView
     }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
+    override func viewDidLoad() {
+        super.viewDidLoad()
 
-        guard bounds.width > 0,
-              bounds.height > 0 else {
-            return
-        }
-
-        let currentSize = bounds.size
-
-        if currentSize != lastDrawableSize {
-            lastDrawableSize = currentSize
-            requestDrawableAttach(force: true)
-        } else {
-            requestDrawableAttach(force: false)
-        }
+        view.backgroundColor = .black
+        imageVideoContainer.backgroundColor = .black
     }
 
-    /// Requests VLC drawable attachment immediately and once again after layout settles.
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+
+        attachDrawableIfNeeded()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+
+        // Rotation should only update UIKit layout.
+        // Do not detach, force-rebind, or reload VLC here.
+        attachDrawableIfNeeded()
+    }
+
+    override func viewWillTransition(
+        to size: CGSize,
+        with coordinator: UIViewControllerTransitionCoordinator
+    ) {
+        super.viewWillTransition(
+            to: size,
+            with: coordinator
+        )
+
+        coordinator.animate(alongsideTransition: { [weak self] _ in
+            self?.view.layoutIfNeeded()
+        }, completion: { [weak self] _ in
+            self?.attachDrawableIfNeeded()
+        })
+    }
+
+    /// Attaches the stable drawable image view to VLC if needed.
     ///
-    /// Rotation can create a valid view before VLC is ready to render into it.
-    /// Repeating the attach request gives VLC another chance to bind the video output
-    /// to the final drawable surface.
-    private func requestDrawableAttach(force: Bool) {
-        onDrawableReady?(self, force)
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self,
-                  self.window != nil,
-                  self.bounds.width > 0,
-                  self.bounds.height > 0 else {
-                return
-            }
-
-            self.onDrawableReady?(self, force)
-        }
-
-        guard force else {
+    /// This intentionally avoids `drawable = nil` and avoids force rebinds.
+    /// The old media viewer used the same stable-view approach.
+    func attachDrawableIfNeeded() {
+        guard imageVideoContainer.window != nil,
+              imageVideoContainer.bounds.width > 0,
+              imageVideoContainer.bounds.height > 0 else {
             return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-            guard let self,
-                  self.window != nil,
-                  self.bounds.width > 0,
-                  self.bounds.height > 0 else {
-                return
-            }
-
-            self.onDrawableReady?(self, true)
+        guard let controller else {
+            return
         }
+
+        if didAttachDrawable,
+           controller.isDrawableAttached(to: imageVideoContainer) {
+            return
+        }
+
+        controller.attachDrawableIfNeeded(imageVideoContainer)
+        didAttachDrawable = true
     }
 }
