@@ -10,8 +10,6 @@ import NextcloudKit
 
 // MARK: - VLC Viewer SwiftUI Bridge
 
-// MARK: - VLC Viewer SwiftUI Bridge
-
 /// Minimal SwiftUI bridge for VLC playback.
 ///
 /// This view only mounts the stable UIKit VLC controller.
@@ -40,6 +38,7 @@ struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
         coordinator: Coordinator
     ) {
         // Do not stop here.
+        // SwiftUI can dismantle/rebuild this bridge during rotation or layout changes.
     }
 
     func makeCoordinator() -> Coordinator {
@@ -48,8 +47,13 @@ struct NCVideoVLCViewerContentView: UIViewControllerRepresentable {
 
     final class Coordinator { }
 }
+
 // MARK: - VLC Stable Player Owner
 
+/// Stable owner for the UIKit VLC controller.
+///
+/// This object keeps one UIKit controller and one VLCMediaPlayer alive across
+/// SwiftUI rebuilds.
 @MainActor
 final class NCVideoVLCStablePlayer {
     static let shared = NCVideoVLCStablePlayer()
@@ -58,6 +62,13 @@ final class NCVideoVLCStablePlayer {
 
     private init() { }
 
+    /// Configures the shared VLC controller and starts playback when requested.
+    ///
+    /// - Parameters:
+    ///   - metadata: Video metadata used for logging.
+    ///   - url: Local or remote playable URL.
+    ///   - userAgent: Optional HTTP User-Agent for remote playback.
+    ///   - shouldAutoPlay: Whether playback should start.
     func configure(
         metadata: tableMetadata,
         url: URL,
@@ -72,10 +83,16 @@ final class NCVideoVLCStablePlayer {
         )
     }
 
+    /// Pauses the shared VLC player without releasing media.
+    ///
+    /// Use this when the page loses selection.
     func pause() {
         viewController.pause()
     }
 
+    /// Stops the shared VLC player and releases media.
+    ///
+    /// Use this only when the whole media viewer closes.
     func stop() {
         viewController.stop()
     }
@@ -83,6 +100,16 @@ final class NCVideoVLCStablePlayer {
 
 // MARK: - VLC View Controller
 
+/// Minimal UIKit-only VLC video controller.
+///
+/// This controller intentionally does only:
+/// - keep one stable drawable view
+/// - keep one stable VLCMediaPlayer
+/// - load and play the requested URL
+///
+/// No controls.
+/// No overlays.
+/// No SwiftUI state.
 @MainActor
 final class NCVideoVLCViewController: UIViewController {
 
@@ -220,6 +247,11 @@ final class NCVideoVLCViewController: UIViewController {
 
     /// Stops VLC playback and releases media.
     func stop() {
+        log(
+            emoji: .debug,
+            message: "VIDEO VLC stop requested"
+        )
+
         shouldAutoPlay = false
 
         mediaPlayer.stop()
@@ -229,11 +261,6 @@ final class NCVideoVLCViewController: UIViewController {
         url = nil
         loadedURL = nil
         metadata = nil
-
-        log(
-            emoji: .debug,
-            message: "VIDEO VLC stop requested"
-        )
     }
 
     // MARK: - Playback
