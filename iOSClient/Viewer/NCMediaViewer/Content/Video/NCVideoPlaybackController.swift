@@ -11,16 +11,19 @@ import NextcloudKit
 /// Describes the currently rendered video playback engine.
 ///
 /// The engine is owned by `NCVideoPlaybackController`.
-/// Views only render the selected engine; they do not own playback resources.
+/// Views only render the selected engine; they do not own AVFoundation playback resources.
+/// VLC playback is rendered by a dedicated legacy-style UIKit VLC view.
 enum NCVideoPlaybackEngine {
     /// No playable engine is currently ready.
     case loading
 
-    /// Native AVFoundation playback using the shared controller-owned `AVPlayer`.
+    /// Native AVFoundation playback using the controller-owned `AVPlayer`.
     case avFoundation(player: AVPlayer)
 
-    /// VLC fallback playback using the shared VLC playback controller.
-    case vlc(controller: NCVideoVLCPlayerController)
+    /// VLC fallback playback using a resolved playable URL.
+    ///
+    /// The VLC player itself is owned by `NCVideoVLCViewerContentView`, not by this controller.
+    case vlc(url: URL)
 
     /// Playback could not be prepared.
     case failed(message: String)
@@ -28,14 +31,14 @@ enum NCVideoPlaybackEngine {
 
 // MARK: - Video Playback Controller
 
-/// Singleton video playback controller used by the SwiftUI media viewer.
+/// Shared video playback controller used by the SwiftUI media viewer.
 ///
-/// This controller is the only owner of video playback resources:
-/// - one AVFoundation player at a time
-/// - one VLC player controller at a time
+/// This controller owns AVFoundation playback resources and resolves whether
+/// a video should be rendered through AVFoundation or VLC.
 ///
-/// SwiftUI views can be recreated during rotation, paging, or layout rebuilds.
-/// Playback must therefore not be owned by individual views.
+/// VLC is intentionally not owned here. The VLC renderer uses a legacy-style
+/// UIKit controller with a stable `UIImageView` drawable, matching the old
+/// media viewer behavior.
 @MainActor
 final class NCVideoPlaybackController: ObservableObject {
     static let shared = NCVideoPlaybackController()
@@ -50,8 +53,6 @@ final class NCVideoPlaybackController: ObservableObject {
     private var avPlayerItem: AVPlayerItem?
     private var statusObservation: NSKeyValueObservation?
     private var timeoutTask: Task<Void, Never>?
-
-    let vlcController = NCVideoVLCPlayerController.shared
 
     private var currentOcId: String?
     private var currentEtag: String?
@@ -84,7 +85,8 @@ final class NCVideoPlaybackController: ObservableObject {
     /// Loads a video URL if it is not already loaded.
     ///
     /// Calling this method again for the same `ocId`, `etag`, and URL is idempotent.
-    /// It does not stop, recreate, or restart the existing player.
+    /// It does not stop, recreate, or restart the existing AV player. For VLC,
+    /// it keeps the same engine URL so the VLC view can reuse its own controller.
     ///
     /// - Parameters:
     ///   - metadata: Video metadata used as playback identity.
@@ -139,11 +141,8 @@ final class NCVideoPlaybackController: ObservableObject {
             url: url,
             fileName: fileName
         ) {
-            loadVLC(
-                metadata: metadata,
+            resolveWithVLC(
                 url: url,
-                userAgent: userAgent,
-                shouldAutoPlay: shouldAutoPlay,
                 reason: "direct legacy format \(resolvedVideoExtension(url: url, fileName: fileName))",
                 token: token
             )
@@ -154,16 +153,12 @@ final class NCVideoPlaybackController: ObservableObject {
             metadata: metadata,
             url: url,
             httpHeaders: url.isFileURL ? [:] : httpHeaders,
-            userAgent: userAgent,
             shouldAutoPlay: shouldAutoPlay,
             token: token
         )
 
         startFallbackTimeout(
-            metadata: metadata,
             url: url,
-            userAgent: userAgent,
-            shouldAutoPlay: shouldAutoPlay,
             token: token
         )
     }
@@ -179,7 +174,10 @@ final class NCVideoPlaybackController: ObservableObject {
         stop()
     }
 
-    /// Stops all video playback and releases AVFoundation and VLC resources.
+    /// Stops current playback state and releases AVFoundation resources.
+    ///
+    /// VLC playback is stopped by `NCVideoVLCViewerContentView` through
+    /// `.ncMediaViewerStopPlayback`, because the VLC player is owned by that view.
     func stop() {
         loadToken = UUID()
 
@@ -192,8 +190,6 @@ final class NCVideoPlaybackController: ObservableObject {
         avPlayer?.pause()
         avPlayer = nil
         avPlayerItem = nil
-
-        vlcController.stop()
 
         currentOcId = nil
         currentEtag = nil
@@ -210,7 +206,6 @@ final class NCVideoPlaybackController: ObservableObject {
         metadata: tableMetadata,
         url: URL,
         httpHeaders: [String: String],
-        userAgent: String?,
         shouldAutoPlay: Bool,
         token: UUID
     ) {
@@ -257,11 +252,8 @@ final class NCVideoPlaybackController: ObservableObject {
                     )
 
                 case .failed:
-                    self.loadVLC(
-                        metadata: metadata,
+                    self.resolveWithVLC(
                         url: url,
-                        userAgent: userAgent,
-                        shouldAutoPlay: shouldAutoPlay,
                         reason: item.error?.localizedDescription ?? "AVFoundation failed.",
                         token: token
                     )
@@ -270,11 +262,8 @@ final class NCVideoPlaybackController: ObservableObject {
                     break
 
                 @unknown default:
-                    self.loadVLC(
-                        metadata: metadata,
+                    self.resolveWithVLC(
                         url: url,
-                        userAgent: userAgent,
-                        shouldAutoPlay: shouldAutoPlay,
                         reason: "AVFoundation returned an unknown status.",
                         token: token
                     )
@@ -307,10 +296,7 @@ final class NCVideoPlaybackController: ObservableObject {
 
     /// Starts a timeout after which VLC is selected if AVFoundation is still loading.
     private func startFallbackTimeout(
-        metadata: tableMetadata,
         url: URL,
-        userAgent: String?,
-        shouldAutoPlay: Bool,
         token: UUID
     ) {
         timeoutTask = Task { [weak self] in
@@ -331,11 +317,8 @@ final class NCVideoPlaybackController: ObservableObject {
                 }
 
                 if case .loading = self.engine {
-                    self.loadVLC(
-                        metadata: metadata,
+                    self.resolveWithVLC(
                         url: url,
-                        userAgent: userAgent,
-                        shouldAutoPlay: shouldAutoPlay,
                         reason: "AVFoundation timeout.",
                         token: token
                     )
@@ -347,11 +330,11 @@ final class NCVideoPlaybackController: ObservableObject {
     // MARK: - VLC
 
     /// Selects VLC as the active rendering engine.
-    private func loadVLC(
-        metadata: tableMetadata,
+    ///
+    /// This does not create or own the VLC player. It only exposes the URL to
+    /// `NCVideoVLCViewerContentView`, which owns its legacy-style VLC controller.
+    private func resolveWithVLC(
         url: URL,
-        userAgent: String?,
-        shouldAutoPlay: Bool,
         reason: String,
         token: UUID
     ) {
@@ -372,14 +355,7 @@ final class NCVideoPlaybackController: ObservableObject {
         avPlayer = nil
         avPlayerItem = nil
 
-        vlcController.load(
-            metadata: metadata,
-            url: url,
-            userAgent: userAgent,
-            shouldAutoPlay: shouldAutoPlay
-        )
-
-        engine = .vlc(controller: vlcController)
+        engine = .vlc(url: url)
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
@@ -409,7 +385,9 @@ final class NCVideoPlaybackController: ObservableObject {
         loadToken == token && currentURL == url
     }
 
-    /// Resumes the current player if requested.
+    /// Resumes the current AV player if requested.
+    ///
+    /// VLC auto-play is handled by `NCVideoVLCViewerContentView`.
     private func resumeCurrentPlaybackIfNeeded(shouldAutoPlay: Bool) {
         guard shouldAutoPlay else {
             return
@@ -421,12 +399,8 @@ final class NCVideoPlaybackController: ObservableObject {
                 player.play()
             }
 
-        case .vlc(let controller):
-            if !controller.isPlaying {
-                controller.play()
-            }
-
-        case .loading,
+        case .vlc,
+             .loading,
              .failed:
             break
         }
