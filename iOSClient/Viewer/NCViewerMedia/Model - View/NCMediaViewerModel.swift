@@ -684,19 +684,21 @@ final class NCMediaViewerModel: ObservableObject {
 
     // MARK: - Prefetch
 
-    /// Prefetches only the immediate neighbor pages around the selected index.
+    /// Prefetches nearby pages around the selected index.
     ///
-    /// The prefetch window is intentionally small.
-    /// This keeps swipe navigation responsive without creating too many metadata,
-    /// preview, or playback preparation tasks while the user scrolls quickly.
+    /// The prefetch window is intentionally wider for smooth image navigation.
+    /// Video and audio remain lightweight because `loadPageForPrefetch(index:)`
+    /// must only resolve metadata and preview state, without starting playback,
+    /// creating AVPlayer/VLC instances, or resolving direct video download URLs.
     ///
     /// - Parameter index: Current selected absolute index.
     private func prefetchNeighborPages(around index: Int) {
-        let neighborIndexes = [
-            index - 1,
-            index + 1
-        ]
-        .filter { ocIds.indices.contains($0) }
+        let prefetchRadius = 5
+
+        let neighborIndexes = (-prefetchRadius...prefetchRadius)
+            .map { index + $0 }
+            .filter { $0 != index }
+            .filter { ocIds.indices.contains($0) }
 
         for neighborIndex in neighborIndexes {
             Task { [weak self] in
