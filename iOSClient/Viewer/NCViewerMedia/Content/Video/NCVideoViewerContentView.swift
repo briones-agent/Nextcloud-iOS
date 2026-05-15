@@ -552,9 +552,6 @@ struct NCVideoViewerContentView: View {
 
     // MARK: - Helpers
 
-
-
-
     /// Extra bottom padding used only for the native AVPlayer controller.
     ///
     /// This keeps the native playback scrubber away from the bottom edge / home indicator.
@@ -577,7 +574,6 @@ struct NCVideoViewerContentView: View {
         return metadata.fileName
     }
 }
-
 
 // MARK: - Video URL Resolution
 

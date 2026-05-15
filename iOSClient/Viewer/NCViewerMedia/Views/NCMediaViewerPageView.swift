@@ -178,7 +178,6 @@ struct NCMediaViewerPageView: View {
 
     // MARK: - State Views
 
-
     private var metadataMissingView: some View {
         VStack(spacing: 12) {
             Image(systemName: "photo.badge.exclamationmark")
@@ -428,7 +427,6 @@ struct NCMediaViewerPageView: View {
 
     // MARK: - Appearance Helpers
 
-
     private var primaryForegroundStyle: Color {
         switch backgroundStyle {
         case .black:
@@ -465,7 +463,6 @@ struct NCMediaViewerPageView: View {
 
         return safeTop + 44 + 8
     }
-
 
     private func displayFileName(from metadata: tableMetadata?) -> String? {
         guard let metadata else {
