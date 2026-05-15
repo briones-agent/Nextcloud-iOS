@@ -178,10 +178,6 @@ struct NCMediaViewerPageView: View {
 
     // MARK: - State Views
 
-    private var loadingView: some View {
-        ProgressView()
-            .tint(progressTintColor)
-    }
 
     private var metadataMissingView: some View {
         VStack(spacing: 12) {
@@ -219,17 +215,16 @@ struct NCMediaViewerPageView: View {
         localURL: URL?,
         livePhotoURL: URL?
     ) -> some View {
-        ZStack {
+        if previewURL != nil || localURL != nil {
             imageContentView(
                 previewURL: previewURL,
                 localURL: localURL,
                 livePhotoURL: livePhotoURL,
                 backgroundStyle: backgroundStyle
             )
-
-            if previewURL == nil && localURL == nil {
-                loadingView
-            }
+        } else {
+            Color.ncViewerBackground(backgroundStyle)
+                .ignoresSafeArea()
         }
     }
 
@@ -259,7 +254,10 @@ struct NCMediaViewerPageView: View {
         previewURL: URL?,
         progress: Double?
     ) -> some View {
-        if let previewURL {
+        if page.metadata?.classFile == NKTypeClassFile.video.rawValue,
+           isSelected {
+            videoStateView(previewURL: previewURL)
+        } else if let previewURL {
             previewOnlyView(previewURL: previewURL)
         } else {
             Color.ncViewerBackground(backgroundStyle)
@@ -430,17 +428,6 @@ struct NCMediaViewerPageView: View {
 
     // MARK: - Appearance Helpers
 
-    private var progressTintColor: Color {
-        switch backgroundStyle {
-        case .black:
-            return .white
-
-        case .system,
-             .white,
-             .custom:
-            return .accentColor
-        }
-    }
 
     private var primaryForegroundStyle: Color {
         switch backgroundStyle {

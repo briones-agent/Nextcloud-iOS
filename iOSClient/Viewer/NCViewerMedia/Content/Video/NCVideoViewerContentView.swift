@@ -376,6 +376,11 @@ struct NCVideoViewerContentView: View {
     /// Selection changes can happen during rotation or SwiftUI rebuilds, so this method
     /// must not call `play()` or `pause()` for AVFoundation.
     ///
+    /// When a video page becomes selected again after swipe navigation, `.task(id:)`
+    /// may not run because `taskIdentifier` intentionally does not include `isSelected`.
+    /// In that case, reload the playable URL only if this page is not already the
+    /// current loaded video.
+    ///
     /// - Parameter selected: Whether this page is currently selected.
     @MainActor
     private func handleSelectionChange(_ selected: Bool) {
@@ -383,7 +388,50 @@ struct NCVideoViewerContentView: View {
             return
         }
 
-        revealCurrentPlaybackIfNeeded()
+        if isCurrentPlaybackVideo() {
+            revealCurrentPlaybackIfNeeded()
+            return
+        }
+
+        Task {
+            await resolveAndLoadVideo(
+                expectedTaskIdentifier: taskIdentifier
+            )
+        }
+    }
+
+    /// Returns whether this page already owns an active playback engine.
+    ///
+    /// Local videos require an exact URL match.
+    /// Remote videos can only be checked by metadata because the direct-download URL
+    /// is resolved lazily when the selected page loads.
+    ///
+    /// The playback engine must already be renderable. A loading or failed engine is
+    /// not considered reusable, otherwise a cached video page could remain stuck as a
+    /// plain preview when it becomes selected again.
+    private func isCurrentPlaybackVideo() -> Bool {
+        switch playback.engine {
+        case .avFoundation,
+             .vlc:
+            break
+
+        case .loading,
+             .failed:
+            return false
+        }
+
+        if let localURL {
+            return playback.isCurrentVideo(
+                ocId: metadata.ocId,
+                etag: metadata.etag,
+                url: localURL
+            )
+        }
+
+        return playback.isCurrentVideo(
+            ocId: metadata.ocId,
+            etag: metadata.etag
+        )
     }
 
     /// Reveals the current playback engine without changing the playback state.

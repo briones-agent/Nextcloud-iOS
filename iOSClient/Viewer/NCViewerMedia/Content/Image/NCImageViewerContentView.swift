@@ -52,8 +52,8 @@ struct NCImageViewerContentView: View {
             } else if let failedMessage {
                 failedView(failedMessage)
             } else {
-                ProgressView()
-                    .tint(.ncViewerProgressTint(backgroundStyle))
+                Color.ncViewerBackground(backgroundStyle)
+                    .ignoresSafeArea()
             }
         }
         .background(Color.ncViewerBackground(backgroundStyle))
