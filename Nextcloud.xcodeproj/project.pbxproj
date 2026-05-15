@@ -952,6 +952,7 @@
 		F7FA7FFC2C0F4EE40072FC60 /* NCViewerQuickLookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7FA7FFB2C0F4EE40072FC60 /* NCViewerQuickLookView.swift */; };
 		F7FA80002C0F4F3B0072FC60 /* NCUploadAssetsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7FA7FFE2C0F4F3B0072FC60 /* NCUploadAssetsModel.swift */; };
 		F7FA80012C0F4F3B0072FC60 /* NCUploadAssetsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7FA7FFF2C0F4F3B0072FC60 /* NCUploadAssetsView.swift */; };
+		F7FAAC222FB773CC00DCA45B /* NCVideoAVPlayerViewControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7FAAC212FB773CA00DCA45B /* NCVideoAVPlayerViewControls.swift */; };
 		F7FAFD3A28BFA948000777FE /* NCContextMenuNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7FAFD3928BFA947000777FE /* NCContextMenuNotification.swift */; };
 		F7FDFF692E437E55000D7688 /* NCAccountRequest.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F7FDFF512E437E55000D7688 /* NCAccountRequest.storyboard */; };
 		F7FDFF6A2E437E55000D7688 /* NCShareAccounts.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F7FDFF532E437E55000D7688 /* NCShareAccounts.storyboard */; };
@@ -1898,6 +1899,7 @@
 		F7FA7FFB2C0F4EE40072FC60 /* NCViewerQuickLookView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCViewerQuickLookView.swift; sourceTree = "<group>"; };
 		F7FA7FFE2C0F4F3B0072FC60 /* NCUploadAssetsModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCUploadAssetsModel.swift; sourceTree = "<group>"; };
 		F7FA7FFF2C0F4F3B0072FC60 /* NCUploadAssetsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCUploadAssetsView.swift; sourceTree = "<group>"; };
+		F7FAAC212FB773CA00DCA45B /* NCVideoAVPlayerViewControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoAVPlayerViewControls.swift; sourceTree = "<group>"; };
 		F7FAFD3928BFA947000777FE /* NCContextMenuNotification.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCContextMenuNotification.swift; sourceTree = "<group>"; };
 		F7FDFF512E437E55000D7688 /* NCAccountRequest.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = NCAccountRequest.storyboard; sourceTree = "<group>"; };
 		F7FDFF522E437E55000D7688 /* NCAccountRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCAccountRequest.swift; sourceTree = "<group>"; };
@@ -2866,6 +2868,7 @@
 			isa = PBXGroup;
 			children = (
 				F78448A22FB1BE9000F2909A /* NCVideoAVPlayerContentView.swift */,
+				F7FAAC212FB773CA00DCA45B /* NCVideoAVPlayerViewControls.swift */,
 			);
 			path = AVPlayer;
 			sourceTree = "<group>";
@@ -4747,6 +4750,7 @@
 				F714A1472ED84AF90050A43B /* HudBannerView.swift in Sources */,
 				F7A3DB932DDE23B5008F7EC8 /* NCDebouncer.swift in Sources */,
 				F72CD63A25C19EBF00F46F9A /* NCAutoUpload.swift in Sources */,
+				F7FAAC222FB773CC00DCA45B /* NCVideoAVPlayerViewControls.swift in Sources */,
 				AF93471D27E2361E002537EE /* NCShareAdvancePermissionFooter.swift in Sources */,
 				AF1A9B6427D0CA1E00F17A9E /* UIAlertController+Extension.swift in Sources */,
 				F7FA80012C0F4F3B0072FC60 /* NCUploadAssetsView.swift in Sources */,

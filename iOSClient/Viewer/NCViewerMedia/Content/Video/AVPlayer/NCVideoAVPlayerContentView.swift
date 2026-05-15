@@ -76,14 +76,14 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     // MARK: - Input
 
-    private var player: AVPlayer
+    internal var player: AVPlayer
     private var allowsPictureInPicture: Bool
     private var shouldAutoPlay: Bool
 
     // MARK: - Views
 
     private let playerViewController = AVPlayerViewController()
-    private let controlsView = NCVideoControlsView()
+    internal let controlsView = NCVideoControlsView()
 
     // MARK: - State
 
@@ -91,9 +91,9 @@ final class NCVideoAVPlayerViewController: UIViewController {
     private var itemStatusObservation: NSKeyValueObservation?
     private var timeControlStatusObservation: NSKeyValueObservation?
     private var playbackEndObserver: NSObjectProtocol?
-    private var controlsHideTimer: Timer?
-    private var isScrubbing = false
-    private var controlsVisible = false
+    internal var controlsHideTimer: Timer?
+    internal var isScrubbing = false
+    internal var controlsVisible = false
     private var didAutoplay = false
 
     private static var autoplayedPlayerIDs = Set<ObjectIdentifier>()
@@ -296,79 +296,6 @@ final class NCVideoAVPlayerViewController: UIViewController {
         }
     }
 
-    // MARK: - Controls Visibility
-
-    @objc
-    private func handleSingleTap(_ gesture: UITapGestureRecognizer) {
-        let location = gesture.location(in: view)
-
-        if controlsVisible {
-            guard !controlsHitFramesContain(location) else {
-                return
-            }
-
-            hideControls(animated: true)
-        } else {
-            showControls(animated: true)
-            scheduleControlsHide()
-        }
-    }
-
-    private func showControls(animated: Bool) {
-        setControlsVisible(true, animated: animated)
-    }
-
-    private func hideControls(animated: Bool) {
-        stopControlsHideTimer()
-        setControlsVisible(false, animated: animated)
-    }
-
-    private func setControlsVisible(_ visible: Bool, animated: Bool) {
-        controlsVisible = visible
-
-        let changes = {
-            self.controlsView.alpha = visible ? 1 : 0
-        }
-
-        let completion: (Bool) -> Void = { _ in
-            self.controlsView.isHidden = !visible
-        }
-
-        if visible {
-            controlsView.isHidden = false
-        }
-
-        guard animated else {
-            changes()
-            completion(true)
-            return
-        }
-
-        UIView.animate(
-            withDuration: 0.18,
-            animations: changes,
-            completion: completion
-        )
-    }
-
-    private func scheduleControlsHide() {
-        stopControlsHideTimer()
-
-        controlsHideTimer = Timer.scheduledTimer(
-            withTimeInterval: 4,
-            repeats: false
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.hideControls(animated: true)
-            }
-        }
-    }
-
-    private func stopControlsHideTimer() {
-        controlsHideTimer?.invalidate()
-        controlsHideTimer = nil
-    }
-
     // MARK: - Playback
 
     private func playIfNeeded() {
@@ -409,271 +336,6 @@ final class NCVideoAVPlayerViewController: UIViewController {
         }
 
         showControls(animated: false)
-    }
-
-    private func handlePlaybackDidEnd() {
-        player.pause()
-        stopControlsHideTimer()
-
-        let startTime = CMTime(
-            seconds: 0,
-            preferredTimescale: 600
-        )
-
-        player.seek(
-            to: startTime,
-            toleranceBefore: .zero,
-            toleranceAfter: .zero
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.updateProgressControls()
-                self?.updatePlayPauseButton()
-                self?.showControls(animated: true)
-            }
-        }
-    }
-
-    private func togglePlayPause() {
-        switch player.timeControlStatus {
-        case .playing:
-            player.pause()
-
-        case .paused,
-             .waitingToPlayAtSpecifiedRate:
-            player.play()
-
-        @unknown default:
-            player.play()
-        }
-
-        updatePlayPauseButton()
-        scheduleControlsHide()
-    }
-
-    private func seek(by seconds: Double) {
-        let currentSeconds = player.currentTime().seconds
-
-        guard currentSeconds.isFinite else {
-            return
-        }
-
-        seek(to: currentSeconds + seconds)
-    }
-
-    private func seek(to seconds: Double) {
-        let duration = currentDurationSeconds()
-        let boundedSeconds: Double
-
-        if duration > 0 {
-            boundedSeconds = max(0, min(duration, seconds))
-        } else {
-            boundedSeconds = max(0, seconds)
-        }
-
-        let targetTime = CMTime(
-            seconds: boundedSeconds,
-            preferredTimescale: 600
-        )
-
-        player.seek(
-            to: targetTime,
-            toleranceBefore: .zero,
-            toleranceAfter: .zero
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.updateProgressControls()
-            }
-        }
-    }
-
-    // MARK: - Progress
-
-    private func updatePlayPauseButton() {
-        controlsView.updatePlayPauseButton(isPlaying: player.timeControlStatus == .playing)
-    }
-
-    private func updateProgressControls() {
-        guard !isScrubbing else {
-            return
-        }
-
-        let currentSeconds = player.currentTime().seconds
-        let durationSeconds = currentDurationSeconds()
-
-        guard currentSeconds.isFinite,
-              durationSeconds.isFinite,
-              durationSeconds > 0 else {
-            controlsView.updateProgress(
-                progress: 0,
-                elapsedText: "0:00",
-                remainingText: "−0:00"
-            )
-            return
-        }
-
-        let progress = Float(max(0, min(1, currentSeconds / durationSeconds)))
-        let remainingSeconds = max(0, durationSeconds - currentSeconds)
-
-        controlsView.updateProgress(
-            progress: progress,
-            elapsedText: formatPlaybackTime(seconds: currentSeconds),
-            remainingText: "−" + formatPlaybackTime(seconds: remainingSeconds)
-        )
-    }
-
-    private func updateProgressLabels(progress: Float) {
-        let durationSeconds = currentDurationSeconds()
-
-        guard durationSeconds.isFinite,
-              durationSeconds > 0 else {
-            controlsView.updateProgress(
-                progress: progress,
-                elapsedText: "0:00",
-                remainingText: "−0:00"
-            )
-            return
-        }
-
-        let elapsedSeconds = durationSeconds * Double(progress)
-        let remainingSeconds = max(0, durationSeconds - elapsedSeconds)
-
-        controlsView.updateProgress(
-            progress: progress,
-            elapsedText: formatPlaybackTime(seconds: elapsedSeconds),
-            remainingText: "−" + formatPlaybackTime(seconds: remainingSeconds)
-        )
-    }
-
-    private func currentDurationSeconds() -> Double {
-        if let duration = player.currentItem?.duration.seconds,
-           duration.isFinite,
-           duration > 0 {
-            return duration
-        }
-
-        let duration = player.currentItem?.asset.duration.seconds ?? 0
-        return duration.isFinite ? duration : 0
-    }
-
-    private func formatPlaybackTime(seconds: Double) -> String {
-        let totalSeconds = max(0, Int(seconds.rounded()))
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let seconds = totalSeconds % 60
-
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
-
-        return String(format: "%d:%02d", minutes, seconds)
-    }
-
-    private func controlsHitFramesContain(_ location: CGPoint) -> Bool {
-        let centerControlsFrame = controlsView.centerControlsView.convert(
-            controlsView.centerControlsView.bounds,
-            to: view
-        )
-        let bottomControlsFrame = controlsView.bottomControlsView.convert(
-            controlsView.bottomControlsView.bounds,
-            to: view
-        )
-
-        return centerControlsFrame.contains(location) || bottomControlsFrame.contains(location)
-    }
-}
-
-// MARK: - Shared Controls Delegate
-
-extension NCVideoAVPlayerViewController: NCVideoControlsViewDelegate {
-    /// Handles the shared controls backward seek action.
-    ///
-    /// - Parameter controlsView: Shared controls view that emitted the action.
-    func videoControlsDidTapSeekBackward(_ controlsView: NCVideoControlsView) {
-        seek(by: -10)
-    }
-
-    /// Handles the shared controls play/pause action.
-    ///
-    /// - Parameter controlsView: Shared controls view that emitted the action.
-    func videoControlsDidTapPlayPause(_ controlsView: NCVideoControlsView) {
-        togglePlayPause()
-    }
-
-    /// Handles the shared controls forward seek action.
-    ///
-    /// - Parameter controlsView: Shared controls view that emitted the action.
-    func videoControlsDidTapSeekForward(_ controlsView: NCVideoControlsView) {
-        seek(by: 10)
-    }
-
-    /// Handles the beginning of slider scrubbing from the shared controls view.
-    ///
-    /// - Parameter controlsView: Shared controls view that emitted the action.
-    func videoControlsDidBeginScrubbing(_ controlsView: NCVideoControlsView) {
-        showControls(animated: true)
-        stopControlsHideTimer()
-        isScrubbing = true
-    }
-
-    /// Updates AVFoundation time labels while scrubbing from the shared controls view.
-    ///
-    /// - Parameters:
-    ///   - controlsView: Shared controls view that emitted the action.
-    ///   - progress: Normalized target progress between 0 and 1.
-    func videoControls(_ controlsView: NCVideoControlsView, didScrubTo progress: Float) {
-        updateProgressLabels(progress: progress)
-    }
-
-    /// Applies the selected AVFoundation playback position after scrubbing ends.
-    ///
-    /// - Parameters:
-    ///   - controlsView: Shared controls view that emitted the action.
-    ///   - progress: Normalized target progress between 0 and 1.
-    func videoControlsDidEndScrubbing(_ controlsView: NCVideoControlsView, progress: Float) {
-        isScrubbing = false
-        seek(to: currentDurationSeconds() * Double(progress))
-        updateProgressControls()
-        scheduleControlsHide()
-    }
-}
-
-// MARK: - Gesture Delegate
-
-extension NCVideoAVPlayerViewController: UIGestureRecognizerDelegate {
-    /// Allows tap gestures to coexist with the embedded AVPlayerViewController.
-    ///
-    /// - Parameters:
-    ///   - gestureRecognizer: Gesture recognizer asking for simultaneous recognition.
-    ///   - otherGestureRecognizer: Other gesture recognizer involved in the decision.
-    /// - Returns: True to avoid AVPlayerViewController touch handling from suppressing controls.
-    func gestureRecognizer(
-        _ gestureRecognizer: UIGestureRecognizer,
-        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-    ) -> Bool {
-        true
-    }
-
-    /// Prevents the background tap recognizer from stealing touches that begin on controls.
-    ///
-    /// - Parameters:
-    ///   - gestureRecognizer: Gesture recognizer asking whether it should receive the touch.
-    ///   - touch: Source touch.
-    /// - Returns: False for visible playback controls, true otherwise.
-    func gestureRecognizer(
-        _ gestureRecognizer: UIGestureRecognizer,
-        shouldReceive touch: UITouch
-    ) -> Bool {
-        guard controlsVisible else {
-            return true
-        }
-
-        let location = touch.location(in: view)
-
-        if controlsHitFramesContain(location) {
-            return false
-        }
-
-        return true
     }
 }
 

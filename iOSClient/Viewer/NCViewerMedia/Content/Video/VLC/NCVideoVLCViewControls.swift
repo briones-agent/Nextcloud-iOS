@@ -57,7 +57,6 @@ extension NCVideoVLCViewController {
         updateProgressControls()
     }
 
-
     /// Updates the play/pause button icon from the current VLC playback state.
     func updatePlayPauseButton() {
         controlsView.updatePlayPauseButton(isPlaying: mediaPlayer.isPlaying)
