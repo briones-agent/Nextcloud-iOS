@@ -61,6 +61,7 @@ class NCViewer: NSObject {
                     }
                 }
             )
+            return nil
         }
 
         // DOCUMENTS
