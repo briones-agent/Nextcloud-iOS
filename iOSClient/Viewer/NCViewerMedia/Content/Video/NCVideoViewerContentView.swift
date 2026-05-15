@@ -159,17 +159,7 @@ struct NCVideoViewerContentView: View {
 
     @ViewBuilder
     private var previewPlaceholderView: some View {
-        if let previewURL {
-            NCImageViewerContentView(
-                identifier: metadata.ocId,
-                previewURL: previewURL,
-                fullURL: nil,
-                backgroundStyle: .black
-            )
-        } else {
-            Color.black
-                .ignoresSafeArea()
-        }
+        NCVideoPreviewPlaceholderView(previewURL: previewURL)
     }
 
     private func failedView(_ message: String) -> some View {
@@ -600,6 +590,40 @@ struct NCVideoViewerContentView: View {
         }
 
         return metadata.fileName
+    }
+}
+
+// MARK: - Video Preview Placeholder
+
+/// Displays a static, non-interactive preview for video pages.
+///
+/// Video previews are shown only when a local preview image is already available.
+/// When no preview is available, the view keeps a stable black background to avoid
+/// extra icon-to-preview-to-player transitions.
+private struct NCVideoPreviewPlaceholderView: View {
+    let previewURL: URL?
+
+    var body: some View {
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
+
+            if let image = previewImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private var previewImage: UIImage? {
+        guard let previewURL,
+              previewURL.isFileURL else {
+            return nil
+        }
+
+        return UIImage(contentsOfFile: previewURL.path)
     }
 }
 
