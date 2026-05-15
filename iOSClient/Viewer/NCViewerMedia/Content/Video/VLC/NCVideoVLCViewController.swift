@@ -12,7 +12,7 @@ import NextcloudKit
 /// UIKit-only VLC video controller.
 ///
 /// This controller is intentionally outside the SwiftUI paging hierarchy.
-/// It owns one stable drawable view and one VLCMediaPlayer.
+/// It owns one stable drawable view, one VLCMediaPlayer, and one shared controls view.
 final class NCVideoVLCViewController: UIViewController {
 
     // MARK: - Input
@@ -30,34 +30,7 @@ final class NCVideoVLCViewController: UIViewController {
     // MARK: - Views
 
     internal let drawableView = UIView()
-    internal let centerControlsView = UIView()
-    internal let centerControlsStackView = UIStackView()
-    internal let bottomControlsView = UIView()
-    internal let bottomControlsStackView = UIStackView()
-    internal let elapsedTimeLabel = UILabel()
-    internal let remainingTimeLabel = UILabel()
-    internal let progressSlider = UISlider()
-
-    internal lazy var previousButton: UIButton = makeCenterControlButton(
-        systemName: "gobackward.10",
-        pointSize: 22,
-        side: 44,
-        action: #selector(seekBackwardTapped)
-    )
-
-    internal lazy var playPauseButton: UIButton = makeCenterControlButton(
-        systemName: "play.fill",
-        pointSize: 36,
-        side: 62,
-        action: #selector(playPauseTapped)
-    )
-
-    internal lazy var nextButton: UIButton = makeCenterControlButton(
-        systemName: "goforward.10",
-        pointSize: 22,
-        side: 44,
-        action: #selector(seekForwardTapped)
-    )
+    internal let controlsView = NCVideoControlsView()
 
     // MARK: - VLC
 
@@ -120,58 +93,13 @@ final class NCVideoVLCViewController: UIViewController {
         drawableView.clipsToBounds = true
         drawableView.translatesAutoresizingMaskIntoConstraints = false
 
+        controlsView.delegate = self
+        controlsView.alpha = 0
+        controlsView.isHidden = true
+        controlsView.translatesAutoresizingMaskIntoConstraints = false
+
         rootView.addSubview(drawableView)
-
-        centerControlsView.translatesAutoresizingMaskIntoConstraints = false
-        centerControlsView.backgroundColor = .clear
-
-        centerControlsStackView.axis = .horizontal
-        centerControlsStackView.alignment = .center
-        centerControlsStackView.distribution = .equalCentering
-        centerControlsStackView.spacing = 28
-        centerControlsStackView.translatesAutoresizingMaskIntoConstraints = false
-
-        centerControlsStackView.addArrangedSubview(previousButton)
-        centerControlsStackView.addArrangedSubview(playPauseButton)
-        centerControlsStackView.addArrangedSubview(nextButton)
-
-        centerControlsView.addSubview(centerControlsStackView)
-        rootView.addSubview(centerControlsView)
-
-        bottomControlsView.backgroundColor = UIColor.black.withAlphaComponent(0.36)
-        bottomControlsView.translatesAutoresizingMaskIntoConstraints = false
-
-        configureTimeLabel(elapsedTimeLabel)
-        configureTimeLabel(remainingTimeLabel)
-
-        progressSlider.minimumValue = 0
-        progressSlider.maximumValue = 1
-        progressSlider.value = 0
-        progressSlider.minimumTrackTintColor = .white
-        progressSlider.maximumTrackTintColor = UIColor.white.withAlphaComponent(0.42)
-        progressSlider.thumbTintColor = .white
-        progressSlider.translatesAutoresizingMaskIntoConstraints = false
-        progressSlider.addTarget(self, action: #selector(sliderTouchBegan), for: .touchDown)
-        progressSlider.addTarget(self, action: #selector(sliderValueChanged), for: .valueChanged)
-        progressSlider.addTarget(self, action: #selector(sliderTouchEnded), for: [.touchUpInside, .touchUpOutside, .touchCancel])
-
-        bottomControlsStackView.axis = .horizontal
-        bottomControlsStackView.alignment = .center
-        bottomControlsStackView.distribution = .fill
-        bottomControlsStackView.spacing = 10
-        bottomControlsStackView.translatesAutoresizingMaskIntoConstraints = false
-
-        bottomControlsStackView.addArrangedSubview(elapsedTimeLabel)
-        bottomControlsStackView.addArrangedSubview(progressSlider)
-        bottomControlsStackView.addArrangedSubview(remainingTimeLabel)
-
-        bottomControlsView.addSubview(bottomControlsStackView)
-        rootView.addSubview(bottomControlsView)
-
-        centerControlsView.alpha = 0
-        centerControlsView.isHidden = true
-        bottomControlsView.alpha = 0
-        bottomControlsView.isHidden = true
+        rootView.addSubview(controlsView)
 
         NSLayoutConstraint.activate([
             drawableView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
@@ -179,28 +107,10 @@ final class NCVideoVLCViewController: UIViewController {
             drawableView.topAnchor.constraint(equalTo: rootView.topAnchor),
             drawableView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
 
-            centerControlsView.centerXAnchor.constraint(equalTo: rootView.centerXAnchor),
-            centerControlsView.centerYAnchor.constraint(equalTo: rootView.centerYAnchor),
-            centerControlsView.widthAnchor.constraint(equalToConstant: 220),
-            centerControlsView.heightAnchor.constraint(equalToConstant: 76),
-
-            centerControlsStackView.leadingAnchor.constraint(equalTo: centerControlsView.leadingAnchor),
-            centerControlsStackView.trailingAnchor.constraint(equalTo: centerControlsView.trailingAnchor),
-            centerControlsStackView.topAnchor.constraint(equalTo: centerControlsView.topAnchor),
-            centerControlsStackView.bottomAnchor.constraint(equalTo: centerControlsView.bottomAnchor),
-
-            bottomControlsView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
-            bottomControlsView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
-            bottomControlsView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
-            bottomControlsView.heightAnchor.constraint(equalToConstant: 86),
-
-            bottomControlsStackView.leadingAnchor.constraint(equalTo: bottomControlsView.leadingAnchor, constant: 20),
-            bottomControlsStackView.trailingAnchor.constraint(equalTo: bottomControlsView.trailingAnchor, constant: -16),
-            bottomControlsStackView.topAnchor.constraint(equalTo: bottomControlsView.topAnchor, constant: 16),
-            bottomControlsStackView.heightAnchor.constraint(equalToConstant: 34),
-
-            elapsedTimeLabel.widthAnchor.constraint(equalToConstant: 54),
-            remainingTimeLabel.widthAnchor.constraint(equalToConstant: 58)
+            controlsView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+            controlsView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+            controlsView.topAnchor.constraint(equalTo: rootView.topAnchor),
+            controlsView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
         ])
 
         view = rootView
@@ -401,8 +311,7 @@ final class NCVideoVLCViewController: UIViewController {
         let location = gesture.location(in: view)
 
         if controlsVisible {
-            guard !centerControlsView.frame.contains(location),
-                  !bottomControlsView.frame.contains(location) else {
+            guard !controlsHitFramesContain(location) else {
                 return
             }
 
@@ -453,6 +362,7 @@ final class NCVideoVLCViewController: UIViewController {
         updatePlayPauseButton()
         updateProgressControls()
         startProgressTimer()
+        showControls(animated: false)
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
@@ -483,6 +393,23 @@ final class NCVideoVLCViewController: UIViewController {
     }
 
     // MARK: - Helpers
+
+    /// Returns whether a point is inside one of the visible controls areas.
+    ///
+    /// - Parameter location: Point in this controller's root view coordinate space.
+    /// - Returns: True when the point is inside center or bottom controls.
+    private func controlsHitFramesContain(_ location: CGPoint) -> Bool {
+        let centerControlsFrame = controlsView.centerControlsView.convert(
+            controlsView.centerControlsView.bounds,
+            to: view
+        )
+        let bottomControlsFrame = controlsView.bottomControlsView.convert(
+            controlsView.bottomControlsView.bounds,
+            to: view
+        )
+
+        return centerControlsFrame.contains(location) || bottomControlsFrame.contains(location)
+    }
 
     /// Configures the audio session for movie playback.
     private func configureAudioSession() {
@@ -537,7 +464,7 @@ extension NCVideoVLCViewController: UIGestureRecognizerDelegate {
 
         let location = touch.location(in: view)
 
-        if centerControlsView.frame.contains(location) || bottomControlsView.frame.contains(location) {
+        if controlsHitFramesContain(location) {
             return false
         }
 

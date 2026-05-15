@@ -1,70 +1,9 @@
-import AVFoundation
 import UIKit
 import MobileVLCKit
-import NextcloudKit
 
 // MARK: - Playback Controls
 
 extension NCVideoVLCViewController {
-    /// Creates a large center playback control button.
-    ///
-    /// - Parameters:
-    ///   - systemName: SF Symbol name used by the button.
-    ///   - pointSize: Symbol point size.
-    ///   - side: Button side length.
-    ///   - action: Selector invoked when the button is tapped.
-    /// - Returns: Configured button.
-    func makeCenterControlButton(
-        systemName: String,
-        pointSize: CGFloat,
-        side: CGFloat,
-        action: Selector
-    ) -> UIButton {
-        let button = UIButton(type: .system)
-        button.tintColor = .white
-        button.backgroundColor = UIColor.black.withAlphaComponent(0.18)
-        button.layer.cornerRadius = side / 2
-        button.clipsToBounds = true
-        button.translatesAutoresizingMaskIntoConstraints = false
-
-        let symbolConfiguration = UIImage.SymbolConfiguration(
-            pointSize: pointSize,
-            weight: .regular
-        )
-
-        button.setImage(
-            UIImage(systemName: systemName)?.withConfiguration(symbolConfiguration),
-            for: .normal
-        )
-
-        button.addTarget(
-            self,
-            action: action,
-            for: .touchUpInside
-        )
-
-        NSLayoutConstraint.activate([
-            button.widthAnchor.constraint(equalToConstant: side),
-            button.heightAnchor.constraint(equalToConstant: side)
-        ])
-
-        return button
-    }
-
-    /// Configures a time label used by the bottom playback bar.
-    ///
-    /// - Parameter label: Label to configure.
-    func configureTimeLabel(_ label: UILabel) {
-        label.textColor = UIColor.white.withAlphaComponent(0.86)
-        label.font = .monospacedDigitSystemFont(
-            ofSize: 16,
-            weight: .regular
-        )
-        label.textAlignment = .center
-        label.adjustsFontForContentSizeCategory = true
-        label.text = "0:00"
-    }
-
     /// Seeks ten seconds backward in the current VLC media.
     @objc
     func seekBackwardTapped() {
@@ -118,42 +57,10 @@ extension NCVideoVLCViewController {
         updateProgressControls()
     }
 
-    /// Begins slider scrubbing.
-    @objc
-    func sliderTouchBegan() {
-        showControls(animated: true)
-        stopControlsHideTimer()
-        isScrubbing = true
-    }
-
-    /// Updates the time labels while the user is dragging the slider.
-    @objc
-    func sliderValueChanged() {
-        updateProgressLabels(position: progressSlider.value)
-    }
-
-    /// Applies the selected slider position to VLC playback.
-    @objc
-    func sliderTouchEnded() {
-        mediaPlayer.position = progressSlider.value
-        isScrubbing = false
-        updateProgressControls()
-        scheduleControlsHide()
-    }
 
     /// Updates the play/pause button icon from the current VLC playback state.
     func updatePlayPauseButton() {
-        let imageName = mediaPlayer.isPlaying ? "pause.fill" : "play.fill"
-
-        let symbolConfiguration = UIImage.SymbolConfiguration(
-            pointSize: 36,
-            weight: .regular
-        )
-
-        playPauseButton.setImage(
-            UIImage(systemName: imageName)?.withConfiguration(symbolConfiguration),
-            for: .normal
-        )
+        controlsView.updatePlayPauseButton(isPlaying: mediaPlayer.isPlaying)
     }
 
     /// Starts periodic progress updates.
@@ -181,7 +88,6 @@ extension NCVideoVLCViewController {
         }
 
         let position = max(0, min(1, mediaPlayer.position))
-        progressSlider.value = position
         updateProgressLabels(position: position)
         updatePlayPauseButton()
     }
@@ -194,8 +100,11 @@ extension NCVideoVLCViewController {
         let elapsed = Int(Float(duration) * position)
         let remaining = max(0, Int(duration) - elapsed)
 
-        elapsedTimeLabel.text = formatPlaybackTime(milliseconds: elapsed)
-        remainingTimeLabel.text = "−" + formatPlaybackTime(milliseconds: remaining)
+        controlsView.updateProgress(
+            progress: position,
+            elapsedText: formatPlaybackTime(milliseconds: elapsed),
+            remainingText: "−" + formatPlaybackTime(milliseconds: remaining)
+        )
     }
 
     /// Formats milliseconds as a compact playback time.
@@ -243,18 +152,15 @@ extension NCVideoVLCViewController {
     ///   - animated: Whether the visibility change should be animated.
     internal func setControlsVisible(_ visible: Bool, animated: Bool) {
         let changes = {
-            self.centerControlsView.alpha = visible ? 1 : 0
-            self.bottomControlsView.alpha = visible ? 1 : 0
+            self.controlsView.alpha = visible ? 1 : 0
         }
 
         let completion: (Bool) -> Void = { _ in
-            self.centerControlsView.isHidden = !visible
-            self.bottomControlsView.isHidden = !visible
+            self.controlsView.isHidden = !visible
         }
 
         if visible {
-            centerControlsView.isHidden = false
-            bottomControlsView.isHidden = false
+            controlsView.isHidden = false
         }
 
         guard animated else {
@@ -288,5 +194,60 @@ extension NCVideoVLCViewController {
     internal func stopControlsHideTimer() {
         controlsHideTimer?.invalidate()
         controlsHideTimer = nil
+    }
+}
+
+// MARK: - Shared Controls Delegate
+
+extension NCVideoVLCViewController: NCVideoControlsViewDelegate {
+    /// Handles the shared controls backward seek action.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapSeekBackward(_ controlsView: NCVideoControlsView) {
+        seekBackwardTapped()
+    }
+
+    /// Handles the shared controls play/pause action.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapPlayPause(_ controlsView: NCVideoControlsView) {
+        playPauseTapped()
+    }
+
+    /// Handles the shared controls forward seek action.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapSeekForward(_ controlsView: NCVideoControlsView) {
+        seekForwardTapped()
+    }
+
+    /// Handles the beginning of slider scrubbing from the shared controls view.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidBeginScrubbing(_ controlsView: NCVideoControlsView) {
+        showControls(animated: true)
+        stopControlsHideTimer()
+        isScrubbing = true
+    }
+
+    /// Updates VLC time labels while scrubbing from the shared controls view.
+    ///
+    /// - Parameters:
+    ///   - controlsView: Shared controls view that emitted the action.
+    ///   - progress: Normalized target progress between 0 and 1.
+    func videoControls(_ controlsView: NCVideoControlsView, didScrubTo progress: Float) {
+        updateProgressLabels(position: progress)
+    }
+
+    /// Applies the selected VLC playback position after scrubbing ends.
+    ///
+    /// - Parameters:
+    ///   - controlsView: Shared controls view that emitted the action.
+    ///   - progress: Normalized target progress between 0 and 1.
+    func videoControlsDidEndScrubbing(_ controlsView: NCVideoControlsView, progress: Float) {
+        mediaPlayer.position = progress
+        isScrubbing = false
+        updateProgressControls()
+        scheduleControlsHide()
     }
 }
