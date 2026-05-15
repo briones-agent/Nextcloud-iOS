@@ -131,50 +131,18 @@ struct NCVideoViewerContentView: View {
         }
         .background(Color.black)
         .task(id: taskIdentifier) {
-            let expectedTaskIdentifier = taskIdentifier
-            let expectedLoadGeneration = loadGeneration
-
-            let isAlreadyCurrentVideo: Bool
-
-            if let localURL {
-                isAlreadyCurrentVideo = playback.isCurrentVideo(
-                    ocId: metadata.ocId,
-                    etag: metadata.etag,
-                    url: localURL
-                )
-            } else {
-                isAlreadyCurrentVideo = playback.isCurrentVideo(
-                    ocId: metadata.ocId,
-                    etag: metadata.etag
-                )
-            }
-
-            errorMessage = nil
-
-            if isAlreadyCurrentVideo {
-                guard isSelected else {
-                    return
-                }
-
-                revealCurrentPlaybackIfNeeded()
-                return
-            }
-
-            guard await waitForStableSelection(
-                expectedTaskIdentifier: expectedTaskIdentifier,
-                expectedLoadGeneration: expectedLoadGeneration
-            ) else {
-                return
-            }
-
-            await resolveAndLoadVideo(
-                expectedTaskIdentifier: expectedTaskIdentifier,
-                expectedLoadGeneration: expectedLoadGeneration
-            )
+            await loadVideoIfSelected()
         }
         .onChange(of: isSelected) { _, selected in
             loadGeneration = UUID()
-            handleSelectionChange(selected)
+
+            guard selected else {
+                return
+            }
+
+            Task {
+                await loadVideoIfSelected()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             presentedVLCURL = nil
@@ -227,6 +195,77 @@ struct NCVideoViewerContentView: View {
     private var taskIdentifier: String {
         let localIdentifier = localURL?.absoluteString ?? "remote"
         return "\(metadata.ocId)|\(metadata.etag)|\(localIdentifier)"
+    }
+
+    /// Loads or reveals the video only when this page is still selected and stable.
+    ///
+    /// This is the single entry point for selected video loading.
+    /// It is used by both `.task(id:)` and `isSelected` changes because SwiftUI may
+    /// create a video page before it becomes selected, and `.task(id:)` may not run
+    /// again when the same page later becomes selected.
+    @MainActor
+    private func loadVideoIfSelected() async {
+        let expectedTaskIdentifier = taskIdentifier
+        let expectedLoadGeneration = loadGeneration
+
+        guard await waitForStableSelection(
+            expectedTaskIdentifier: expectedTaskIdentifier,
+            expectedLoadGeneration: expectedLoadGeneration
+        ) else {
+            return
+        }
+
+        errorMessage = nil
+
+        if isCurrentPlaybackVideo() {
+            revealCurrentPlaybackIfNeeded()
+            return
+        }
+
+        await resolveAndLoadVideo(
+            expectedTaskIdentifier: expectedTaskIdentifier,
+            expectedLoadGeneration: expectedLoadGeneration
+        )
+    }
+
+    /// Waits briefly before allowing a selected video page to resolve or load playback.
+    ///
+    /// Fast swipe gestures can make intermediate video pages selected for a very short time.
+    /// This gate keeps those transient pages as preview-only without slowing image paging,
+    /// because it exists only inside the video viewer.
+    ///
+    /// - Parameters:
+    ///   - expectedTaskIdentifier: Task identity captured before the delay.
+    ///   - expectedLoadGeneration: Load generation captured before the delay.
+    /// - Returns: True if the page is still selected and still represents the same load request.
+    @MainActor
+    private func waitForStableSelection(
+        expectedTaskIdentifier: String,
+        expectedLoadGeneration: UUID
+    ) async -> Bool {
+        guard isSelected else {
+            return false
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: Self.videoSelectionSettleDelayNanoseconds)
+        } catch {
+            return false
+        }
+
+        guard !Task.isCancelled else {
+            return false
+        }
+
+        guard expectedTaskIdentifier == taskIdentifier else {
+            return false
+        }
+
+        guard expectedLoadGeneration == loadGeneration else {
+            return false
+        }
+
+        return isSelected
     }
 
     /// Resolves the playable video URL and loads it into the shared playback controller.
@@ -406,42 +445,6 @@ struct NCVideoViewerContentView: View {
 
     // MARK: - Playback Selection
 
-    /// Handles page selection changes without changing AVFoundation playback state.
-    ///
-    /// When a prefetched video page becomes selected again, `.task(id:)` may not run
-    /// because `taskIdentifier` intentionally does not include `isSelected`.
-    /// In that case, selection changes start the same gated resolution flow used by `.task(id:)`.
-    ///
-    /// - Parameter selected: Whether this page is currently selected.
-    @MainActor
-    private func handleSelectionChange(_ selected: Bool) {
-        guard selected else {
-            return
-        }
-
-        if isCurrentPlaybackVideo() {
-            revealCurrentPlaybackIfNeeded()
-            return
-        }
-
-        let expectedLoadGeneration = loadGeneration
-        let expectedTaskIdentifier = taskIdentifier
-
-        Task {
-            guard await waitForStableSelection(
-                expectedTaskIdentifier: expectedTaskIdentifier,
-                expectedLoadGeneration: expectedLoadGeneration
-            ) else {
-                return
-            }
-
-            await resolveAndLoadVideo(
-                expectedTaskIdentifier: expectedTaskIdentifier,
-                expectedLoadGeneration: expectedLoadGeneration
-            )
-        }
-    }
-
     /// Returns whether this page already owns an active playback engine.
     ///
     /// Local videos require an exact URL match.
@@ -576,46 +579,6 @@ struct NCVideoViewerContentView: View {
     /// This protects fast swipe gestures from starting remote resolution or VLC/AVPlayer
     /// for transient video pages, without affecting image paging responsiveness.
     private static let videoSelectionSettleDelayNanoseconds: UInt64 = 150_000_000
-
-    /// Waits briefly before allowing a selected video page to resolve or load playback.
-    ///
-    /// Fast swipe gestures can make intermediate video pages selected for a very short time.
-    /// This gate keeps those transient pages as preview-only without slowing image paging,
-    /// because it exists only inside the video viewer.
-    ///
-    /// - Parameters:
-    ///   - expectedTaskIdentifier: Task identity captured before the delay.
-    ///   - expectedLoadGeneration: Load generation captured before the delay.
-    /// - Returns: True if the page is still selected and still represents the same load request.
-    @MainActor
-    private func waitForStableSelection(
-        expectedTaskIdentifier: String,
-        expectedLoadGeneration: UUID
-    ) async -> Bool {
-        guard isSelected else {
-            return false
-        }
-
-        do {
-            try await Task.sleep(nanoseconds: Self.videoSelectionSettleDelayNanoseconds)
-        } catch {
-            return false
-        }
-
-        guard !Task.isCancelled else {
-            return false
-        }
-
-        guard expectedTaskIdentifier == taskIdentifier else {
-            return false
-        }
-
-        guard expectedLoadGeneration == loadGeneration else {
-            return false
-        }
-
-        return isSelected
-    }
 
     /// Extra bottom padding used only for the native AVPlayer controller.
     ///
