@@ -21,7 +21,7 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
     init(
         player: AVPlayer,
         allowsPictureInPicture: Bool = true,
-        shouldAutoPlay: Bool = true
+        shouldAutoPlay: Bool = false
     ) {
         self.player = player
         self.allowsPictureInPicture = allowsPictureInPicture

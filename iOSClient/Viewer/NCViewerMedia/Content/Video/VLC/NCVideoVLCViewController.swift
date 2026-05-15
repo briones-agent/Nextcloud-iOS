@@ -134,7 +134,7 @@ final class NCVideoVLCViewController: UIViewController {
 
     /// Updates the current VLC input.
     ///
-    /// If the URL changes, the current media is stopped and the new media starts.
+    /// If the URL changes, the current media is stopped and the new media is prepared.
     /// The navigation title and context menu are refreshed for the new metadata.
     ///
     /// - Parameters:
@@ -157,7 +157,7 @@ final class NCVideoVLCViewController: UIViewController {
         self.url = url
         self.userAgent = userAgent
         self.contextMenuController = contextMenuController
-        
+
         updateTitle()
         refreshMoreMenu()
 
@@ -242,7 +242,7 @@ final class NCVideoVLCViewController: UIViewController {
 
     // MARK: - Playback
 
-    /// Starts VLC playback.
+    /// Prepares VLC playback without starting it automatically.
     private func start() {
         attachDrawable()
 
@@ -255,12 +255,12 @@ final class NCVideoVLCViewController: UIViewController {
         }
 
         mediaPlayer.media = media
-        mediaPlayer.play()
+//        mediaPlayer.play()
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
             emoji: .debug,
-            message: "VIDEO VLC UIKit presented play requested ocId \(metadata.ocId), url \(url.absoluteString)",
+            message: "VIDEO VLC UIKit prepared without autoplay ocId \(metadata.ocId), url \(url.absoluteString)",
             consoleOnly: true
         )
     }
