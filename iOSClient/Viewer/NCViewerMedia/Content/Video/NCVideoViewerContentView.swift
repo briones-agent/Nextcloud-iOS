@@ -134,6 +134,13 @@ struct NCVideoViewerContentView: View {
             let expectedTaskIdentifier = taskIdentifier
             let expectedLoadGeneration = loadGeneration
 
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO task start ocId \(metadata.ocId), fileName \(metadata.fileNameView), isSelected \(isSelected), localURL \(localURL?.absoluteString ?? "nil"), taskIdentifier \(expectedTaskIdentifier)",
+                consoleOnly: true
+            )
+
             let isAlreadyCurrentVideo: Bool
 
             if let localURL {
@@ -153,14 +160,33 @@ struct NCVideoViewerContentView: View {
 
             if isAlreadyCurrentVideo {
                 guard isSelected else {
+                    nkLog(
+                        tag: NCGlobal.shared.logTagViewer,
+                        emoji: .debug,
+                        message: "VIDEO task reuse skipped not selected ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                        consoleOnly: true
+                    )
                     return
                 }
+
+                nkLog(
+                    tag: NCGlobal.shared.logTagViewer,
+                    emoji: .debug,
+                    message: "VIDEO task reuse current playback ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                    consoleOnly: true
+                )
 
                 revealCurrentPlaybackIfNeeded()
                 return
             }
 
             guard isSelected else {
+                nkLog(
+                    tag: NCGlobal.shared.logTagViewer,
+                    emoji: .debug,
+                    message: "VIDEO task skipped not selected ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                    consoleOnly: true
+                )
                 return
             }
 
@@ -237,6 +263,54 @@ struct NCVideoViewerContentView: View {
         expectedLoadGeneration: UUID
     ) async {
         errorMessage = nil
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO resolve gate ocId \(metadata.ocId), fileName \(metadata.fileNameView), isSelected \(isSelected), generation \(expectedLoadGeneration)",
+            consoleOnly: true
+        )
+
+        do {
+            try await Task.sleep(nanoseconds: Self.videoSelectionSettleDelayNanoseconds)
+        } catch {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO resolve cancelled during selection settle ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                consoleOnly: true
+            )
+            return
+        }
+
+        guard expectedTaskIdentifier == taskIdentifier else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO resolve ignored stale task after selection settle ocId \(metadata.ocId)",
+                consoleOnly: true
+            )
+            return
+        }
+
+        guard expectedLoadGeneration == loadGeneration else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO resolve ignored stale generation after selection settle ocId \(metadata.ocId)",
+                consoleOnly: true
+            )
+            return
+        }
+
+        guard isSelected else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO resolve skipped not selected after selection settle ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                consoleOnly: true
+            )
+            return
+        }
         if let localURL {
             loadResolvedVideo(
                 url: localURL,
@@ -288,6 +362,12 @@ struct NCVideoViewerContentView: View {
             return
         }
         guard isSelected else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO resolve skipped final not selected ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                consoleOnly: true
+            )
             return
         }
 
@@ -301,6 +381,48 @@ struct NCVideoViewerContentView: View {
             )
 
             errorMessage = result.error.errorDescription
+            return
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: Self.videoPlaybackStartSettleDelayNanoseconds)
+        } catch {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO load cancelled during playback settle ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                consoleOnly: true
+            )
+            return
+        }
+
+        guard expectedTaskIdentifier == taskIdentifier else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO load ignored stale task after playback settle ocId \(metadata.ocId)",
+                consoleOnly: true
+            )
+            return
+        }
+
+        guard expectedLoadGeneration == loadGeneration else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO load ignored stale generation after playback settle ocId \(metadata.ocId)",
+                consoleOnly: true
+            )
+            return
+        }
+
+        guard isSelected else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO load skipped not selected after playback settle ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                consoleOnly: true
+            )
             return
         }
 
@@ -347,6 +469,12 @@ struct NCVideoViewerContentView: View {
             return
         }
         guard isSelected else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO load skipped not selected ocId \(metadata.ocId), source \(source), url \(url.absoluteString)",
+                consoleOnly: true
+            )
             return
         }
 
@@ -404,20 +532,39 @@ struct NCVideoViewerContentView: View {
     /// - Parameter selected: Whether this page is currently selected.
     @MainActor
     private func handleSelectionChange(_ selected: Bool) {
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO selection change ocId \(metadata.ocId), fileName \(metadata.fileNameView), selected \(selected)",
+            consoleOnly: true
+        )
         guard selected else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO selection ignored not selected ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                consoleOnly: true
+            )
             return
         }
 
         if isCurrentPlaybackVideo() {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO selection reveals current playback ocId \(metadata.ocId), fileName \(metadata.fileNameView)",
+                consoleOnly: true
+            )
             revealCurrentPlaybackIfNeeded()
             return
         }
 
         let expectedLoadGeneration = loadGeneration
+        let expectedTaskIdentifier = taskIdentifier
 
         Task {
             await resolveAndLoadVideo(
-                expectedTaskIdentifier: taskIdentifier,
+                expectedTaskIdentifier: expectedTaskIdentifier,
                 expectedLoadGeneration: expectedLoadGeneration
             )
         }
@@ -483,12 +630,31 @@ struct NCVideoViewerContentView: View {
     @MainActor
     private func presentVLCIfSelected(url: URL) {
         guard isSelected else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO VLC present skipped not selected ocId \(metadata.ocId), url \(url.absoluteString)",
+                consoleOnly: true
+            )
             return
         }
 
         guard presentedVLCURL != url else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO VLC present skipped already presented ocId \(metadata.ocId), url \(url.absoluteString)",
+                consoleOnly: true
+            )
             return
         }
+
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO VLC present ocId \(metadata.ocId), fileName \(metadata.fileNameView), url \(url.absoluteString)",
+            consoleOnly: true
+        )
 
         presentedVLCURL = url
 
@@ -551,6 +717,20 @@ struct NCVideoViewerContentView: View {
     }
 
     // MARK: - Helpers
+
+    /// Delay used before resolving or loading a newly selected video page.
+    ///
+    /// Fast swipe gestures can temporarily mark intermediate pages as selected.
+    /// Waiting a short time prevents transient pages from resolving direct links,
+    /// creating AVPlayer instances, or presenting VLC before paging settles.
+    private static let videoSelectionSettleDelayNanoseconds: UInt64 = 180_000_000
+
+    /// Additional delay used after a remote video URL has been resolved and before
+    /// creating the playback engine.
+    ///
+    /// This catches the last part of a fast swipe where the direct link may arrive
+    /// while the page is still transiently selected, but the selection changes shortly after.
+    private static let videoPlaybackStartSettleDelayNanoseconds: UInt64 = 120_000_000
 
     /// Extra bottom padding used only for the native AVPlayer controller.
     ///
