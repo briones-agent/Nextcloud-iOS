@@ -65,7 +65,7 @@ final class NCVideoVLCViewController: UIViewController {
 
     internal var progressTimer: Timer?
     internal var controlsHideTimer: Timer?
-    internal var controlsVisible = true
+    internal var controlsVisible = false
     internal var isScrubbing = false
 
     // MARK: - Navigation Items
@@ -168,6 +168,11 @@ final class NCVideoVLCViewController: UIViewController {
         bottomControlsView.addSubview(bottomControlsStackView)
         rootView.addSubview(bottomControlsView)
 
+        centerControlsView.alpha = 0
+        centerControlsView.isHidden = true
+        bottomControlsView.alpha = 0
+        bottomControlsView.isHidden = true
+
         NSLayoutConstraint.activate([
             drawableView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
             drawableView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
@@ -216,8 +221,6 @@ final class NCVideoVLCViewController: UIViewController {
         super.viewDidAppear(animated)
 
         start()
-        showControls(animated: false)
-        scheduleControlsHide()
     }
 
     override func viewDidLayoutSubviews() {
@@ -278,8 +281,6 @@ final class NCVideoVLCViewController: UIViewController {
         }
 
         updatePlayPauseButton()
-        showControls(animated: true)
-        scheduleControlsHide()
     }
 
     // MARK: - Navigation
