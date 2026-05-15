@@ -524,7 +524,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     /// Updates the selected page index after paging has settled.
     ///
     /// This is the only place where a finished swipe becomes the real selected page.
-    /// During dragging, pages may be prefetched, but they are not considered selected.
+    /// During dragging, visible pages are tracked for background updates, but they are not considered selected.
     ///
     /// - Parameter scrollView: Source scroll view.
     private func updateSelectedIndexFromScrollView(_ scrollView: UIScrollView) {
