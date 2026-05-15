@@ -259,15 +259,11 @@ struct NCMediaViewerPageView: View {
         previewURL: URL?,
         progress: Double?
     ) -> some View {
-        ZStack {
-            if let previewURL {
-                previewOnlyView(previewURL: previewURL)
-            } else {
-                Color.ncViewerBackground(backgroundStyle)
-                    .ignoresSafeArea()
-            }
-
-            downloadingOverlay(progress: progress)
+        if let previewURL {
+            previewOnlyView(previewURL: previewURL)
+        } else {
+            Color.ncViewerBackground(backgroundStyle)
+                .ignoresSafeArea()
         }
     }
 
@@ -382,26 +378,6 @@ struct NCMediaViewerPageView: View {
         .gesture(chromeToggleGesture())
     }
 
-    private func downloadingOverlay(progress: Double?) -> some View {
-        VStack(spacing: 12) {
-            if let progress {
-                ProgressView(value: progress)
-                    .progressViewStyle(.linear)
-                    .frame(maxWidth: 180)
-            } else {
-                ProgressView()
-                    .tint(progressTintColor)
-            }
-
-            Text(downloadText(progress))
-                .font(.footnote)
-                .foregroundStyle(secondaryForegroundStyle)
-        }
-        .padding(16)
-        .background(.black.opacity(0.45))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
     private func failedOverlay(fileName: String?, message: String) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "icloud.slash")
@@ -503,14 +479,6 @@ struct NCMediaViewerPageView: View {
         return safeTop + 44 + 8
     }
 
-    private func downloadText(_ progress: Double?) -> String {
-        guard let progress else {
-            return "Downloading…"
-        }
-
-        let percentage = Int((progress * 100).rounded())
-        return "\(percentage)%"
-    }
 
     private func displayFileName(from metadata: tableMetadata?) -> String? {
         guard let metadata else {
