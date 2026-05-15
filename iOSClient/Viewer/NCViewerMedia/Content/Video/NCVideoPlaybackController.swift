@@ -275,6 +275,7 @@ final class NCVideoPlaybackController: ObservableObject {
                 case .readyToPlay:
                     self.resolveWithAVFoundation(
                         player: player,
+                        shouldAutoPlay: shouldAutoPlay,
                         token: token
                     )
 
@@ -300,8 +301,14 @@ final class NCVideoPlaybackController: ObservableObject {
     }
 
     /// Selects AVFoundation as the active rendering engine.
+    ///
+    /// - Parameters:
+    ///   - player: Prepared AVFoundation player.
+    ///   - shouldAutoPlay: Whether playback should start after AVFoundation becomes ready.
+    ///   - token: Load token used to ignore stale callbacks.
     private func resolveWithAVFoundation(
         player: AVPlayer,
+        shouldAutoPlay: Bool,
         token: UUID
     ) {
         guard loadToken == token,
@@ -317,7 +324,7 @@ final class NCVideoPlaybackController: ObservableObject {
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
             emoji: .debug,
-            message: "VIDEO engine AVFoundation",
+            message: "VIDEO engine AVFoundation ready autoplay disabled requested \(shouldAutoPlay)",
             consoleOnly: true
         )
     }

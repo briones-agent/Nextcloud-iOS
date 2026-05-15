@@ -817,7 +817,10 @@ final class NCMediaViewerModel: ObservableObject {
 
         if isVideo(metadata) {
             setState(
-                .video(previewURL: previewURL),
+                .downloading(
+                    previewURL: previewURL,
+                    progress: nil
+                ),
                 for: ocId
             )
             return
@@ -1055,8 +1058,9 @@ private extension NCMediaViewerPageState {
     /// A prefetched image page can already have a preview but still needs
     /// selected-page loading to download the full image file.
     ///
-    /// Video is considered resolved once it reaches `.video`, because the video
-    /// viewer resolves local, metadata URL, or direct-download playback by itself.
+    /// Video is considered resolved only after selected-page loading sets `.video`.
+    /// Prefetch must use `.downloading(previewURL:progress:)` for videos so selected-page
+    /// loading can still run when the user reaches the page.
     var needsSelectedPageLoading: Bool {
         switch self {
         case .idle:
