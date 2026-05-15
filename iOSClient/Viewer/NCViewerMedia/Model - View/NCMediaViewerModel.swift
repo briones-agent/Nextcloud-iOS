@@ -651,7 +651,7 @@ final class NCMediaViewerModel: ObservableObject {
         }
 
         do {
-            if !isImage(metadata) {
+            if isAudio(metadata) {
                 setState(
                     .downloading(
                         previewURL: previewURL,
@@ -822,6 +822,17 @@ final class NCMediaViewerModel: ObservableObject {
             )
             return
         }
+
+        if isAudio(metadata) {
+            setState(
+                .downloading(
+                    previewURL: previewURL,
+                    progress: nil
+                ),
+                for: ocId
+            )
+            return
+        }
     }
 
     // MARK: - Page Updates
@@ -844,6 +855,14 @@ final class NCMediaViewerModel: ObservableObject {
     /// - Returns: Page state.
     private func pageState(for ocId: String) -> NCMediaViewerPageState {
         cachedPagesByOcId[ocId]?.state ?? .idle
+    }
+
+    /// Returns whether the metadata represents an audio file.
+    ///
+    /// - Parameter metadata: Detached metadata.
+    /// - Returns: True when the media is an audio file.
+    private func isAudio(_ metadata: tableMetadata) -> Bool {
+        metadata.classFile == NKTypeClassFile.audio.rawValue
     }
 
     /// Returns whether the metadata represents a video.
