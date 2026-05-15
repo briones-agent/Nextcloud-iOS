@@ -525,11 +525,19 @@ final class NCMediaViewerModel: ObservableObject {
         selectedIndex = index
     }
 
-    /// Prefetches a page preview without downloading the full media file.
+    /// Prefetches the currently visible page and its nearby pages.
     ///
-    /// - Parameter index: Absolute page index inside the full `ocIds` array.
+    /// This method is used while the user scrolls. It warms the target area around
+    /// the current visible index without starting audio or video playback.
+    ///
+    /// - Parameter index: Current visible page index.
     func prefetchVisiblePageIfNeeded(index: Int) async {
+        guard ocIds.indices.contains(index) else {
+            return
+        }
+
         await prefetchPageIfNeeded(index: index)
+        prefetchNeighborPages(around: index)
     }
 
     /// Toggles the media viewer chrome visibility.
@@ -688,7 +696,7 @@ final class NCMediaViewerModel: ObservableObject {
     ///
     /// The prefetch window is intentionally wider for smooth image navigation.
     /// Video and audio remain lightweight because `loadPageForPrefetch(index:)`
-    /// must only resolve metadata and preview state, without starting playback,
+    /// only resolves metadata and preview state, without starting playback,
     /// creating AVPlayer/VLC instances, or resolving direct video download URLs.
     ///
     /// - Parameter index: Current selected absolute index.
