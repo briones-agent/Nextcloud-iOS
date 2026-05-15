@@ -29,11 +29,44 @@ final class NCVideoVLCViewController: UIViewController {
 
     // MARK: - Views
 
-    private let drawableView = UIView()
+    internal let drawableView = UIView()
+    internal let centerControlsView = UIView()
+    internal let centerControlsStackView = UIStackView()
+    internal let bottomControlsView = UIView()
+    internal let bottomControlsStackView = UIStackView()
+    internal let elapsedTimeLabel = UILabel()
+    internal let remainingTimeLabel = UILabel()
+    internal let progressSlider = UISlider()
+
+    internal lazy var previousButton: UIButton = makeCenterControlButton(
+        systemName: "gobackward.10",
+        pointSize: 22,
+        side: 44,
+        action: #selector(seekBackwardTapped)
+    )
+
+    internal lazy var playPauseButton: UIButton = makeCenterControlButton(
+        systemName: "play.fill",
+        pointSize: 36,
+        side: 62,
+        action: #selector(playPauseTapped)
+    )
+
+    internal lazy var nextButton: UIButton = makeCenterControlButton(
+        systemName: "goforward.10",
+        pointSize: 22,
+        side: 44,
+        action: #selector(seekForwardTapped)
+    )
 
     // MARK: - VLC
 
-    private let mediaPlayer = VLCMediaPlayer()
+    internal let mediaPlayer = VLCMediaPlayer()
+
+    internal var progressTimer: Timer?
+    internal var controlsHideTimer: Timer?
+    internal var controlsVisible = true
+    internal var isScrubbing = false
 
     // MARK: - Navigation Items
 
@@ -70,6 +103,7 @@ final class NCVideoVLCViewController: UIViewController {
     }
 
     deinit {
+        stopControlsHideTimer()
         stop()
     }
 
@@ -88,11 +122,80 @@ final class NCVideoVLCViewController: UIViewController {
 
         rootView.addSubview(drawableView)
 
+        centerControlsView.translatesAutoresizingMaskIntoConstraints = false
+        centerControlsView.backgroundColor = .clear
+
+        centerControlsStackView.axis = .horizontal
+        centerControlsStackView.alignment = .center
+        centerControlsStackView.distribution = .equalCentering
+        centerControlsStackView.spacing = 28
+        centerControlsStackView.translatesAutoresizingMaskIntoConstraints = false
+
+        centerControlsStackView.addArrangedSubview(previousButton)
+        centerControlsStackView.addArrangedSubview(playPauseButton)
+        centerControlsStackView.addArrangedSubview(nextButton)
+
+        centerControlsView.addSubview(centerControlsStackView)
+        rootView.addSubview(centerControlsView)
+
+        bottomControlsView.backgroundColor = UIColor.black.withAlphaComponent(0.36)
+        bottomControlsView.translatesAutoresizingMaskIntoConstraints = false
+
+        configureTimeLabel(elapsedTimeLabel)
+        configureTimeLabel(remainingTimeLabel)
+
+        progressSlider.minimumValue = 0
+        progressSlider.maximumValue = 1
+        progressSlider.value = 0
+        progressSlider.minimumTrackTintColor = .white
+        progressSlider.maximumTrackTintColor = UIColor.white.withAlphaComponent(0.42)
+        progressSlider.thumbTintColor = .white
+        progressSlider.translatesAutoresizingMaskIntoConstraints = false
+        progressSlider.addTarget(self, action: #selector(sliderTouchBegan), for: .touchDown)
+        progressSlider.addTarget(self, action: #selector(sliderValueChanged), for: .valueChanged)
+        progressSlider.addTarget(self, action: #selector(sliderTouchEnded), for: [.touchUpInside, .touchUpOutside, .touchCancel])
+
+        bottomControlsStackView.axis = .horizontal
+        bottomControlsStackView.alignment = .center
+        bottomControlsStackView.distribution = .fill
+        bottomControlsStackView.spacing = 10
+        bottomControlsStackView.translatesAutoresizingMaskIntoConstraints = false
+
+        bottomControlsStackView.addArrangedSubview(elapsedTimeLabel)
+        bottomControlsStackView.addArrangedSubview(progressSlider)
+        bottomControlsStackView.addArrangedSubview(remainingTimeLabel)
+
+        bottomControlsView.addSubview(bottomControlsStackView)
+        rootView.addSubview(bottomControlsView)
+
         NSLayoutConstraint.activate([
             drawableView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
             drawableView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
             drawableView.topAnchor.constraint(equalTo: rootView.topAnchor),
-            drawableView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+            drawableView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
+
+            centerControlsView.centerXAnchor.constraint(equalTo: rootView.centerXAnchor),
+            centerControlsView.centerYAnchor.constraint(equalTo: rootView.centerYAnchor),
+            centerControlsView.widthAnchor.constraint(equalToConstant: 220),
+            centerControlsView.heightAnchor.constraint(equalToConstant: 76),
+
+            centerControlsStackView.leadingAnchor.constraint(equalTo: centerControlsView.leadingAnchor),
+            centerControlsStackView.trailingAnchor.constraint(equalTo: centerControlsView.trailingAnchor),
+            centerControlsStackView.topAnchor.constraint(equalTo: centerControlsView.topAnchor),
+            centerControlsStackView.bottomAnchor.constraint(equalTo: centerControlsView.bottomAnchor),
+
+            bottomControlsView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+            bottomControlsView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+            bottomControlsView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
+            bottomControlsView.heightAnchor.constraint(equalToConstant: 86),
+
+            bottomControlsStackView.leadingAnchor.constraint(equalTo: bottomControlsView.leadingAnchor, constant: 20),
+            bottomControlsStackView.trailingAnchor.constraint(equalTo: bottomControlsView.trailingAnchor, constant: -16),
+            bottomControlsStackView.topAnchor.constraint(equalTo: bottomControlsView.topAnchor, constant: 16),
+            bottomControlsStackView.heightAnchor.constraint(equalToConstant: 34),
+
+            elapsedTimeLabel.widthAnchor.constraint(equalToConstant: 54),
+            remainingTimeLabel.widthAnchor.constraint(equalToConstant: 58)
         ])
 
         view = rootView
@@ -106,12 +209,15 @@ final class NCVideoVLCViewController: UIViewController {
         configureNavigationItem()
         configureAudioSession()
         configureSwipeGestures()
+        configureTapGesture()
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
         start()
+        showControls(animated: false)
+        scheduleControlsHide()
     }
 
     override func viewDidLayoutSubviews() {
@@ -170,6 +276,10 @@ final class NCVideoVLCViewController: UIViewController {
         if urlChanged {
             start()
         }
+
+        updatePlayPauseButton()
+        showControls(animated: true)
+        scheduleControlsHide()
     }
 
     // MARK: - Navigation
@@ -232,6 +342,8 @@ final class NCVideoVLCViewController: UIViewController {
     }
 
     private func close() {
+        stopControlsHideTimer()
+        stopProgressTimer()
         stop()
 
         Task { @MainActor in
@@ -255,15 +367,49 @@ final class NCVideoVLCViewController: UIViewController {
             action: #selector(handleSwipe(_:))
         )
         swipeLeft.direction = .left
+        swipeLeft.delegate = self
 
         let swipeRight = UISwipeGestureRecognizer(
             target: self,
             action: #selector(handleSwipe(_:))
         )
         swipeRight.direction = .right
+        swipeRight.delegate = self
 
         view.addGestureRecognizer(swipeLeft)
         view.addGestureRecognizer(swipeRight)
+    }
+
+    /// Configures a single tap gesture to toggle VLC playback controls.
+    private func configureTapGesture() {
+        let tapGesture = UITapGestureRecognizer(
+            target: self,
+            action: #selector(handleSingleTap(_:))
+        )
+        tapGesture.numberOfTapsRequired = 1
+        tapGesture.cancelsTouchesInView = false
+        tapGesture.delegate = self
+        view.addGestureRecognizer(tapGesture)
+    }
+
+    /// Handles single taps by toggling the VLC playback controls.
+    ///
+    /// - Parameter gesture: Source tap gesture recognizer.
+    @objc
+    private func handleSingleTap(_ gesture: UITapGestureRecognizer) {
+        let location = gesture.location(in: view)
+
+        if controlsVisible {
+            guard !centerControlsView.frame.contains(location),
+                  !bottomControlsView.frame.contains(location) else {
+                return
+            }
+
+            hideControls(animated: true)
+        } else {
+            showControls(animated: true)
+            scheduleControlsHide()
+        }
     }
 
     /// Handles horizontal VLC swipe gestures.
@@ -303,6 +449,9 @@ final class NCVideoVLCViewController: UIViewController {
         }
 
         mediaPlayer.media = media
+        updatePlayPauseButton()
+        updateProgressControls()
+        startProgressTimer()
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
@@ -317,6 +466,9 @@ final class NCVideoVLCViewController: UIViewController {
         mediaPlayer.stop()
         mediaPlayer.media = nil
         mediaPlayer.drawable = nil
+        stopProgressTimer()
+        updatePlayPauseButton()
+        updateProgressControls()
     }
 
     /// Attaches the drawable view to VLC.
@@ -349,5 +501,45 @@ final class NCVideoVLCViewController: UIViewController {
                 consoleOnly: true
             )
         }
+    }
+}
+
+// MARK: - Gesture Delegate
+
+extension NCVideoVLCViewController: UIGestureRecognizerDelegate {
+    /// Allows tap and swipe gestures to coexist with VLC's drawable view and UIKit controls.
+    ///
+    /// - Parameters:
+    ///   - gestureRecognizer: Gesture recognizer asking for simultaneous recognition.
+    ///   - otherGestureRecognizer: Other gesture recognizer involved in the decision.
+    /// - Returns: True to avoid VLC/touch handling from suppressing viewer gestures.
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
+
+    /// Prevents the background tap recognizer from stealing touches that begin on controls.
+    ///
+    /// - Parameters:
+    ///   - gestureRecognizer: Gesture recognizer asking whether it should receive the touch.
+    ///   - touch: Source touch.
+    /// - Returns: False for visible playback controls, true otherwise.
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldReceive touch: UITouch
+    ) -> Bool {
+        guard controlsVisible else {
+            return true
+        }
+
+        let location = touch.location(in: view)
+
+        if centerControlsView.frame.contains(location) || bottomControlsView.frame.contains(location) {
+            return false
+        }
+
+        return true
     }
 }
