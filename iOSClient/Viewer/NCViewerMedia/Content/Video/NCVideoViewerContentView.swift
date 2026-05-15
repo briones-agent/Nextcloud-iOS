@@ -406,8 +406,11 @@ struct NCVideoViewerContentView: View {
 
     // MARK: - Playback Selection
 
-    /// Selection changes only reveal an already loaded playback engine.
-    /// Video resolution and loading are owned by `.task(id:)`.
+    /// Handles page selection changes without changing AVFoundation playback state.
+    ///
+    /// When a prefetched video page becomes selected again, `.task(id:)` may not run
+    /// because `taskIdentifier` intentionally does not include `isSelected`.
+    /// In that case, selection changes start the same gated resolution flow used by `.task(id:)`.
     ///
     /// - Parameter selected: Whether this page is currently selected.
     @MainActor
@@ -421,8 +424,22 @@ struct NCVideoViewerContentView: View {
             return
         }
 
-        // `.task(id:)` owns video resolution and loading.
-        // Avoid starting a second resolve task from selection changes.
+        let expectedLoadGeneration = loadGeneration
+        let expectedTaskIdentifier = taskIdentifier
+
+        Task {
+            guard await waitForStableSelection(
+                expectedTaskIdentifier: expectedTaskIdentifier,
+                expectedLoadGeneration: expectedLoadGeneration
+            ) else {
+                return
+            }
+
+            await resolveAndLoadVideo(
+                expectedTaskIdentifier: expectedTaskIdentifier,
+                expectedLoadGeneration: expectedLoadGeneration
+            )
+        }
     }
 
     /// Returns whether this page already owns an active playback engine.
