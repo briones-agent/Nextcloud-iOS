@@ -559,16 +559,16 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     override init(frame: CGRect) {
         super.init(frame: frame)
 
-        backgroundColor = UIColor.ncViewerBackground(.system)
-        contentView.backgroundColor = UIColor.ncViewerBackground(.system)
+        backgroundColor = .black
+        contentView.backgroundColor = .black
         contentView.clipsToBounds = true
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
 
-        backgroundColor = UIColor.ncViewerBackground(.system)
-        contentView.backgroundColor = UIColor.ncViewerBackground(.system)
+        backgroundColor = .black
+        contentView.backgroundColor = .black
         contentView.clipsToBounds = true
     }
 
@@ -580,8 +580,8 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         hostingController?.view.removeFromSuperview()
         hostingController = nil
 
-        backgroundColor = UIColor.ncViewerBackground(.system)
-        contentView.backgroundColor = UIColor.ncViewerBackground(.system)
+        backgroundColor = .black
+        contentView.backgroundColor = .black
     }
 
     override func layoutSubviews() {
