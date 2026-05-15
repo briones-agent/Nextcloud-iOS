@@ -19,7 +19,7 @@ import NextcloudKit
 /// - The remote resolver is used only when no local URL is available.
 /// - If the same video is already loaded, the existing player is reused.
 /// - If the page is not selected, the view does not load a new video.
-/// - AVFoundation is paused/resumed when page selection changes.
+/// - AVFoundation playback state is not changed during page selection changes.
 /// - VLC is presented outside SwiftUI when selected.
 /// - Real global stop events are handled through `.ncMediaViewerStopPlayback`.
 struct NCVideoViewerContentView: View {
@@ -37,10 +37,13 @@ struct NCVideoViewerContentView: View {
     @ObservedObject private var playback = NCVideoPlaybackController.shared
 
     @State private var errorMessage: String?
-    @State private var playerOpacity: Double = 1
     @State private var presentedVLCURL: URL?
+    @State private var loadGeneration = UUID()
 
     private let resolver = NCVideoURLResolver()
+
+    @MainActor
+    private static var resolvingTasks = [String: Task<(url: URL?, autoplay: Bool, error: NKError), Never>]()
 
     init(
         metadata: tableMetadata,
@@ -81,7 +84,8 @@ struct NCVideoViewerContentView: View {
                     EmptyView()
 
                 case .avFoundation(let player):
-                    if isSelected {
+                    if isSelected,
+                       isCurrentPlaybackVideo() {
                         NCVideoAVPlayerContentView(
                             player: player,
                             allowsPictureInPicture: true,
@@ -89,16 +93,13 @@ struct NCVideoViewerContentView: View {
                         )
                         .padding(.bottom, videoPlayerBottomPadding)
                         .ignoresSafeArea(edges: [.top, .leading, .trailing])
-                        .opacity(playerOpacity)
-                        .onAppear {
-                            fadeInPlayer()
-                        }
                     } else {
                         EmptyView()
                     }
 
                 case .vlc(let url):
-                    if isSelected {
+                    if isSelected,
+                       isCurrentPlaybackVideo() {
                         Color.black
                             .ignoresSafeArea()
                             .onAppear {
@@ -131,6 +132,7 @@ struct NCVideoViewerContentView: View {
         .background(Color.black)
         .task(id: taskIdentifier) {
             let expectedTaskIdentifier = taskIdentifier
+            let expectedLoadGeneration = loadGeneration
 
             let isAlreadyCurrentVideo: Bool
 
@@ -145,10 +147,6 @@ struct NCVideoViewerContentView: View {
                     ocId: metadata.ocId,
                     etag: metadata.etag
                 )
-            }
-
-            if !isAlreadyCurrentVideo {
-                playerOpacity = 0
             }
 
             errorMessage = nil
@@ -167,14 +165,15 @@ struct NCVideoViewerContentView: View {
             }
 
             await resolveAndLoadVideo(
-                expectedTaskIdentifier: expectedTaskIdentifier
+                expectedTaskIdentifier: expectedTaskIdentifier,
+                expectedLoadGeneration: expectedLoadGeneration
             )
         }
         .onChange(of: isSelected) { _, selected in
+            loadGeneration = UUID()
             handleSelectionChange(selected)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
-            playerOpacity = 0
             presentedVLCURL = nil
             playback.stop()
         }
@@ -234,15 +233,16 @@ struct NCVideoViewerContentView: View {
     /// - Parameter expectedTaskIdentifier: Task identity captured before starting async resolution.
     @MainActor
     private func resolveAndLoadVideo(
-        expectedTaskIdentifier: String
+        expectedTaskIdentifier: String,
+        expectedLoadGeneration: UUID
     ) async {
         errorMessage = nil
-
         if let localURL {
             loadResolvedVideo(
                 url: localURL,
                 autoplay: true,
                 expectedTaskIdentifier: expectedTaskIdentifier,
+                expectedLoadGeneration: expectedLoadGeneration,
                 source: "local"
             )
             return
@@ -255,7 +255,9 @@ struct NCVideoViewerContentView: View {
             consoleOnly: true
         )
 
-        let result = await resolver.getVideoURL(metadata: metadata)
+        let result = await resolvedVideoURL(
+            taskIdentifier: expectedTaskIdentifier
+        )
 
         guard !Task.isCancelled else {
             nkLog(
@@ -276,7 +278,15 @@ struct NCVideoViewerContentView: View {
             )
             return
         }
-
+        guard expectedLoadGeneration == loadGeneration else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO resolve ignored stale generation ocId \(metadata.ocId)",
+                consoleOnly: true
+            )
+            return
+        }
         guard isSelected else {
             return
         }
@@ -298,6 +308,7 @@ struct NCVideoViewerContentView: View {
             url: url,
             autoplay: result.autoplay,
             expectedTaskIdentifier: expectedTaskIdentifier,
+            expectedLoadGeneration: expectedLoadGeneration,
             source: "resolved"
         )
     }
@@ -314,6 +325,7 @@ struct NCVideoViewerContentView: View {
         url: URL,
         autoplay: Bool,
         expectedTaskIdentifier: String,
+        expectedLoadGeneration: UUID,
         source: String
     ) {
         guard expectedTaskIdentifier == taskIdentifier else {
@@ -325,7 +337,15 @@ struct NCVideoViewerContentView: View {
             )
             return
         }
-
+        guard expectedLoadGeneration == loadGeneration else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO load ignored stale generation ocId \(metadata.ocId), source \(source), url \(url.absoluteString)",
+                consoleOnly: true
+            )
+            return
+        }
         guard isSelected else {
             return
         }
@@ -393,9 +413,12 @@ struct NCVideoViewerContentView: View {
             return
         }
 
+        let expectedLoadGeneration = loadGeneration
+
         Task {
             await resolveAndLoadVideo(
-                expectedTaskIdentifier: taskIdentifier
+                expectedTaskIdentifier: taskIdentifier,
+                expectedLoadGeneration: expectedLoadGeneration
             )
         }
     }
@@ -443,7 +466,7 @@ struct NCVideoViewerContentView: View {
     private func revealCurrentPlaybackIfNeeded() {
         switch playback.engine {
         case .avFoundation:
-            fadeInPlayer()
+            break
 
         case .vlc(let url):
             presentVLCIfSelected(url: url)
@@ -495,19 +518,42 @@ struct NCVideoViewerContentView: View {
         onNextPage?()
     }
 
+    // MARK: - In-Flight Resolution Cache
+
+    /// Resolves a video URL through a shared in-flight task cache.
+    ///
+    /// SwiftUI can temporarily create multiple video page views for the same page while
+    /// the selected state transitions from prefetched preview to selected video state.
+    /// A shared task lets duplicated views await the same direct-link resolution instead
+    /// of starting duplicate requests or skipping resolution while the original view is
+    /// being cancelled.
+    ///
+    /// - Parameter taskIdentifier: Stable video task identity.
+    /// - Returns: Resolved video URL, autoplay preference, and Nextcloud error.
+    @MainActor
+    private func resolvedVideoURL(
+        taskIdentifier: String
+    ) async -> (url: URL?, autoplay: Bool, error: NKError) {
+        if let existingTask = Self.resolvingTasks[taskIdentifier] {
+            return await existingTask.value
+        }
+
+        let task = Task {
+            await resolver.getVideoURL(metadata: metadata)
+        }
+
+        Self.resolvingTasks[taskIdentifier] = task
+
+        let result = await task.value
+        Self.resolvingTasks[taskIdentifier] = nil
+
+        return result
+    }
+
     // MARK: - Helpers
 
-    /// Fades the active video player over the preview placeholder when needed.
-    @MainActor
-    private func fadeInPlayer() {
-        guard playerOpacity < 1 else {
-            return
-        }
 
-        withAnimation(.easeInOut(duration: 0.30)) {
-            playerOpacity = 1
-        }
-    }
+
 
     /// Extra bottom padding used only for the native AVPlayer controller.
     ///
@@ -531,6 +577,7 @@ struct NCVideoViewerContentView: View {
         return metadata.fileName
     }
 }
+
 
 // MARK: - Video URL Resolution
 
