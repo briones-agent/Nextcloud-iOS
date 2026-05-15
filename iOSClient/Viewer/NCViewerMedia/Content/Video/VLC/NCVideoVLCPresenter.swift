@@ -31,14 +31,20 @@ enum NCVideoVLCPresenter {
     ///   - url: Local or remote playable URL.
     ///   - userAgent: Optional HTTP User-Agent for remote playback.
     ///   - contextMenuController: Main tab bar controller used by context menu actions.
+    ///   - onPrevious: Callback invoked when VLC receives a right swipe.
+    ///   - onNext: Callback invoked when VLC receives a left swipe.
     static func present(
         metadata: tableMetadata,
         url: URL,
         userAgent: String?,
-        contextMenuController: NCMainTabBarController?
+        contextMenuController: NCMainTabBarController?,
+        onPrevious: (() -> Void)? = nil,
+        onNext: (() -> Void)? = nil
     ) {
         if currentURL == url,
-           currentViewController != nil {
+           let currentViewController {
+            currentViewController.onPrevious = onPrevious
+            currentViewController.onNext = onNext
             nkLog(
                 tag: NCGlobal.shared.logTagViewer,
                 emoji: .debug,
@@ -65,6 +71,8 @@ enum NCVideoVLCPresenter {
                 userAgent: userAgent,
                 contextMenuController: contextMenuController
             )
+            currentViewController.onPrevious = onPrevious
+            currentViewController.onNext = onNext
 
             currentURL = url
             return
@@ -97,6 +105,8 @@ enum NCVideoVLCPresenter {
             userAgent: userAgent,
             contextMenuController: contextMenuController
         )
+        viewController.onPrevious = onPrevious
+        viewController.onNext = onNext
 
         currentViewController = viewController
         currentURL = url
@@ -148,6 +158,14 @@ enum NCVideoVLCPresenter {
         currentViewController.dismiss(animated: false) {
             clearCurrent(currentViewController)
         }
+    }
+
+    /// Dismisses the current VLC viewer if one is currently presented.
+    ///
+    /// This short alias is used by video-page navigation callbacks before moving
+    /// the SwiftUI media viewer to the previous or next page.
+    static func dismiss() {
+        dismissCurrent()
     }
 
     // MARK: - Private

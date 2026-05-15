@@ -123,7 +123,6 @@ struct NCMediaViewerPageView: View {
         isSelected && shouldAutoPlay
     }
 
-
     /// Moves to the previous page using the coordinator callback.
     ///
     /// - Parameter requestedAutoPlay: Whether the hosted content requests auto-play on the target page.
@@ -157,6 +156,24 @@ struct NCMediaViewerPageView: View {
         }
 
         onAutoPlayConsumed()
+    }
+
+    /// Moves to the previous page from video-specific controls or VLC swipe.
+    ///
+    /// Boundary validation is delegated to the paging coordinator so callbacks coming
+    /// from the UIKit-only VLC controller do not depend on potentially stale SwiftUI
+    /// `canGoPrevious` values captured when VLC was presented.
+    private func goToPreviousPageFromVideo() {
+        onPreviousPage(false)
+    }
+
+    /// Moves to the next page from video-specific controls or VLC swipe.
+    ///
+    /// Boundary validation is delegated to the paging coordinator so callbacks coming
+    /// from the UIKit-only VLC controller do not depend on potentially stale SwiftUI
+    /// `canGoNext` values captured when VLC was presented.
+    private func goToNextPageFromVideo() {
+        onNextPage(false)
     }
 
     // MARK: - State Views
@@ -224,7 +241,11 @@ struct NCMediaViewerPageView: View {
                 localURL: nil,
                 previewURL: previewURL,
                 isSelected: isSelected,
-                contextMenuController: contextMenuController
+                contextMenuController: contextMenuController,
+                canGoPrevious: canGoPrevious,
+                canGoNext: canGoNext,
+                onPreviousPage: goToPreviousPageFromVideo,
+                onNextPage: goToNextPageFromVideo
             )
             .id("\(page.ocId)-remote")
             .background(Color.ncViewerBackground(backgroundStyle))
@@ -271,7 +292,11 @@ struct NCMediaViewerPageView: View {
                     localURL: localURL,
                     previewURL: previewURL,
                     isSelected: isSelected,
-                    contextMenuController: contextMenuController
+                    contextMenuController: contextMenuController,
+                    canGoPrevious: canGoPrevious,
+                    canGoNext: canGoNext,
+                    onPreviousPage: goToPreviousPageFromVideo,
+                    onNextPage: goToNextPageFromVideo
                 )
                 .id("\(page.ocId)-local-\(localURL.absoluteString)")
                 .background(Color.ncViewerBackground(backgroundStyle))

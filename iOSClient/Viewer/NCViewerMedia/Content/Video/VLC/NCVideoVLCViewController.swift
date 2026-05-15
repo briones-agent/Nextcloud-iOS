@@ -22,6 +22,11 @@ final class NCVideoVLCViewController: UIViewController {
     private var userAgent: String?
     private weak var contextMenuController: NCMainTabBarController?
 
+    // MARK: - Paging Callbacks
+
+    var onPrevious: (() -> Void)?
+    var onNext: (() -> Void)?
+
     // MARK: - Views
 
     private let drawableView = UIView()
@@ -100,6 +105,7 @@ final class NCVideoVLCViewController: UIViewController {
 
         configureNavigationItem()
         configureAudioSession()
+        configureSwipeGestures()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -240,6 +246,48 @@ final class NCVideoVLCViewController: UIViewController {
         }
     }
 
+    // MARK: - Swipe Navigation
+
+    /// Configures UIKit swipe gestures for previous and next media navigation.
+    private func configureSwipeGestures() {
+        let swipeLeft = UISwipeGestureRecognizer(
+            target: self,
+            action: #selector(handleSwipe(_:))
+        )
+        swipeLeft.direction = .left
+
+        let swipeRight = UISwipeGestureRecognizer(
+            target: self,
+            action: #selector(handleSwipe(_:))
+        )
+        swipeRight.direction = .right
+
+        view.addGestureRecognizer(swipeLeft)
+        view.addGestureRecognizer(swipeRight)
+    }
+
+    /// Handles horizontal VLC swipe gestures.
+    ///
+    /// Left moves to the next media item.
+    /// Right moves to the previous media item.
+    /// The controller itself does not know the media list; it only forwards the intent
+    /// through callbacks owned by the presenter/viewer layer.
+    ///
+    /// - Parameter gesture: Source swipe gesture recognizer.
+    @objc
+    private func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
+        switch gesture.direction {
+        case .left:
+            onNext?()
+
+        case .right:
+            onPrevious?()
+
+        default:
+            break
+        }
+    }
+
     // MARK: - Playback
 
     /// Prepares VLC playback without starting it automatically.
@@ -255,7 +303,6 @@ final class NCVideoVLCViewController: UIViewController {
         }
 
         mediaPlayer.media = media
-//        mediaPlayer.play()
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,

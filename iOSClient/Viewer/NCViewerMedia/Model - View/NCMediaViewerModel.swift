@@ -176,7 +176,7 @@ private struct NCMediaViewerLoadingTask {
 /// - request preview URLs
 /// - check local media availability
 /// - start full media downloads through the loader only for selected pages
-/// - prefetch previous and next pages without downloading full media
+/// - prefetch nearby pages without downloading full media
 /// - update page states
 ///
 /// It does not render UI and does not directly access Realm, FileManager,

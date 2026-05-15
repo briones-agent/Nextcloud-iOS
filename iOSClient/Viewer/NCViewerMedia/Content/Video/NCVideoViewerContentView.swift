@@ -29,6 +29,10 @@ struct NCVideoViewerContentView: View {
     let userAgent: String?
     let isSelected: Bool
     let contextMenuController: NCMainTabBarController?
+    let canGoPrevious: Bool
+    let canGoNext: Bool
+    let onPreviousPage: (() -> Void)?
+    let onNextPage: (() -> Void)?
 
     @ObservedObject private var playback = NCVideoPlaybackController.shared
 
@@ -44,7 +48,11 @@ struct NCVideoViewerContentView: View {
         previewURL: URL? = nil,
         userAgent: String? = nil,
         isSelected: Bool = true,
-        contextMenuController: NCMainTabBarController? = nil
+        contextMenuController: NCMainTabBarController? = nil,
+        canGoPrevious: Bool = false,
+        canGoNext: Bool = false,
+        onPreviousPage: (() -> Void)? = nil,
+        onNextPage: (() -> Void)? = nil
     ) {
         self.metadata = metadata
         self.localURL = localURL
@@ -52,6 +60,10 @@ struct NCVideoViewerContentView: View {
         self.userAgent = userAgent
         self.isSelected = isSelected
         self.contextMenuController = contextMenuController
+        self.canGoPrevious = canGoPrevious
+        self.canGoNext = canGoNext
+        self.onPreviousPage = onPreviousPage
+        self.onNextPage = onNextPage
     }
 
     var body: some View {
@@ -413,8 +425,26 @@ struct NCVideoViewerContentView: View {
             metadata: metadata,
             url: url,
             userAgent: userAgent,
-            contextMenuController: contextMenuController
+            contextMenuController: contextMenuController,
+            onPrevious: goToPreviousPageFromVLC,
+            onNext: goToNextPageFromVLC
         )
+    }
+
+    /// Moves to the previous media item from the UIKit-only VLC controller.
+    @MainActor
+    private func goToPreviousPageFromVLC() {
+        presentedVLCURL = nil
+        NCVideoVLCPresenter.dismiss()
+        onPreviousPage?()
+    }
+
+    /// Moves to the next media item from the UIKit-only VLC controller.
+    @MainActor
+    private func goToNextPageFromVLC() {
+        presentedVLCURL = nil
+        NCVideoVLCPresenter.dismiss()
+        onNextPage?()
     }
 
     // MARK: - Helpers
