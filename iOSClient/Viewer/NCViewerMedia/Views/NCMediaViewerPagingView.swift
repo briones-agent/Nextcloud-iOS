@@ -19,6 +19,7 @@ import NextcloudKit
 struct NCMediaViewerPagingView: UIViewRepresentable {
     @ObservedObject var model: NCMediaViewerModel
     let contextMenuController: NCMainTabBarController?
+    let navigationBar: UINavigationBar?
 
     // MARK: - UIViewRepresentable
 
@@ -68,6 +69,7 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         context: Context
     ) {
         context.coordinator.model = model
+        context.coordinator.navigationBar = navigationBar
         context.coordinator.updateCollectionBackground()
 
         collectionView.isScrollEnabled = model.numberOfPages > 1
@@ -94,7 +96,8 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
     func makeCoordinator() -> NCMediaViewerPagingCoordinator {
         NCMediaViewerPagingCoordinator(
             model: model,
-            contextMenuController: contextMenuController
+            contextMenuController: contextMenuController,
+            navigationBar: navigationBar
         )
     }
 }
@@ -129,6 +132,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     var model: NCMediaViewerModel
     weak var collectionView: UICollectionView?
     let contextMenuController: NCMainTabBarController?
+    weak var navigationBar: UINavigationBar?
 
     private var didScrollToInitialIndex = false
     private var lastCollectionViewBoundsSize: CGSize = .zero
@@ -138,9 +142,14 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
     // MARK: - Init
 
-    init(model: NCMediaViewerModel, contextMenuController: NCMainTabBarController?) {
+    init(
+        model: NCMediaViewerModel,
+        contextMenuController: NCMainTabBarController?,
+        navigationBar: UINavigationBar?
+    ) {
         self.model = model
         self.contextMenuController = contextMenuController
+        self.navigationBar = navigationBar
 
         super.init()
 
@@ -402,7 +411,8 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             onAutoPlayConsumed: { [weak model] in
                 model?.clearAutoPlayIfNeeded(for: page.index)
             },
-            contextMenuController: contextMenuController
+            contextMenuController: contextMenuController,
+            navigationBar: navigationBar
         )
     }
 
@@ -618,7 +628,8 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         onPreviousPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
         onNextPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
         onAutoPlayConsumed: @escaping () -> Void,
-        contextMenuController: NCMainTabBarController?
+        contextMenuController: NCMainTabBarController?,
+        navigationBar: UINavigationBar?
     ) {
         self.backgroundColor = backgroundColor
         contentView.backgroundColor = backgroundColor
@@ -635,7 +646,8 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
                 onPreviousPage: onPreviousPage,
                 onNextPage: onNextPage,
                 onAutoPlayConsumed: onAutoPlayConsumed,
-                contextMenuController: contextMenuController
+                contextMenuController: contextMenuController,
+                navigationBar: navigationBar
             )
             .id(page.ocId)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

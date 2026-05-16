@@ -36,6 +36,7 @@ struct NCMediaViewerPageView: View {
     let onAutoPlayConsumed: () -> Void
 
     let contextMenuController: NCMainTabBarController?
+    let navigationBar: UINavigationBar?
 
     // MARK: - Body
 
@@ -236,6 +237,7 @@ struct NCMediaViewerPageView: View {
                 previewURL: previewURL,
                 isSelected: isSelected,
                 contextMenuController: contextMenuController,
+                navigationBar: navigationBar,
                 canGoPrevious: canGoPrevious,
                 canGoNext: canGoNext,
                 onPreviousPage: goToPreviousPageFromVideo,
@@ -286,6 +288,7 @@ struct NCMediaViewerPageView: View {
                     previewURL: previewURL,
                     isSelected: isSelected,
                     contextMenuController: contextMenuController,
+                    navigationBar: navigationBar,
                     canGoPrevious: canGoPrevious,
                     canGoNext: canGoNext,
                     onPreviousPage: goToPreviousPageFromVideo,

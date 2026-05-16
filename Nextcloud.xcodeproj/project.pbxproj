@@ -3245,8 +3245,8 @@
 		F7CDB5D02FA33E3500F72306 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */,
 				F716DA662FA5F019006A6703 /* NCMediaViewerPagingView.swift */,
+				F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */,
 				F716DA642FA4E878006A6703 /* NCImageZoomView.swift */,
 			);
 			path = Views;

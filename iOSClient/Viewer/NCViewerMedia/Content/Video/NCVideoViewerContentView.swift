@@ -29,6 +29,7 @@ struct NCVideoViewerContentView: View {
     let userAgent: String?
     let isSelected: Bool
     let contextMenuController: NCMainTabBarController?
+    let navigationBar: UINavigationBar?
     let canGoPrevious: Bool
     let canGoNext: Bool
     let onPreviousPage: (() -> Void)?
@@ -52,6 +53,7 @@ struct NCVideoViewerContentView: View {
         userAgent: String? = nil,
         isSelected: Bool = true,
         contextMenuController: NCMainTabBarController? = nil,
+        navigationBar: UINavigationBar? = nil,
         canGoPrevious: Bool = false,
         canGoNext: Bool = false,
         onPreviousPage: (() -> Void)? = nil,
@@ -63,6 +65,7 @@ struct NCVideoViewerContentView: View {
         self.userAgent = userAgent
         self.isSelected = isSelected
         self.contextMenuController = contextMenuController
+        self.navigationBar = navigationBar
         self.canGoPrevious = canGoPrevious
         self.canGoNext = canGoNext
         self.onPreviousPage = onPreviousPage
@@ -89,7 +92,8 @@ struct NCVideoViewerContentView: View {
                         NCVideoAVPlayerContentView(
                             player: player,
                             allowsPictureInPicture: true,
-                            shouldAutoPlay: false
+                            shouldAutoPlay: false,
+                            navigationBar: navigationBar
                         )
                         .padding(.bottom, videoPlayerBottomPadding)
                         .ignoresSafeArea(edges: [.top, .leading, .trailing])

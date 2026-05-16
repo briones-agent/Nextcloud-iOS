@@ -24,6 +24,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     private var isShowingDetail = false
     private var cancellables = Set<AnyCancellable>()
     private var transferDelegate: NCMediaViewerTransferDelegate?
+    private weak var currentNavigationBar: UINavigationBar?
 
     private lazy var moreNavigationItem = UIBarButtonItem(
         image: NCImageCache.shared.getImageButtonMore(),
@@ -81,7 +82,8 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         super.init(
             rootView: NCMediaViewerView(
                 model: model,
-                contextMenuController: contextMenuController
+                contextMenuController: contextMenuController,
+                navigationBar: nil
             )
         )
 
@@ -131,6 +133,28 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         Task {
             await NCNetworking.shared.transferDispatcher.removeDelegate(transferDelegate)
         }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+
+        updateRootViewNavigationBarIfNeeded()
+    }
+
+    private func updateRootViewNavigationBarIfNeeded() {
+        let navigationBar = navigationController?.navigationBar
+
+        guard currentNavigationBar !== navigationBar else {
+            return
+        }
+
+        currentNavigationBar = navigationBar
+
+        rootView = NCMediaViewerView(
+            model: model,
+            contextMenuController: contextMenuController,
+            navigationBar: navigationBar
+        )
     }
 
     // MARK: - Closing

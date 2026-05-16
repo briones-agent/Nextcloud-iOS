@@ -16,13 +16,22 @@ import SwiftUI
 struct NCMediaViewerView: View {
     @StateObject private var model: NCMediaViewerModel
     let contextMenuController: NCMainTabBarController?
+    let navigationBar: UINavigationBar?
 
     /// Creates the media viewer view.
     ///
-    /// - Parameter model: Media viewer model containing page state and loading logic.
-    init(model: NCMediaViewerModel, contextMenuController: NCMainTabBarController? = nil) {
+    /// - Parameters:
+    ///   - model: Media viewer model containing page state and loading logic.
+    ///   - contextMenuController: Optional controller used to present context menu actions.
+    ///   - navigationBar: Optional navigation bar reference used by video controls for top action positioning.
+    init(
+        model: NCMediaViewerModel,
+        contextMenuController: NCMainTabBarController? = nil,
+        navigationBar: UINavigationBar? = nil
+    ) {
         _model = StateObject(wrappedValue: model)
         self.contextMenuController = contextMenuController
+        self.navigationBar = navigationBar
     }
 
     var body: some View {
@@ -32,7 +41,8 @@ struct NCMediaViewerView: View {
 
             NCMediaViewerPagingView(
                 model: model,
-                contextMenuController: contextMenuController
+                contextMenuController: contextMenuController,
+                navigationBar: navigationBar
             )
             .ignoresSafeArea()
         }

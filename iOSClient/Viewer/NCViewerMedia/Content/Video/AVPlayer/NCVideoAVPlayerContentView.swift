@@ -18,24 +18,27 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
     let player: AVPlayer
     let allowsPictureInPicture: Bool
     let shouldAutoPlay: Bool
+    let navigationBar: UINavigationBar?
 
     init(
         player: AVPlayer,
         allowsPictureInPicture: Bool = true,
-        shouldAutoPlay: Bool = false
+        shouldAutoPlay: Bool = false,
+        navigationBar: UINavigationBar? = nil
     ) {
         self.player = player
         self.allowsPictureInPicture = allowsPictureInPicture
         self.shouldAutoPlay = shouldAutoPlay
+        self.navigationBar = navigationBar
     }
 
     func makeUIViewController(context: Context) -> NCVideoAVPlayerViewController {
         let controller = NCVideoAVPlayerViewController(
             player: player,
             allowsPictureInPicture: allowsPictureInPicture,
-            shouldAutoPlay: shouldAutoPlay
+            shouldAutoPlay: shouldAutoPlay,
+            navigationBar: navigationBar
         )
-
         return controller
     }
 
@@ -46,7 +49,8 @@ struct NCVideoAVPlayerContentView: UIViewControllerRepresentable {
         controller.update(
             player: player,
             allowsPictureInPicture: allowsPictureInPicture,
-            shouldAutoPlay: shouldAutoPlay
+            shouldAutoPlay: shouldAutoPlay,
+            navigationBar: navigationBar
         )
     }
 
@@ -79,11 +83,13 @@ final class NCVideoAVPlayerViewController: UIViewController {
     internal var player: AVPlayer
     private var allowsPictureInPicture: Bool
     private var shouldAutoPlay: Bool
+    private weak var navigationBar: UINavigationBar?
 
     // MARK: - Views
 
     private let playerViewController = AVPlayerViewController()
     internal let controlsView = NCVideoControlsView()
+    internal let pictureInPicturePlayerLayer = AVPlayerLayer()
 
     // MARK: - State
 
@@ -91,6 +97,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     private var itemStatusObservation: NSKeyValueObservation?
     private var timeControlStatusObservation: NSKeyValueObservation?
     private var playbackEndObserver: NSObjectProtocol?
+    internal var pictureInPictureController: AVPictureInPictureController?
     internal var controlsHideTimer: Timer?
     internal var isScrubbing = false
     internal var controlsVisible = false
@@ -103,11 +110,13 @@ final class NCVideoAVPlayerViewController: UIViewController {
     init(
         player: AVPlayer,
         allowsPictureInPicture: Bool,
-        shouldAutoPlay: Bool
+        shouldAutoPlay: Bool,
+        navigationBar: UINavigationBar?
     ) {
         self.player = player
         self.allowsPictureInPicture = allowsPictureInPicture
         self.shouldAutoPlay = shouldAutoPlay
+        self.navigationBar = navigationBar
 
         super.init(nibName: nil, bundle: nil)
     }
@@ -139,7 +148,9 @@ final class NCVideoAVPlayerViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
+        pictureInPicturePlayerLayer.frame = view.bounds
         playerViewController.view.frame = view.bounds
+        updateControlsNavigationBar()
     }
 
     // MARK: - Public API
@@ -153,18 +164,22 @@ final class NCVideoAVPlayerViewController: UIViewController {
     func update(
         player: AVPlayer,
         allowsPictureInPicture: Bool,
-        shouldAutoPlay: Bool
+        shouldAutoPlay: Bool,
+        navigationBar: UINavigationBar?
     ) {
         let playerChanged = self.player !== player
 
         self.allowsPictureInPicture = allowsPictureInPicture
         self.shouldAutoPlay = shouldAutoPlay
+        self.navigationBar = navigationBar
 
         if playerChanged {
             cleanupObservers()
             didAutoplay = false
             self.player = player
             playerViewController.player = player
+            pictureInPicturePlayerLayer.player = player
+            pictureInPictureController = nil
             configureObservers()
         }
 
@@ -177,6 +192,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     /// Detaches UIKit delegates and observers during SwiftUI dismantle.
     func detachForSwiftUIDismantle() {
         playerViewController.delegate = nil
+        pictureInPictureController?.delegate = nil
         cleanupObservers()
         stopControlsHideTimer()
     }
@@ -198,6 +214,15 @@ final class NCVideoAVPlayerViewController: UIViewController {
         playerViewController.view.backgroundColor = .black
         playerViewController.delegate = self
 
+        pictureInPicturePlayerLayer.player = player
+        pictureInPicturePlayerLayer.videoGravity = .resizeAspect
+
+        if pictureInPicturePlayerLayer.superlayer == nil {
+            view.layer.addSublayer(pictureInPicturePlayerLayer)
+        }
+
+        configurePictureInPictureController()
+
         if playerViewController.parent == nil {
             addChild(playerViewController)
             view.addSubview(playerViewController.view)
@@ -207,8 +232,28 @@ final class NCVideoAVPlayerViewController: UIViewController {
         }
     }
 
+    private func configurePictureInPictureController() {
+        guard allowsPictureInPicture,
+              AVPictureInPictureController.isPictureInPictureSupported() else {
+            pictureInPictureController?.delegate = nil
+            pictureInPictureController = nil
+            controlsView.setPictureInPictureVisible(false)
+            return
+        }
+
+        if pictureInPictureController == nil || pictureInPicturePlayerLayer.player !== player {
+            pictureInPictureController = AVPictureInPictureController(playerLayer: pictureInPicturePlayerLayer)
+            pictureInPictureController?.delegate = self
+        }
+
+        controlsView.setPictureInPictureVisible(pictureInPictureController != nil)
+    }
+
     private func configureControlsView() {
         controlsView.delegate = self
+        controlsView.onPictureInPictureTap = { [weak self] in
+            self?.togglePictureInPicture()
+        }
         controlsView.alpha = 0
         controlsView.isHidden = true
         controlsView.translatesAutoresizingMaskIntoConstraints = false
@@ -221,6 +266,25 @@ final class NCVideoAVPlayerViewController: UIViewController {
             controlsView.topAnchor.constraint(equalTo: view.topAnchor),
             controlsView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+
+        updateControlsNavigationBar()
+    }
+
+    private func updateControlsNavigationBar() {
+        controlsView.setTopActionsNavigationBar(navigationBar)
+    }
+
+    private func togglePictureInPicture() {
+        guard let pictureInPictureController,
+              AVPictureInPictureController.isPictureInPictureSupported() else {
+            return
+        }
+
+        if pictureInPictureController.isPictureInPictureActive {
+            pictureInPictureController.stopPictureInPicture()
+        } else {
+            pictureInPictureController.startPictureInPicture()
+        }
     }
 
     private func configureTapGesture() {
@@ -341,7 +405,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
 // MARK: - AVPlayerViewController Delegate
 
-extension NCVideoAVPlayerViewController: AVPlayerViewControllerDelegate {
+extension NCVideoAVPlayerViewController: AVPlayerViewControllerDelegate, AVPictureInPictureControllerDelegate {
     func playerViewControllerWillStartPictureInPicture(
         _ playerViewController: AVPlayerViewController
     ) {
@@ -382,6 +446,50 @@ extension NCVideoAVPlayerViewController: AVPlayerViewControllerDelegate {
             tag: NCGlobal.shared.logTagViewer,
             emoji: .debug,
             message: "VIDEO PiP did stop",
+            consoleOnly: true
+        )
+    }
+
+    func pictureInPictureControllerWillStartPictureInPicture(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) {
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO PiP controller will start",
+            consoleOnly: true
+        )
+    }
+
+    func pictureInPictureControllerDidStartPictureInPicture(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) {
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO PiP controller did start",
+            consoleOnly: true
+        )
+    }
+
+    func pictureInPictureControllerWillStopPictureInPicture(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) {
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO PiP controller will stop",
+            consoleOnly: true
+        )
+    }
+
+    func pictureInPictureControllerDidStopPictureInPicture(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) {
+        nkLog(
+            tag: NCGlobal.shared.logTagViewer,
+            emoji: .debug,
+            message: "VIDEO PiP controller did stop",
             consoleOnly: true
         )
     }
