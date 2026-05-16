@@ -95,8 +95,7 @@ struct NCVideoViewerContentView: View {
                             shouldAutoPlay: false,
                             navigationBar: navigationBar
                         )
-                        .padding(.bottom, videoPlayerBottomPadding)
-                        .ignoresSafeArea(edges: [.top, .leading, .trailing])
+                        .ignoresSafeArea()
                     } else {
                         EmptyView()
                     }
@@ -573,20 +572,6 @@ struct NCVideoViewerContentView: View {
     /// This protects fast swipe gestures from starting remote resolution or VLC/AVPlayer
     /// for transient video pages, without affecting image paging responsiveness.
     private static let videoSelectionSettleDelayNanoseconds: UInt64 = 150_000_000
-
-    /// Extra bottom padding used only for the native AVPlayer controller.
-    ///
-    /// This keeps the native playback scrubber away from the bottom edge / home indicator.
-    private var videoPlayerBottomPadding: CGFloat {
-        let windowScene = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { $0.activationState == .foregroundActive }
-
-        let window = windowScene?.windows.first { $0.isKeyWindow }
-        let safeBottom = window?.safeAreaInsets.bottom ?? 0
-
-        return max(safeBottom, 16)
-    }
 
     private var resolvedFileName: String {
         if !metadata.fileNameView.isEmpty {

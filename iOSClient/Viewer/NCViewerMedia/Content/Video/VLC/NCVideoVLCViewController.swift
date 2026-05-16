@@ -113,6 +113,8 @@ final class NCVideoVLCViewController: UIViewController {
             controlsView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
         ])
 
+        controlsView.setTopActionsNavigationBar(navigationController?.navigationBar)
+
         view = rootView
     }
 
@@ -137,6 +139,7 @@ final class NCVideoVLCViewController: UIViewController {
         super.viewDidLayoutSubviews()
 
         attachDrawable()
+        updateControlsNavigationBar()
     }
 
     override func viewWillTransition(
@@ -152,6 +155,7 @@ final class NCVideoVLCViewController: UIViewController {
             self?.view.layoutIfNeeded()
         }, completion: { [weak self] _ in
             self?.attachDrawable()
+            self?.updateControlsNavigationBar()
         })
     }
 
@@ -394,11 +398,20 @@ final class NCVideoVLCViewController: UIViewController {
 
     // MARK: - Helpers
 
+    /// Updates the shared controls top actions reference using the real navigation bar.
+    private func updateControlsNavigationBar() {
+        controlsView.setTopActionsNavigationBar(navigationController?.navigationBar)
+    }
+
     /// Returns whether a point is inside one of the visible controls areas.
     ///
     /// - Parameter location: Point in this controller's root view coordinate space.
-    /// - Returns: True when the point is inside center or bottom controls.
+    /// - Returns: True when the point is inside top action, center, or bottom controls.
     private func controlsHitFramesContain(_ location: CGPoint) -> Bool {
+        let topActionsFrame = controlsView.topActionsView.convert(
+            controlsView.topActionsView.bounds,
+            to: view
+        )
         let centerControlsFrame = controlsView.centerControlsView.convert(
             controlsView.centerControlsView.bounds,
             to: view
@@ -408,7 +421,9 @@ final class NCVideoVLCViewController: UIViewController {
             to: view
         )
 
-        return centerControlsFrame.contains(location) || bottomControlsFrame.contains(location)
+        return topActionsFrame.contains(location)
+            || centerControlsFrame.contains(location)
+            || bottomControlsFrame.contains(location)
     }
 
     /// Configures the audio session for movie playback.
