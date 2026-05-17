@@ -123,7 +123,7 @@ extension NCVideoAVPlayerViewController {
                 self.updateProgressControls()
                 self.updatePlayPauseButton()
 
-                guard self.pictureInPictureController?.isPictureInPictureActive != true else {
+                guard !NCVideoAVPlayerPictureInPictureManager.shared.isActive else {
                     return
                 }
 

@@ -537,6 +537,7 @@
 		F76C26A62850D3A500E42BDF /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F7F67BB81A24D27800EE80DA /* Images.xcassets */; };
 		F76D364628A4F8BF00214537 /* NCActivityIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76D364528A4F8BF00214537 /* NCActivityIndicator.swift */; };
 		F76D364728A4F8BF00214537 /* NCActivityIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76D364528A4F8BF00214537 /* NCActivityIndicator.swift */; };
+		F76D386A2FB99ACA00379001 /* NCVideoAVPlayerPictureInPictureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76D38692FB99AC700379001 /* NCVideoAVPlayerPictureInPictureManager.swift */; };
 		F76D3CF12428B40E005DFA87 /* NCViewerPDFSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76D3CF02428B40E005DFA87 /* NCViewerPDFSearch.swift */; };
 		F76D3CF32428B94E005DFA87 /* NCViewerPDFSearchCell.xib in Resources */ = {isa = PBXBuildFile; fileRef = F76D3CF22428B94E005DFA87 /* NCViewerPDFSearchCell.xib */; };
 		F76D3CF52428D0C1005DFA87 /* NCViewerPDF.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F76D3CF42428D0C0005DFA87 /* NCViewerPDF.storyboard */; };
@@ -1548,6 +1549,7 @@
 		F76B3CCD1EAE01BD00921AC9 /* NCBrand.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCBrand.swift; sourceTree = "<group>"; };
 		F76B649B2ADFFAED00014640 /* NCImageCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NCImageCache.swift; sourceTree = "<group>"; };
 		F76D364528A4F8BF00214537 /* NCActivityIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCActivityIndicator.swift; sourceTree = "<group>"; };
+		F76D38692FB99AC700379001 /* NCVideoAVPlayerPictureInPictureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCVideoAVPlayerPictureInPictureManager.swift; sourceTree = "<group>"; };
 		F76D3CF02428B40E005DFA87 /* NCViewerPDFSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCViewerPDFSearch.swift; sourceTree = "<group>"; };
 		F76D3CF22428B94E005DFA87 /* NCViewerPDFSearchCell.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = NCViewerPDFSearchCell.xib; sourceTree = "<group>"; };
 		F76D3CF42428D0C0005DFA87 /* NCViewerPDF.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = NCViewerPDF.storyboard; sourceTree = "<group>"; };
@@ -2869,6 +2871,7 @@
 			children = (
 				F78448A22FB1BE9000F2909A /* NCVideoAVPlayerContentView.swift */,
 				F7FAAC212FB773CA00DCA45B /* NCVideoAVPlayerViewControls.swift */,
+				F76D38692FB99AC700379001 /* NCVideoAVPlayerPictureInPictureManager.swift */,
 			);
 			path = AVPlayer;
 			sourceTree = "<group>";
@@ -4781,6 +4784,7 @@
 				F73EF7B72B0224AB0087E6E9 /* NCManageDatabase+ExternalSites.swift in Sources */,
 				AF4BF61927562A4B0081CEEF /* NCManageDatabase+Metadata.swift in Sources */,
 				F78A18B623CDD07D00F681F3 /* NCViewerRichWorkspaceWebView.swift in Sources */,
+				F76D386A2FB99ACA00379001 /* NCVideoAVPlayerPictureInPictureManager.swift in Sources */,
 				AFA2AC8527849604008E1EA7 /* NCActivityCommentView.swift in Sources */,
 				AFCE353727E4ED7B00FEA6C2 /* NCShareCells.swift in Sources */,
 				F75A9EE623796C6F0044CFCE /* NCNetworking.swift in Sources */,
