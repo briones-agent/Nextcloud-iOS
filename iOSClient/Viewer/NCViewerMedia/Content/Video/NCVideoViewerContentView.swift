@@ -149,6 +149,11 @@ struct NCVideoViewerContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             presentedVLCURL = nil
+
+            guard !NCVideoAVPlayerPictureInPictureManager.shared.isActive else {
+                return
+            }
+
             playback.stop()
         }
         .onDisappear {

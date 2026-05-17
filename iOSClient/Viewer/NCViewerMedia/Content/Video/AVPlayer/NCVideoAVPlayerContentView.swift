@@ -89,6 +89,10 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     private let playerViewController = AVPlayerViewController()
     internal let controlsView = NCVideoControlsView()
+    private let pictureInPictureBlackoutView = UIView()
+    private let pictureInPicturePlaceholderStackView = UIStackView()
+    private let pictureInPicturePlaceholderIconView = UIImageView()
+    private let pictureInPicturePlaceholderLabel = UILabel()
     private let tapGesture = UITapGestureRecognizer()
 
     // MARK: - State
@@ -101,6 +105,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     internal var isScrubbing = false
     internal var controlsVisible = false
     private var didAutoplay = false
+    private var didShowInitialControls = false
 
     private static var autoplayedPlayerIDs = Set<ObjectIdentifier>()
 
@@ -148,8 +153,11 @@ final class NCVideoAVPlayerViewController: UIViewController {
         super.viewDidLayoutSubviews()
 
         playerViewController.view.frame = view.bounds
+        pictureInPictureBlackoutView.frame = view.bounds
         updateControlsNavigationBar()
         configurePictureInPictureManager()
+
+        syncInlinePictureInPictureState()
     }
 
     // MARK: - Public API
@@ -175,6 +183,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
         if playerChanged {
             cleanupObservers()
             didAutoplay = false
+            didShowInitialControls = false
             self.player = player
             playerViewController.player = player
             NCVideoAVPlayerPictureInPictureManager.shared.resetIfInactive()
@@ -183,6 +192,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
         configurePlayerViewController()
         configurePictureInPictureManager()
+        syncInlinePictureInPictureState()
         updateProgressControls()
         updatePlayPauseButton()
         playIfNeeded()
@@ -191,7 +201,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     /// Detaches UIKit delegates and observers during SwiftUI dismantle.
     func detachForSwiftUIDismantle() {
         NCVideoAVPlayerPictureInPictureManager.shared.resetIfInactive()
-        setInlinePlaybackInteractionEnabled(true)
+        applyInlinePictureInPictureState(isActive: false)
         cleanupObservers()
         stopControlsHideTimer()
     }
@@ -201,6 +211,70 @@ final class NCVideoAVPlayerViewController: UIViewController {
     private func configureView() {
         view.backgroundColor = .black
         view.clipsToBounds = true
+        configurePictureInPictureBlackoutView()
+    }
+
+    private func configurePictureInPictureBlackoutView() {
+        pictureInPictureBlackoutView.backgroundColor = .black
+        pictureInPictureBlackoutView.isHidden = true
+        pictureInPictureBlackoutView.isUserInteractionEnabled = true
+        pictureInPictureBlackoutView.translatesAutoresizingMaskIntoConstraints = false
+
+        configurePictureInPicturePlaceholderView()
+
+        view.addSubview(pictureInPictureBlackoutView)
+
+        NSLayoutConstraint.activate([
+            pictureInPictureBlackoutView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            pictureInPictureBlackoutView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            pictureInPictureBlackoutView.topAnchor.constraint(equalTo: view.topAnchor),
+            pictureInPictureBlackoutView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+    }
+
+    private func configurePictureInPicturePlaceholderView() {
+        pictureInPicturePlaceholderStackView.axis = .vertical
+        pictureInPicturePlaceholderStackView.alignment = .center
+        pictureInPicturePlaceholderStackView.distribution = .fill
+        pictureInPicturePlaceholderStackView.spacing = 14
+        pictureInPicturePlaceholderStackView.translatesAutoresizingMaskIntoConstraints = false
+
+        let symbolConfiguration = UIImage.SymbolConfiguration(
+            pointSize: 48,
+            weight: .regular
+        )
+
+        let image = UIImage(systemName: "pip")
+            ?? UIImage(systemName: "pip.enter")
+            ?? UIImage(systemName: "rectangle.on.rectangle")
+
+        pictureInPicturePlaceholderIconView.image = image?.withConfiguration(symbolConfiguration)
+        pictureInPicturePlaceholderIconView.tintColor = UIColor.white.withAlphaComponent(0.82)
+        pictureInPicturePlaceholderIconView.contentMode = .scaleAspectFit
+        pictureInPicturePlaceholderIconView.translatesAutoresizingMaskIntoConstraints = false
+
+        pictureInPicturePlaceholderLabel.text = "Video is playing in Picture in Picture"
+        pictureInPicturePlaceholderLabel.textColor = UIColor.white.withAlphaComponent(0.82)
+        pictureInPicturePlaceholderLabel.font = .preferredFont(forTextStyle: .body)
+        pictureInPicturePlaceholderLabel.adjustsFontForContentSizeCategory = true
+        pictureInPicturePlaceholderLabel.textAlignment = .center
+        pictureInPicturePlaceholderLabel.numberOfLines = 0
+        pictureInPicturePlaceholderLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        pictureInPicturePlaceholderStackView.addArrangedSubview(pictureInPicturePlaceholderIconView)
+        pictureInPicturePlaceholderStackView.addArrangedSubview(pictureInPicturePlaceholderLabel)
+
+        pictureInPictureBlackoutView.addSubview(pictureInPicturePlaceholderStackView)
+
+        NSLayoutConstraint.activate([
+            pictureInPicturePlaceholderIconView.widthAnchor.constraint(equalToConstant: 64),
+            pictureInPicturePlaceholderIconView.heightAnchor.constraint(equalToConstant: 52),
+
+            pictureInPicturePlaceholderStackView.centerXAnchor.constraint(equalTo: pictureInPictureBlackoutView.centerXAnchor),
+            pictureInPicturePlaceholderStackView.centerYAnchor.constraint(equalTo: pictureInPictureBlackoutView.centerYAnchor),
+            pictureInPicturePlaceholderStackView.leadingAnchor.constraint(greaterThanOrEqualTo: pictureInPictureBlackoutView.leadingAnchor, constant: 24),
+            pictureInPicturePlaceholderStackView.trailingAnchor.constraint(lessThanOrEqualTo: pictureInPictureBlackoutView.trailingAnchor, constant: -24)
+        ])
     }
 
     private func configurePlayerViewController() {
@@ -222,38 +296,48 @@ final class NCVideoAVPlayerViewController: UIViewController {
         }
     }
 
-    private func setInlinePlaybackInteractionEnabled(_ isEnabled: Bool) {
-        playerViewController.view.isUserInteractionEnabled = isEnabled
-        controlsView.isUserInteractionEnabled = isEnabled
-        tapGesture.isEnabled = isEnabled
-        navigationBar?.alpha = isEnabled ? 1 : 0
-        navigationBar?.isUserInteractionEnabled = isEnabled
+    private func applyInlinePictureInPictureState(isActive: Bool) {
+        let isInlineInteractionEnabled = !isActive
 
-        if isEnabled {
-            view.bringSubviewToFront(controlsView)
-        } else {
+        playerViewController.view.isUserInteractionEnabled = isInlineInteractionEnabled
+        controlsView.isUserInteractionEnabled = isInlineInteractionEnabled
+        tapGesture.isEnabled = isInlineInteractionEnabled
+        pictureInPictureBlackoutView.isHidden = !isActive
+        navigationBar?.alpha = isInlineInteractionEnabled ? 1 : 0
+        navigationBar?.isUserInteractionEnabled = isInlineInteractionEnabled
+
+        if isActive {
             stopControlsHideTimer()
             hideControls(animated: false)
+            view.bringSubviewToFront(pictureInPictureBlackoutView)
+        } else {
+            view.bringSubviewToFront(controlsView)
         }
+    }
+
+    private func syncInlinePictureInPictureState() {
+        applyInlinePictureInPictureState(
+            isActive: NCVideoAVPlayerPictureInPictureManager.shared.isActive
+        )
     }
 
     private func configurePictureInPictureManager() {
         let manager = NCVideoAVPlayerPictureInPictureManager.shared
 
         manager.onWillStart = { [weak self] in
-            self?.setInlinePlaybackInteractionEnabled(false)
+            self?.applyInlinePictureInPictureState(isActive: true)
         }
         manager.onDidStart = { [weak self] in
-            self?.setInlinePlaybackInteractionEnabled(false)
+            self?.applyInlinePictureInPictureState(isActive: true)
         }
         manager.onWillStop = { [weak self] in
-            self?.setInlinePlaybackInteractionEnabled(true)
+            self?.applyInlinePictureInPictureState(isActive: false)
         }
         manager.onDidStop = { [weak self] in
-            self?.setInlinePlaybackInteractionEnabled(true)
+            self?.applyInlinePictureInPictureState(isActive: false)
         }
         manager.onFailedToStart = { [weak self] _ in
-            self?.setInlinePlaybackInteractionEnabled(true)
+            self?.applyInlinePictureInPictureState(isActive: false)
         }
 
         manager.configure(
@@ -276,6 +360,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
         controlsView.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(controlsView)
+        view.bringSubviewToFront(controlsView)
 
         NSLayoutConstraint.activate([
             controlsView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -399,8 +484,13 @@ final class NCVideoAVPlayerViewController: UIViewController {
         updateProgressControls()
         updatePlayPauseButton()
 
-        guard player.currentItem?.status == .readyToPlay else {
+        guard player.currentItem?.status == .readyToPlay,
+              !didShowInitialControls,
+              !NCVideoAVPlayerPictureInPictureManager.shared.isActive else {
             return
         }
+
+        didShowInitialControls = true
+        showControls(animated: false)
     }
 }

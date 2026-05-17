@@ -186,6 +186,10 @@ final class NCVideoAVPlayerPictureInPictureManager: NSObject {
         hostView.removeFromSuperview()
     }
 
+    private func shouldPausePlaybackAfterPictureInPictureStops() -> Bool {
+        sourceView?.window == nil
+    }
+
     private func configureControllerIfNeeded() {
         guard pictureInPictureController == nil else {
             return
@@ -249,6 +253,10 @@ extension NCVideoAVPlayerPictureInPictureManager: @preconcurrency AVPictureInPic
             message: "VIDEO PiP manager did stop",
             consoleOnly: true
         )
+        if shouldPausePlaybackAfterPictureInPictureStops() {
+            player?.pause()
+        }
+
         onDidStop?()
         resetIfInactive()
     }
