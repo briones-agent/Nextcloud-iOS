@@ -512,6 +512,8 @@ struct NCVideoViewerContentView: View {
             url: url,
             userAgent: userAgent,
             contextMenuController: contextMenuController,
+            canGoPrevious: canGoPrevious,
+            canGoNext: canGoNext,
             onPrevious: goToPreviousPageFromVLC,
             onNext: goToNextPageFromVLC
         )

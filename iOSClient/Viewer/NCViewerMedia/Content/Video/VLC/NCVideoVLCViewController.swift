@@ -26,6 +26,8 @@ final class NCVideoVLCViewController: UIViewController {
 
     var onPrevious: (() -> Void)?
     var onNext: (() -> Void)?
+    var canGoPrevious = false
+    var canGoNext = false
 
     // MARK: - Views
 
@@ -328,8 +330,8 @@ final class NCVideoVLCViewController: UIViewController {
 
     /// Handles horizontal VLC swipe gestures.
     ///
-    /// Left moves to the next media item.
-    /// Right moves to the previous media item.
+    /// Left moves to the next media item when available.
+    /// Right moves to the previous media item when available.
     /// The controller itself does not know the media list; it only forwards the intent
     /// through callbacks owned by the presenter/viewer layer.
     ///
@@ -338,9 +340,15 @@ final class NCVideoVLCViewController: UIViewController {
     private func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
         switch gesture.direction {
         case .left:
+            guard canGoNext else {
+                return
+            }
             onNext?()
 
         case .right:
+            guard canGoPrevious else {
+                return
+            }
             onPrevious?()
 
         default:

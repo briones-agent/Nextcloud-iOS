@@ -31,6 +31,8 @@ enum NCVideoVLCPresenter {
     ///   - url: Local or remote playable URL.
     ///   - userAgent: Optional HTTP User-Agent for remote playback.
     ///   - contextMenuController: Main tab bar controller used by context menu actions.
+    ///   - canGoPrevious: Whether VLC can navigate to the previous media item.
+    ///   - canGoNext: Whether VLC can navigate to the next media item.
     ///   - onPrevious: Callback invoked when VLC receives a right swipe.
     ///   - onNext: Callback invoked when VLC receives a left swipe.
     static func present(
@@ -38,6 +40,8 @@ enum NCVideoVLCPresenter {
         url: URL,
         userAgent: String?,
         contextMenuController: NCMainTabBarController?,
+        canGoPrevious: Bool = false,
+        canGoNext: Bool = false,
         onPrevious: (() -> Void)? = nil,
         onNext: (() -> Void)? = nil
     ) {
@@ -45,6 +49,8 @@ enum NCVideoVLCPresenter {
            let currentViewController {
             currentViewController.onPrevious = onPrevious
             currentViewController.onNext = onNext
+            currentViewController.canGoPrevious = canGoPrevious
+            currentViewController.canGoNext = canGoNext
             nkLog(
                 tag: NCGlobal.shared.logTagViewer,
                 emoji: .debug,
@@ -73,6 +79,8 @@ enum NCVideoVLCPresenter {
             )
             currentViewController.onPrevious = onPrevious
             currentViewController.onNext = onNext
+            currentViewController.canGoPrevious = canGoPrevious
+            currentViewController.canGoNext = canGoNext
 
             currentURL = url
             return
@@ -107,6 +115,8 @@ enum NCVideoVLCPresenter {
         )
         viewController.onPrevious = onPrevious
         viewController.onNext = onNext
+        viewController.canGoPrevious = canGoPrevious
+        viewController.canGoNext = canGoNext
 
         currentViewController = viewController
         currentURL = url
