@@ -277,7 +277,7 @@ final class NCVideoVLCViewController: UIViewController {
 
     // MARK: - Swipe Navigation
 
-    /// Configures UIKit swipe gestures for previous and next media navigation.
+    /// Configures UIKit swipe gestures for media navigation and viewer closing.
     private func configureSwipeGestures() {
         let swipeLeft = UISwipeGestureRecognizer(
             target: self,
@@ -293,8 +293,16 @@ final class NCVideoVLCViewController: UIViewController {
         swipeRight.direction = .right
         swipeRight.delegate = self
 
+        let swipeDown = UISwipeGestureRecognizer(
+            target: self,
+            action: #selector(handleCloseSwipe(_:))
+        )
+        swipeDown.direction = .down
+        swipeDown.delegate = self
+
         view.addGestureRecognizer(swipeLeft)
         view.addGestureRecognizer(swipeRight)
+        view.addGestureRecognizer(swipeDown)
     }
 
     /// Configures a single tap gesture to toggle VLC playback controls.
@@ -354,6 +362,14 @@ final class NCVideoVLCViewController: UIViewController {
         default:
             break
         }
+    }
+
+    /// Handles downward swipe gestures by closing the VLC viewer.
+    ///
+    /// - Parameter gesture: Source swipe gesture recognizer.
+    @objc
+    private func handleCloseSwipe(_ gesture: UISwipeGestureRecognizer) {
+        close()
     }
 
     // MARK: - Playback
