@@ -89,10 +89,6 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     private let playerViewController = AVPlayerViewController()
     internal let controlsView = NCVideoControlsView()
-    private let pictureInPictureBlackoutView = UIView()
-    private let pictureInPicturePlaceholderStackView = UIStackView()
-    private let pictureInPicturePlaceholderIconView = UIImageView()
-    private let pictureInPicturePlaceholderLabel = UILabel()
     private let tapGesture = UITapGestureRecognizer()
 
     // MARK: - State
@@ -153,7 +149,6 @@ final class NCVideoAVPlayerViewController: UIViewController {
         super.viewDidLayoutSubviews()
 
         playerViewController.view.frame = view.bounds
-        pictureInPictureBlackoutView.frame = view.bounds
         updateControlsNavigationBar()
         configurePictureInPictureManager()
 
@@ -211,70 +206,6 @@ final class NCVideoAVPlayerViewController: UIViewController {
     private func configureView() {
         view.backgroundColor = .black
         view.clipsToBounds = true
-        configurePictureInPictureBlackoutView()
-    }
-
-    private func configurePictureInPictureBlackoutView() {
-        pictureInPictureBlackoutView.backgroundColor = .black
-        pictureInPictureBlackoutView.isHidden = true
-        pictureInPictureBlackoutView.isUserInteractionEnabled = true
-        pictureInPictureBlackoutView.translatesAutoresizingMaskIntoConstraints = false
-
-        configurePictureInPicturePlaceholderView()
-
-        view.addSubview(pictureInPictureBlackoutView)
-
-        NSLayoutConstraint.activate([
-            pictureInPictureBlackoutView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            pictureInPictureBlackoutView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            pictureInPictureBlackoutView.topAnchor.constraint(equalTo: view.topAnchor),
-            pictureInPictureBlackoutView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-        ])
-    }
-
-    private func configurePictureInPicturePlaceholderView() {
-        pictureInPicturePlaceholderStackView.axis = .vertical
-        pictureInPicturePlaceholderStackView.alignment = .center
-        pictureInPicturePlaceholderStackView.distribution = .fill
-        pictureInPicturePlaceholderStackView.spacing = 14
-        pictureInPicturePlaceholderStackView.translatesAutoresizingMaskIntoConstraints = false
-
-        let symbolConfiguration = UIImage.SymbolConfiguration(
-            pointSize: 48,
-            weight: .regular
-        )
-
-        let image = UIImage(systemName: "pip")
-            ?? UIImage(systemName: "pip.enter")
-            ?? UIImage(systemName: "rectangle.on.rectangle")
-
-        pictureInPicturePlaceholderIconView.image = image?.withConfiguration(symbolConfiguration)
-        pictureInPicturePlaceholderIconView.tintColor = UIColor.white.withAlphaComponent(0.82)
-        pictureInPicturePlaceholderIconView.contentMode = .scaleAspectFit
-        pictureInPicturePlaceholderIconView.translatesAutoresizingMaskIntoConstraints = false
-
-        pictureInPicturePlaceholderLabel.text = "Video is playing in Picture in Picture"
-        pictureInPicturePlaceholderLabel.textColor = UIColor.white.withAlphaComponent(0.82)
-        pictureInPicturePlaceholderLabel.font = .preferredFont(forTextStyle: .body)
-        pictureInPicturePlaceholderLabel.adjustsFontForContentSizeCategory = true
-        pictureInPicturePlaceholderLabel.textAlignment = .center
-        pictureInPicturePlaceholderLabel.numberOfLines = 0
-        pictureInPicturePlaceholderLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        pictureInPicturePlaceholderStackView.addArrangedSubview(pictureInPicturePlaceholderIconView)
-        pictureInPicturePlaceholderStackView.addArrangedSubview(pictureInPicturePlaceholderLabel)
-
-        pictureInPictureBlackoutView.addSubview(pictureInPicturePlaceholderStackView)
-
-        NSLayoutConstraint.activate([
-            pictureInPicturePlaceholderIconView.widthAnchor.constraint(equalToConstant: 64),
-            pictureInPicturePlaceholderIconView.heightAnchor.constraint(equalToConstant: 52),
-
-            pictureInPicturePlaceholderStackView.centerXAnchor.constraint(equalTo: pictureInPictureBlackoutView.centerXAnchor),
-            pictureInPicturePlaceholderStackView.centerYAnchor.constraint(equalTo: pictureInPictureBlackoutView.centerYAnchor),
-            pictureInPicturePlaceholderStackView.leadingAnchor.constraint(greaterThanOrEqualTo: pictureInPictureBlackoutView.leadingAnchor, constant: 24),
-            pictureInPicturePlaceholderStackView.trailingAnchor.constraint(lessThanOrEqualTo: pictureInPictureBlackoutView.trailingAnchor, constant: -24)
-        ])
     }
 
     private func configurePlayerViewController() {
@@ -302,14 +233,12 @@ final class NCVideoAVPlayerViewController: UIViewController {
         playerViewController.view.isUserInteractionEnabled = isInlineInteractionEnabled
         controlsView.isUserInteractionEnabled = isInlineInteractionEnabled
         tapGesture.isEnabled = isInlineInteractionEnabled
-        pictureInPictureBlackoutView.isHidden = !isActive
         navigationBar?.alpha = isInlineInteractionEnabled ? 1 : 0
         navigationBar?.isUserInteractionEnabled = isInlineInteractionEnabled
 
         if isActive {
             stopControlsHideTimer()
             hideControls(animated: false)
-            view.bringSubviewToFront(pictureInPictureBlackoutView)
         } else {
             view.bringSubviewToFront(controlsView)
         }

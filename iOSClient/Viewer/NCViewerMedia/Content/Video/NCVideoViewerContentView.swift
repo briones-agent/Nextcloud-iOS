@@ -36,6 +36,7 @@ struct NCVideoViewerContentView: View {
     let onNextPage: (() -> Void)?
 
     @ObservedObject private var playback = NCVideoPlaybackController.shared
+    @ObservedObject private var pictureInPictureManager = NCVideoAVPlayerPictureInPictureManager.shared
 
     @State private var errorMessage: String?
     @State private var presentedVLCURL: URL?
@@ -150,7 +151,7 @@ struct NCVideoViewerContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
             presentedVLCURL = nil
 
-            guard !NCVideoAVPlayerPictureInPictureManager.shared.isActive else {
+            guard !pictureInPictureManager.isActive else {
                 return
             }
 
@@ -203,6 +204,10 @@ struct NCVideoViewerContentView: View {
     /// again when the same page later becomes selected.
     @MainActor
     private func loadVideoIfSelected() async {
+        guard !pictureInPictureManager.isActive else {
+            return
+        }
+
         let expectedTaskIdentifier = taskIdentifier
         let expectedLoadGeneration = loadGeneration
 
@@ -484,6 +489,10 @@ struct NCVideoViewerContentView: View {
     /// VLC is presented only when the selected page already owns a VLC engine.
     @MainActor
     private func revealCurrentPlaybackIfNeeded() {
+        guard !pictureInPictureManager.isActive else {
+            return
+        }
+
         switch playback.engine {
         case .avFoundation:
             break
@@ -502,6 +511,10 @@ struct NCVideoViewerContentView: View {
     /// - Parameter url: Local or remote playable URL.
     @MainActor
     private func presentVLCIfSelected(url: URL) {
+        guard !pictureInPictureManager.isActive else {
+            return
+        }
+
         guard isSelected else {
             return
         }

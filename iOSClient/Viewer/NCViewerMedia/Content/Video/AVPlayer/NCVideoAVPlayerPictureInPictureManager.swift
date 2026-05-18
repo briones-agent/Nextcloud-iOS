@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import AVKit
+import Combine
 import NextcloudKit
 import UIKit
 
@@ -13,7 +14,7 @@ import UIKit
 /// The goal is to prevent PiP from being invalidated during rotation, paging, or SwiftUI
 /// controller rebuilds.
 @MainActor
-final class NCVideoAVPlayerPictureInPictureManager: NSObject {
+final class NCVideoAVPlayerPictureInPictureManager: NSObject, ObservableObject {
 
     // MARK: - Shared
 
@@ -217,6 +218,7 @@ extension NCVideoAVPlayerPictureInPictureManager: @preconcurrency AVPictureInPic
             message: "VIDEO PiP manager will start",
             consoleOnly: true
         )
+        objectWillChange.send()
         onWillStart?()
     }
 
@@ -229,6 +231,7 @@ extension NCVideoAVPlayerPictureInPictureManager: @preconcurrency AVPictureInPic
             message: "VIDEO PiP manager did start",
             consoleOnly: true
         )
+        objectWillChange.send()
         onDidStart?()
     }
 
@@ -241,6 +244,7 @@ extension NCVideoAVPlayerPictureInPictureManager: @preconcurrency AVPictureInPic
             message: "VIDEO PiP manager will stop",
             consoleOnly: true
         )
+        objectWillChange.send()
         onWillStop?()
     }
 
@@ -253,6 +257,7 @@ extension NCVideoAVPlayerPictureInPictureManager: @preconcurrency AVPictureInPic
             message: "VIDEO PiP manager did stop",
             consoleOnly: true
         )
+        objectWillChange.send()
         if shouldPausePlaybackAfterPictureInPictureStops() {
             player?.pause()
         }
@@ -271,6 +276,7 @@ extension NCVideoAVPlayerPictureInPictureManager: @preconcurrency AVPictureInPic
             message: "VIDEO PiP manager failed to start: \(error.localizedDescription)",
             consoleOnly: true
         )
+        objectWillChange.send()
         onFailedToStart?(error)
         resetIfInactive()
     }
