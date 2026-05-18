@@ -48,6 +48,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     private var playbackEndObserver: NSObjectProtocol?
     private var timeObserverToken: Any?
     private var preparedURL: URL?
+    private var isClosingForPictureInPicture = false
 
     // MARK: - Navigation Items
 
@@ -85,7 +86,12 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     deinit {
         stopControlsHideTimer()
-        stop()
+
+        if isClosingForPictureInPicture {
+            cleanupObservers()
+        } else {
+            stop()
+        }
     }
 
     // MARK: - Lifecycle
@@ -273,7 +279,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
             stop()
             NCVideoAVPlayerPictureInPictureManager.shared.resetIfInactive()
         } else {
-            cleanupObservers()
+            markClosingForPictureInPicture()
         }
 
         Task { @MainActor in
@@ -286,6 +292,21 @@ final class NCVideoAVPlayerViewController: UIViewController {
                 object: nil
             )
         }
+    }
+
+    /// Dismisses the fullscreen controller while Picture in Picture owns playback.
+    ///
+    /// This method removes only the fullscreen UIKit UI. It does not stop playback,
+    /// reset the PiP manager, detach the player, or post the normal viewer-close
+    /// notification, because PiP must continue running independently.
+    func dismissForPictureInPicture() {
+        markClosingForPictureInPicture()
+
+        Task { @MainActor in
+            NCVideoAVPlayerPresenter.clearCurrent(self)
+        }
+
+        dismiss(animated: false)
     }
 
     // MARK: - Swipe Navigation
@@ -331,14 +352,14 @@ final class NCVideoAVPlayerViewController: UIViewController {
             guard canGoNext else {
                 return
             }
-
+            markClosingForPictureInPictureIfNeeded()
             onNext?()
 
         case .right:
             guard canGoPrevious else {
                 return
             }
-
+            markClosingForPictureInPictureIfNeeded()
             onPrevious?()
 
         case .down:
@@ -581,6 +602,25 @@ final class NCVideoAVPlayerViewController: UIViewController {
     }
 
     // MARK: - Helpers
+
+    /// Marks the controller as closing while Picture in Picture owns playback.
+    ///
+    /// This prevents `deinit` from stopping and detaching the player when the fullscreen
+    /// controller is dismissed while PiP is active.
+    private func markClosingForPictureInPicture() {
+        isClosingForPictureInPicture = true
+        stopControlsHideTimer()
+        cleanupObservers()
+    }
+
+    /// Marks the controller as PiP-owned only when Picture in Picture is currently active.
+    private func markClosingForPictureInPictureIfNeeded() {
+        guard NCVideoAVPlayerPictureInPictureManager.shared.isActive else {
+            return
+        }
+
+        markClosingForPictureInPicture()
+    }
 
     /// Updates the shared controls top actions reference using the real navigation bar.
     private func updateControlsNavigationBar() {

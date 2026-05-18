@@ -35,7 +35,7 @@ final class NCVideoAVPlayerPictureInPictureManager: NSObject, ObservableObject {
 
     private weak var window: UIWindow?
     private weak var sourceView: UIView?
-    private weak var player: AVPlayer?
+    private var player: AVPlayer?
 
     private var pictureInPictureController: AVPictureInPictureController?
 
