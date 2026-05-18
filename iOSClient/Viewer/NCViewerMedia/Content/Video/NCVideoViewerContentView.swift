@@ -10,7 +10,8 @@ import NextcloudKit
 /// Displays a video using the shared video playback controller.
 ///
 /// This view does not own the AVPlayer directly.
-/// AVFoundation playback remains embedded in SwiftUI.
+/// AVFoundation playback is presented as a separate UIKit-only controller through
+/// `NCVideoAVPlayerPresenter`, outside the SwiftUI paging hierarchy.
 /// VLC playback is presented as a separate UIKit-only controller through
 /// `NCVideoVLCPresenter`, outside the SwiftUI paging hierarchy.
 ///
@@ -19,7 +20,7 @@ import NextcloudKit
 /// - The remote resolver is used only when no local URL is available.
 /// - If the same video is already loaded, the existing player is reused.
 /// - If the page is not selected, the view does not load a new video.
-/// - AVFoundation playback state is not changed during page selection changes.
+/// - AVFoundation is presented outside SwiftUI when selected.
 /// - VLC is presented outside SwiftUI when selected.
 /// - Real global stop events are handled through `.ncMediaViewerStopPlayback`.
 struct NCVideoViewerContentView: View {
@@ -39,6 +40,8 @@ struct NCVideoViewerContentView: View {
     @ObservedObject private var pictureInPictureManager = NCVideoAVPlayerPictureInPictureManager.shared
 
     @State private var errorMessage: String?
+    @State private var presentedAVPlayerURL: URL?
+    @State private var resolvedVideoURL: URL?
     @State private var presentedVLCURL: URL?
     @State private var loadGeneration = UUID()
 
@@ -87,16 +90,21 @@ struct NCVideoViewerContentView: View {
                 case .loading:
                     EmptyView()
 
-                case .avFoundation(let player):
+                case .avFoundation:
                     if isSelected,
                        isCurrentPlaybackVideo() {
-                        NCVideoAVPlayerContentView(
-                            player: player,
-                            allowsPictureInPicture: true,
-                            shouldAutoPlay: false,
-                            navigationBar: navigationBar
-                        )
-                        .ignoresSafeArea()
+                        Color.black
+                            .ignoresSafeArea()
+                            .onAppear {
+                                presentAVPlayerIfSelected()
+                            }
+                            .onChange(of: isSelected) { _, selected in
+                                guard selected else {
+                                    return
+                                }
+
+                                presentAVPlayerIfSelected()
+                            }
                     } else {
                         EmptyView()
                     }
@@ -141,6 +149,7 @@ struct NCVideoViewerContentView: View {
             loadGeneration = UUID()
 
             guard selected else {
+                stopPlaybackForDeselection()
                 return
             }
 
@@ -149,13 +158,7 @@ struct NCVideoViewerContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ncMediaViewerStopPlayback)) { _ in
-            presentedVLCURL = nil
-
-            guard !pictureInPictureManager.isActive else {
-                return
-            }
-
-            playback.stop()
+            stopPlaybackForDeselection()
         }
         .onDisappear {
             // Do not stop or hide the player here.
@@ -190,6 +193,26 @@ struct NCVideoViewerContentView: View {
     }
 
     // MARK: - Loading
+
+    /// Stops fullscreen video playback when this video page is no longer selected.
+    ///
+    /// This is intentionally not done from `onDisappear`, because SwiftUI may call
+    /// `onDisappear` during rotation or layout rebuilds. A transition from selected
+    /// to not selected is instead a real page change.
+    @MainActor
+    private func stopPlaybackForDeselection() {
+        presentedAVPlayerURL = nil
+        resolvedVideoURL = nil
+        presentedVLCURL = nil
+
+        guard !pictureInPictureManager.isActive else {
+            return
+        }
+
+        NCVideoAVPlayerPresenter.dismiss()
+        NCVideoVLCPresenter.dismiss()
+        playback.stop()
+    }
 
     private var taskIdentifier: String {
         let localIdentifier = localURL?.absoluteString ?? "remote"
@@ -275,7 +298,9 @@ struct NCVideoViewerContentView: View {
     ///
     /// Local URLs are loaded directly and have priority over remote resolution.
     ///
-    /// - Parameter expectedTaskIdentifier: Task identity captured before starting async resolution.
+    /// - Parameters:
+    ///   - expectedTaskIdentifier: Task identity captured before starting async resolution.
+    ///   - expectedLoadGeneration: Load generation captured before starting async resolution.
     @MainActor
     private func resolveAndLoadVideo(
         expectedTaskIdentifier: String,
@@ -324,6 +349,7 @@ struct NCVideoViewerContentView: View {
             )
             return
         }
+
         guard expectedLoadGeneration == loadGeneration else {
             nkLog(
                 tag: NCGlobal.shared.logTagViewer,
@@ -333,6 +359,7 @@ struct NCVideoViewerContentView: View {
             )
             return
         }
+
         guard isSelected else {
             nkLog(
                 tag: NCGlobal.shared.logTagViewer,
@@ -371,6 +398,7 @@ struct NCVideoViewerContentView: View {
     ///   - url: Local or remote playable URL.
     ///   - autoplay: Whether the resolved URL requests autoplay.
     ///   - expectedTaskIdentifier: Task identity used to ignore stale async work.
+    ///   - expectedLoadGeneration: Load generation used to ignore stale async work.
     ///   - source: Debug source label used in logs.
     @MainActor
     private func loadResolvedVideo(
@@ -389,6 +417,7 @@ struct NCVideoViewerContentView: View {
             )
             return
         }
+
         guard expectedLoadGeneration == loadGeneration else {
             nkLog(
                 tag: NCGlobal.shared.logTagViewer,
@@ -398,6 +427,7 @@ struct NCVideoViewerContentView: View {
             )
             return
         }
+
         guard isSelected else {
             nkLog(
                 tag: NCGlobal.shared.logTagViewer,
@@ -414,6 +444,8 @@ struct NCVideoViewerContentView: View {
             message: "VIDEO load \(source) url \(url.absoluteString), isFileURL \(url.isFileURL), fileName \(resolvedFileName)",
             consoleOnly: true
         )
+
+        resolvedVideoURL = url
 
         playback.loadVideo(
             metadata: metadata,
@@ -486,7 +518,6 @@ struct NCVideoViewerContentView: View {
     ///
     /// This is used when SwiftUI rebuilds the selected page, for example during
     /// rotation. It must not call `play()` because the user may have paused the video.
-    /// VLC is presented only when the selected page already owns a VLC engine.
     @MainActor
     private func revealCurrentPlaybackIfNeeded() {
         guard !pictureInPictureManager.isActive else {
@@ -495,7 +526,7 @@ struct NCVideoViewerContentView: View {
 
         switch playback.engine {
         case .avFoundation:
-            break
+            presentAVPlayerIfSelected()
 
         case .vlc(let url):
             presentVLCIfSelected(url: url)
@@ -504,6 +535,69 @@ struct NCVideoViewerContentView: View {
              .failed:
             break
         }
+    }
+
+    /// Presents the UIKit-only AVPlayer viewer when this page is selected.
+    @MainActor
+    private func presentAVPlayerIfSelected() {
+        guard !pictureInPictureManager.isActive else {
+            return
+        }
+
+        guard isSelected else {
+            return
+        }
+
+        guard let url = currentAVPlayerURL() else {
+            return
+        }
+
+        guard presentedAVPlayerURL != url else {
+            return
+        }
+
+        presentedAVPlayerURL = url
+
+        NCVideoAVPlayerPresenter.present(
+            metadata: metadata,
+            url: url,
+            userAgent: userAgent,
+            contextMenuController: contextMenuController,
+            canGoPrevious: canGoPrevious,
+            canGoNext: canGoNext,
+            onPrevious: goToPreviousPageFromAVPlayer,
+            onNext: goToNextPageFromAVPlayer
+        )
+    }
+
+    /// Moves to the previous media item from the UIKit-only AVPlayer controller.
+    @MainActor
+    private func goToPreviousPageFromAVPlayer() {
+        presentedAVPlayerURL = nil
+        NCVideoAVPlayerPresenter.dismiss()
+        onPreviousPage?()
+    }
+
+    /// Moves to the next media item from the UIKit-only AVPlayer controller.
+    @MainActor
+    private func goToNextPageFromAVPlayer() {
+        presentedAVPlayerURL = nil
+        NCVideoAVPlayerPresenter.dismiss()
+        onNextPage?()
+    }
+
+    /// Returns the URL that must be used by the fullscreen AVPlayer presenter.
+    ///
+    /// Local URLs are already known. Remote URLs are stored after `NCVideoURLResolver`
+    /// completes and before `NCVideoPlaybackController` prepares the playback engine.
+    ///
+    /// - Returns: Local or resolved remote URL for the current video.
+    private func currentAVPlayerURL() -> URL? {
+        if let localURL {
+            return localURL
+        }
+
+        return resolvedVideoURL
     }
 
     /// Presents the UIKit-only VLC fallback viewer when this page is selected.
