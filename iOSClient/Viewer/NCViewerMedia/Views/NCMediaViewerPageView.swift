@@ -38,8 +38,6 @@ struct NCMediaViewerPageView: View {
     let contextMenuController: NCMainTabBarController?
     let navigationBar: UINavigationBar?
 
-    @ObservedObject private var pictureInPictureManager = NCVideoAVPlayerPictureInPictureManager.shared
-
     // MARK: - Body
 
     var body: some View {
@@ -47,53 +45,49 @@ struct NCMediaViewerPageView: View {
             Color.ncViewerBackground(backgroundStyle)
                 .ignoresSafeArea()
 
-            if shouldShowPictureInPicturePlaceholder {
-                pictureInPicturePlaceholderView
-            } else {
-                switch page.state {
-                case .idle,
-                     .loadingMetadata,
-                     .checkingLocalFile:
-                    Color.ncViewerBackground(backgroundStyle)
-                        .ignoresSafeArea()
+            switch page.state {
+            case .idle,
+                 .loadingMetadata,
+                 .checkingLocalFile:
+                Color.ncViewerBackground(backgroundStyle)
+                    .ignoresSafeArea()
 
-                case .metadataMissing:
-                    metadataMissingView
+            case .metadataMissing:
+                metadataMissingView
 
-                case .image(let previewURL, let localURL, let livePhotoURL, _):
-                    imageStateView(
-                        previewURL: previewURL,
-                        localURL: localURL,
-                        livePhotoURL: livePhotoURL
-                    )
+            case .image(let previewURL, let localURL, let livePhotoURL, _):
+                imageStateView(
+                    previewURL: previewURL,
+                    localURL: localURL,
+                    livePhotoURL: livePhotoURL
+                )
 
-                case .video(let previewURL):
-                    videoStateView(previewURL: previewURL)
+            case .video(let previewURL):
+                videoStateView(previewURL: previewURL)
 
-                case .downloading(let previewURL, let progress):
-                    downloadingStateView(
-                        previewURL: previewURL,
-                        progress: progress
-                    )
+            case .downloading(let previewURL, let progress):
+                downloadingStateView(
+                    previewURL: previewURL,
+                    progress: progress
+                )
 
-                case .ready(let localURL, let previewURL):
-                    readyStateView(
-                        localURL: localURL,
-                        previewURL: previewURL
-                    )
+            case .ready(let localURL, let previewURL):
+                readyStateView(
+                    localURL: localURL,
+                    previewURL: previewURL
+                )
 
-                case .deleted:
-                    deletedView
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                        .gesture(chromeToggleGesture())
+            case .deleted:
+                deletedView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .gesture(chromeToggleGesture())
 
-                case .failed(let previewURL, let message):
-                    failedStateView(
-                        previewURL: previewURL,
-                        message: message
-                    )
-                }
+            case .failed(let previewURL, let message):
+                failedStateView(
+                    previewURL: previewURL,
+                    message: message
+                )
             }
         }
         .background(Color.ncViewerBackground(backgroundStyle))
@@ -101,40 +95,6 @@ struct NCMediaViewerPageView: View {
     }
 
     // MARK: - Computed Properties
-
-    private var shouldShowPictureInPicturePlaceholder: Bool {
-        guard pictureInPictureManager.isActive else {
-            return false
-        }
-
-        switch page.state {
-        case .image:
-            return false
-
-        case .video:
-            return true
-
-        case .ready,
-             .downloading:
-            guard let metadata = page.metadata else {
-                return true
-            }
-
-            return mediaKind(for: metadata) != .image
-
-        case .idle,
-             .loadingMetadata,
-             .checkingLocalFile,
-             .metadataMissing,
-             .deleted,
-             .failed:
-            guard let metadata = page.metadata else {
-                return false
-            }
-
-            return mediaKind(for: metadata) != .image
-        }
-    }
 
     private var backgroundStyle: NCViewerBackgroundStyle {
         if isChromeHidden {
@@ -218,21 +178,6 @@ struct NCMediaViewerPageView: View {
     }
 
     // MARK: - State Views
-
-    private var pictureInPicturePlaceholderView: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "pip")
-                .font(.system(size: 48, weight: .regular))
-
-            Text("Video is playing in Picture in Picture")
-                .font(.body)
-                .multilineTextAlignment(.center)
-        }
-        .foregroundStyle(.white.opacity(0.82))
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.ignoresSafeArea())
-    }
 
     private var metadataMissingView: some View {
         VStack(spacing: 12) {

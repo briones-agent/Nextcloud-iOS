@@ -76,6 +76,14 @@ extension NCVideoAVPlayerViewController {
 extension NCVideoAVPlayerViewController {
 
     func showControls(animated: Bool) {
+        guard !isPictureInPictureActive else {
+            setControlsVisible(
+                false,
+                animated: false
+            )
+            return
+        }
+
         setControlsVisible(
             true,
             animated: animated
@@ -126,6 +134,10 @@ extension NCVideoAVPlayerViewController {
 
     func scheduleControlsHide() {
         stopControlsHideTimer()
+
+        guard !isPictureInPictureActive else {
+            return
+        }
 
         guard controlsVisible else {
             return

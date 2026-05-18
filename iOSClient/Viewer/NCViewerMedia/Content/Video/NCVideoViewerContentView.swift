@@ -37,7 +37,6 @@ struct NCVideoViewerContentView: View {
     let onNextPage: (() -> Void)?
 
     @ObservedObject private var playback = NCVideoPlaybackController.shared
-    @ObservedObject private var pictureInPictureManager = NCVideoAVPlayerPictureInPictureManager.shared
 
     @State private var errorMessage: String?
     @State private var presentedAVPlayerURL: URL?
@@ -90,20 +89,24 @@ struct NCVideoViewerContentView: View {
                 case .loading:
                     EmptyView()
 
-                case .avFoundation:
+                case .avFoundation(let url):
                     if isSelected,
                        isCurrentPlaybackVideo() {
                         Color.black
                             .ignoresSafeArea()
                             .onAppear {
-                                presentAVPlayerIfSelected()
+                                presentAVPlayerIfSelected(url: url)
+                            }
+                            .onChange(of: url) { _, newURL in
+                                presentedAVPlayerURL = nil
+                                presentAVPlayerIfSelected(url: newURL)
                             }
                             .onChange(of: isSelected) { _, selected in
                                 guard selected else {
                                     return
                                 }
 
-                                presentAVPlayerIfSelected()
+                                presentAVPlayerIfSelected(url: url)
                             }
                     } else {
                         EmptyView()
@@ -205,10 +208,6 @@ struct NCVideoViewerContentView: View {
         resolvedVideoURL = nil
         presentedVLCURL = nil
 
-        guard !pictureInPictureManager.isActive else {
-            return
-        }
-
         NCVideoAVPlayerPresenter.dismiss()
         NCVideoVLCPresenter.dismiss()
         playback.stop()
@@ -227,10 +226,6 @@ struct NCVideoViewerContentView: View {
     /// again when the same page later becomes selected.
     @MainActor
     private func loadVideoIfSelected() async {
-        guard !pictureInPictureManager.isActive else {
-            return
-        }
-
         let expectedTaskIdentifier = taskIdentifier
         let expectedLoadGeneration = loadGeneration
 
@@ -520,13 +515,9 @@ struct NCVideoViewerContentView: View {
     /// rotation. It must not call `play()` because the user may have paused the video.
     @MainActor
     private func revealCurrentPlaybackIfNeeded() {
-        guard !pictureInPictureManager.isActive else {
-            return
-        }
-
         switch playback.engine {
-        case .avFoundation:
-            presentAVPlayerIfSelected()
+        case .avFoundation(let url):
+            presentAVPlayerIfSelected(url: url)
 
         case .vlc(let url):
             presentVLCIfSelected(url: url)
@@ -538,17 +529,11 @@ struct NCVideoViewerContentView: View {
     }
 
     /// Presents the UIKit-only AVPlayer viewer when this page is selected.
+    ///
+    /// - Parameter url: Local or remote playable URL selected by AVFoundation probing.
     @MainActor
-    private func presentAVPlayerIfSelected() {
-        guard !pictureInPictureManager.isActive else {
-            return
-        }
-
+    private func presentAVPlayerIfSelected(url: URL) {
         guard isSelected else {
-            return
-        }
-
-        guard let url = currentAVPlayerURL() else {
             return
         }
 
@@ -586,29 +571,11 @@ struct NCVideoViewerContentView: View {
         onNextPage?()
     }
 
-    /// Returns the URL that must be used by the fullscreen AVPlayer presenter.
-    ///
-    /// Local URLs are already known. Remote URLs are stored after `NCVideoURLResolver`
-    /// completes and before `NCVideoPlaybackController` prepares the playback engine.
-    ///
-    /// - Returns: Local or resolved remote URL for the current video.
-    private func currentAVPlayerURL() -> URL? {
-        if let localURL {
-            return localURL
-        }
-
-        return resolvedVideoURL
-    }
-
     /// Presents the UIKit-only VLC fallback viewer when this page is selected.
     ///
     /// - Parameter url: Local or remote playable URL.
     @MainActor
     private func presentVLCIfSelected(url: URL) {
-        guard !pictureInPictureManager.isActive else {
-            return
-        }
-
         guard isSelected else {
             return
         }

@@ -42,13 +42,14 @@ final class NCVideoControlsView: UIView {
 
     // MARK: - Layout Constants
 
-    private static let centerControlsWidth: CGFloat = 220
-    private static let centerControlsHeight: CGFloat = 76
-    private static let bottomControlsHeight: CGFloat = 64
-    private static let bottomControlsHorizontalInset: CGFloat = 28
-    private static let bottomControlsBottomInset: CGFloat = 18
-    private static let topActionsHeight: CGFloat = 52
-    private static let topActionsHorizontalInset: CGFloat = 16
+    fileprivate static let centerControlsWidth: CGFloat = 220
+    fileprivate static let centerControlsHeight: CGFloat = 76
+    fileprivate static let bottomControlsHeight: CGFloat = 64
+    fileprivate static let bottomControlsHorizontalInset: CGFloat = 28
+    fileprivate static let bottomControlsBottomInset: CGFloat = 18
+    fileprivate static let topActionsHeight: CGFloat = 52
+    fileprivate static let topActionsHorizontalInset: CGFloat = 16
+    fileprivate static let topActionsButtonSize: CGFloat = 44
 
     // MARK: - State
 
@@ -302,19 +303,19 @@ private struct NCVideoControlsSwiftUIView: View {
                     )
 
                 bottomControls
-                    .frame(height: 64)
-                    .padding(.horizontal, 28)
+                    .frame(height: NCVideoControlsView.bottomControlsHeight)
+                    .padding(.horizontal, NCVideoControlsView.bottomControlsHorizontalInset)
                     .position(
                         x: proxy.size.width / 2,
-                        y: proxy.size.height - proxy.safeAreaInsets.bottom - 18 - 32
+                        y: proxy.size.height - proxy.safeAreaInsets.bottom - NCVideoControlsView.bottomControlsBottomInset - (NCVideoControlsView.bottomControlsHeight / 2)
                     )
 
                 if state.isPictureInPictureVisible {
                     topActions
-                        .frame(height: 52)
+                        .frame(height: NCVideoControlsView.topActionsHeight)
                         .position(
-                            x: 16 + 22,
-                            y: state.topActionsTopOffset + 26
+                            x: NCVideoControlsView.topActionsHorizontalInset + (NCVideoControlsView.topActionsButtonSize / 2),
+                            y: state.topActionsTopOffset + (NCVideoControlsView.topActionsHeight / 2)
                         )
                 }
             }
@@ -349,7 +350,10 @@ private struct NCVideoControlsSwiftUIView: View {
                 action: onSeekForward
             )
         }
-        .frame(width: 220, height: 76)
+        .frame(
+            width: NCVideoControlsView.centerControlsWidth,
+            height: NCVideoControlsView.centerControlsHeight
+        )
     }
 
     private var bottomControls: some View {
@@ -390,7 +394,10 @@ private struct NCVideoControlsSwiftUIView: View {
             Image(systemName: "pip.enter")
                 .font(.system(size: 21, weight: .regular))
                 .foregroundStyle(.black)
-                .frame(width: 44, height: 44)
+                .frame(
+                    width: NCVideoControlsView.topActionsButtonSize,
+                    height: NCVideoControlsView.topActionsButtonSize
+                )
                 .background(.white.opacity(0.92))
                 .clipShape(Circle())
                 .shadow(color: .black.opacity(0.16), radius: 14, x: 0, y: 4)

@@ -17,8 +17,10 @@ enum NCVideoPlaybackEngine {
     /// No playable engine is currently ready.
     case loading
 
-    /// Native AVFoundation playback using the controller-owned `AVPlayer`.
-    case avFoundation(player: AVPlayer)
+    /// Native AVFoundation playback using a resolved playable URL.
+    ///
+    /// The real fullscreen AVPlayer is owned by `NCVideoAVPlayerViewController`.
+    case avFoundation(url: URL)
 
     /// VLC fallback playback using a resolved playable URL.
     ///
@@ -49,8 +51,8 @@ final class NCVideoPlaybackController: ObservableObject {
 
     // MARK: - Private State
 
-    private var avPlayer: AVPlayer?
-    private var avPlayerItem: AVPlayerItem?
+    private var avProbePlayer: AVPlayer?
+    private var avProbeItem: AVPlayerItem?
     private var statusObservation: NSKeyValueObservation?
     private var timeoutTask: Task<Void, Never>?
 
@@ -214,9 +216,9 @@ final class NCVideoPlaybackController: ObservableObject {
         statusObservation?.invalidate()
         statusObservation = nil
 
-        avPlayer?.pause()
-        avPlayer = nil
-        avPlayerItem = nil
+        avProbePlayer?.pause()
+        avProbePlayer = nil
+        avProbeItem = nil
 
         currentOcId = nil
         currentEtag = nil
@@ -252,8 +254,8 @@ final class NCVideoPlaybackController: ObservableObject {
 
         player.actionAtItemEnd = .pause
 
-        avPlayerItem = item
-        avPlayer = player
+        avProbeItem = item
+        avProbePlayer = player
 
         statusObservation = item.observe(
             \.status,
@@ -274,6 +276,7 @@ final class NCVideoPlaybackController: ObservableObject {
                 switch item.status {
                 case .readyToPlay:
                     self.resolveWithAVFoundation(
+                        url: url,
                         player: player,
                         shouldAutoPlay: shouldAutoPlay,
                         token: token
@@ -303,23 +306,25 @@ final class NCVideoPlaybackController: ObservableObject {
     /// Selects AVFoundation as the active rendering engine.
     ///
     /// - Parameters:
+    ///   - url: The resolved playable URL.
     ///   - player: Prepared AVFoundation player.
     ///   - shouldAutoPlay: Whether playback should start after AVFoundation becomes ready.
     ///   - token: Load token used to ignore stale callbacks.
     private func resolveWithAVFoundation(
+        url: URL,
         player: AVPlayer,
         shouldAutoPlay: Bool,
         token: UUID
     ) {
         guard loadToken == token,
-              avPlayer === player else {
+              avProbePlayer === player else {
             return
         }
 
         timeoutTask?.cancel()
         timeoutTask = nil
 
-        engine = .avFoundation(player: player)
+        engine = .avFoundation(url: url)
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
@@ -386,9 +391,9 @@ final class NCVideoPlaybackController: ObservableObject {
         statusObservation?.invalidate()
         statusObservation = nil
 
-        avPlayer?.pause()
-        avPlayer = nil
-        avPlayerItem = nil
+        avProbePlayer?.pause()
+        avProbePlayer = nil
+        avProbeItem = nil
 
         engine = .vlc(url: url)
 
@@ -429,10 +434,8 @@ final class NCVideoPlaybackController: ObservableObject {
         }
 
         switch engine {
-        case .avFoundation(let player):
-            if player.timeControlStatus != .playing {
-                player.play()
-            }
+        case .avFoundation:
+            break
 
         case .vlc,
              .loading,

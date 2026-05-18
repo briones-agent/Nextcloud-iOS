@@ -176,15 +176,7 @@ enum NCVideoAVPlayerPresenter {
     /// This short alias is used by video-page navigation callbacks before moving
     /// the SwiftUI media viewer to the previous or next page.
     static func dismiss() {
-        guard let currentViewController else {
-            return
-        }
-
-        if NCVideoAVPlayerPictureInPictureManager.shared.isActive {
-            currentViewController.dismissForPictureInPicture()
-        } else {
-            dismissCurrent()
-        }
+        dismissCurrent()
     }
 
     // MARK: - Private
