@@ -93,18 +93,6 @@ struct NCAudioViewerContentView: View {
 
             HStack(spacing: 28) {
                 Button {
-                    let shouldAutoPlay = model.isPlaying
-                    model.pause()
-                    onPrevious(shouldAutoPlay)
-                } label: {
-                    Image(systemName: "backward.end.circle")
-                        .font(.system(size: 38, weight: .regular))
-                        .foregroundStyle(canGoPrevious ? .white.opacity(0.75) : .white.opacity(0.22))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canGoPrevious)
-
-                Button {
                     model.toggleLoop()
                 } label: {
                     Image(systemName: model.isLoopEnabled ? "repeat.circle.fill" : "repeat.circle")
@@ -131,18 +119,6 @@ struct NCAudioViewerContentView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(model.duration <= 0)
-
-                Button {
-                    let shouldAutoPlay = model.isPlaying
-                    model.pause()
-                    onNext(shouldAutoPlay)
-                } label: {
-                    Image(systemName: "forward.end.circle")
-                        .font(.system(size: 38, weight: .regular))
-                        .foregroundStyle(canGoNext ? .white.opacity(0.75) : .white.opacity(0.22))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canGoNext)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -277,6 +253,7 @@ final class NCAudioViewerModel: ObservableObject {
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private var currentURL: URL?
+    private var loadedURL: URL?
 
     // MARK: - Public API
 
@@ -293,6 +270,7 @@ final class NCAudioViewerModel: ObservableObject {
         stop()
 
         currentURL = url
+        loadedURL = url
 
         configureAudioSession()
 
@@ -329,6 +307,14 @@ final class NCAudioViewerModel: ObservableObject {
     /// Starts audio playback.
     func play() {
         guard let player else {
+            guard let loadedURL else {
+                return
+            }
+
+            Task { @MainActor in
+                await load(url: loadedURL)
+                play()
+            }
             return
         }
 
