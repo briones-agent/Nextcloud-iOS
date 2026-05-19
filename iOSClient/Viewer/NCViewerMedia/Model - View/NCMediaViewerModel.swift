@@ -554,7 +554,7 @@ final class NCMediaViewerModel: ObservableObject {
     /// Loading order:
     /// - Resolve metadata.
     /// - Preserve any preview already stored in the current page state.
-    /// - If the full local file exists, show it immediately.
+    /// - If the full local file exists, resolve a preview if needed and show it immediately.
     /// - Otherwise, resolve/show the preview.
     /// - For non-local videos, stop here and let the video viewer resolve direct playback.
     /// - For images and audio, download the full media file when needed.
@@ -593,7 +593,7 @@ final class NCMediaViewerModel: ObservableObject {
                 return
             }
 
-            if isImage(metadata), previewURL == nil {
+            if previewURL == nil {
                 previewURL = await loader.previewURL(
                     for: metadata,
                     index: index

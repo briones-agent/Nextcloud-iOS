@@ -479,15 +479,9 @@ final class NCVideoVLCViewController: UIViewController {
             return
         }
 
-        UIView.animate(
-            withDuration: 0.25,
-            delay: 0,
-            options: [.beginFromCurrentState, .curveEaseInOut]
-        ) {
-            self.previewImageView.alpha = 0
-        } completion: { [weak self] _ in
-            self?.previewImageView.isHidden = true
-        }
+        previewImageView.layer.removeAllAnimations()
+        previewImageView.alpha = 0
+        previewImageView.isHidden = true
     }
 
     /// Updates the shared controls top actions reference using the real navigation bar.

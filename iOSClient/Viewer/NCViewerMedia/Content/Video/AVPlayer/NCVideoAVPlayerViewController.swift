@@ -567,7 +567,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
             options: [.initial, .new]
         ) { [weak self] _, _ in
             Task { @MainActor in
-                self?.updatePlayPauseButton()
+                self?.handleTimeControlStatusChange()
             }
         }
 
@@ -623,14 +623,24 @@ final class NCVideoAVPlayerViewController: UIViewController {
             return
         }
 
-        hidePreviewImage()
-
         if !controlsVisible,
            !isPictureInPictureActive {
             showControls(animated: false)
             scheduleControlsHide()
         }
     }
+
+    /// Handles AVPlayer playback state changes.
+    private func handleTimeControlStatusChange() {
+        updatePlayPauseButton()
+
+        guard player.timeControlStatus == .playing else {
+            return
+        }
+
+        hidePreviewImage()
+    }
+
     /// Updates the fullscreen preview image shown before the first video frame is ready.
     private func updatePreviewImage() {
         guard let previewURL,
@@ -657,21 +667,15 @@ final class NCVideoAVPlayerViewController: UIViewController {
         previewImageView.isHidden = false
     }
 
-    /// Hides the preview image after AVFoundation reports the item as ready.
+    /// Hides the preview image after AVPlayer actually starts playback.
     private func hidePreviewImage() {
         guard !previewImageView.isHidden else {
             return
         }
 
-        UIView.animate(
-            withDuration: 0.25,
-            delay: 0,
-            options: [.beginFromCurrentState, .curveEaseInOut]
-        ) {
-            self.previewImageView.alpha = 0
-        } completion: { [weak self] _ in
-            self?.previewImageView.isHidden = true
-        }
+        previewImageView.layer.removeAllAnimations()
+        previewImageView.alpha = 0
+        previewImageView.isHidden = true
     }
 
     /// Handles playback reaching the end.
