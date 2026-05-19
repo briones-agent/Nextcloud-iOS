@@ -480,7 +480,7 @@ final class NCVideoVLCViewController: UIViewController {
         }
 
         UIView.animate(
-            withDuration: 0.18,
+            withDuration: 0.25,
             delay: 0,
             options: [.beginFromCurrentState, .curveEaseInOut]
         ) {

@@ -664,7 +664,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
         }
 
         UIView.animate(
-            withDuration: 0.58,
+            withDuration: 0.25,
             delay: 0,
             options: [.beginFromCurrentState, .curveEaseInOut]
         ) {
