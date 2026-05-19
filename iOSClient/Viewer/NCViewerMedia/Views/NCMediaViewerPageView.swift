@@ -92,16 +92,6 @@ struct NCMediaViewerPageView: View {
         }
         .background(Color.ncViewerBackground(backgroundStyle))
         .ignoresSafeArea()
-        .onAppear {
-            updateNavigationTitleIfSelected()
-        }
-        .onChange(of: isSelected) { _, selected in
-            guard selected else {
-                return
-            }
-
-            updateNavigationTitleIfSelected()
-        }
     }
 
     // MARK: - Computed Properties
@@ -465,15 +455,6 @@ struct NCMediaViewerPageView: View {
     }
 
     // MARK: - Helpers
-
-    private func updateNavigationTitleIfSelected() {
-        guard isSelected,
-              let title = displayFileName(from: page.metadata) else {
-            return
-        }
-
-        navigationBar?.topItem?.title = title
-    }
 
     private var livePhotoTopOverlayInset: CGFloat {
         let windowScene = UIApplication.shared.connectedScenes
