@@ -92,8 +92,9 @@ struct NCVideoViewerContentView: View {
                 case .avFoundation(let url):
                     if isSelected,
                        isCurrentPlaybackVideo() {
-                        Color.black
+                        Color.clear
                             .ignoresSafeArea()
+                            .allowsHitTesting(false)
                             .onAppear {
                                 presentAVPlayerIfSelected(url: url)
                             }
@@ -115,8 +116,9 @@ struct NCVideoViewerContentView: View {
                 case .vlc(let url):
                     if isSelected,
                        isCurrentPlaybackVideo() {
-                        Color.black
+                        Color.clear
                             .ignoresSafeArea()
+                            .allowsHitTesting(false)
                             .onAppear {
                                 presentVLCIfSelected(url: url)
                             }
@@ -546,6 +548,7 @@ struct NCVideoViewerContentView: View {
         NCVideoAVPlayerPresenter.present(
             metadata: metadata,
             url: url,
+            previewURL: previewURL,
             userAgent: userAgent,
             contextMenuController: contextMenuController,
             canGoPrevious: canGoPrevious,
@@ -589,6 +592,7 @@ struct NCVideoViewerContentView: View {
         NCVideoVLCPresenter.present(
             metadata: metadata,
             url: url,
+            previewURL: previewURL,
             userAgent: userAgent,
             contextMenuController: contextMenuController,
             canGoPrevious: canGoPrevious,

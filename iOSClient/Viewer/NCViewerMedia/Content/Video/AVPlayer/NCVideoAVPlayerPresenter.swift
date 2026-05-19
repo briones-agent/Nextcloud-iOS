@@ -29,6 +29,7 @@ enum NCVideoAVPlayerPresenter {
     /// - Parameters:
     ///   - metadata: Video metadata used for logging and player title.
     ///   - url: Local or remote playable URL.
+    ///   - previewURL: Optional local preview image URL shown until the first video frame is ready.
     ///   - userAgent: Optional HTTP User-Agent for remote playback.
     ///   - contextMenuController: Main tab bar controller used by context menu actions.
     ///   - canGoPrevious: Whether the previous-page gesture/action is currently available.
@@ -38,6 +39,7 @@ enum NCVideoAVPlayerPresenter {
     static func present(
         metadata: tableMetadata,
         url: URL,
+        previewURL: URL?,
         userAgent: String?,
         contextMenuController: NCMainTabBarController?,
         canGoPrevious: Bool = false,
@@ -47,6 +49,13 @@ enum NCVideoAVPlayerPresenter {
     ) {
         if currentURL == url,
            let currentViewController {
+            currentViewController.update(
+                metadata: metadata,
+                url: url,
+                previewURL: previewURL,
+                userAgent: userAgent,
+                contextMenuController: contextMenuController
+            )
             currentViewController.canGoPrevious = canGoPrevious
             currentViewController.canGoNext = canGoNext
             currentViewController.onPrevious = onPrevious
@@ -75,6 +84,7 @@ enum NCVideoAVPlayerPresenter {
             currentViewController.update(
                 metadata: metadata,
                 url: url,
+                previewURL: previewURL,
                 userAgent: userAgent,
                 contextMenuController: contextMenuController
             )
@@ -111,6 +121,7 @@ enum NCVideoAVPlayerPresenter {
         let viewController = NCVideoAVPlayerViewController(
             metadata: metadata,
             url: url,
+            previewURL: previewURL,
             userAgent: userAgent,
             contextMenuController: contextMenuController
         )

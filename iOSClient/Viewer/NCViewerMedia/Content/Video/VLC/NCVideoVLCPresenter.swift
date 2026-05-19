@@ -29,6 +29,7 @@ enum NCVideoVLCPresenter {
     /// - Parameters:
     ///   - metadata: Video metadata used for logging.
     ///   - url: Local or remote playable URL.
+    ///   - previewURL: Optional local preview image URL shown until VLC starts rendering.
     ///   - userAgent: Optional HTTP User-Agent for remote playback.
     ///   - contextMenuController: Main tab bar controller used by context menu actions.
     ///   - canGoPrevious: Whether VLC can navigate to the previous media item.
@@ -38,6 +39,7 @@ enum NCVideoVLCPresenter {
     static func present(
         metadata: tableMetadata,
         url: URL,
+        previewURL: URL?,
         userAgent: String?,
         contextMenuController: NCMainTabBarController?,
         canGoPrevious: Bool = false,
@@ -47,6 +49,13 @@ enum NCVideoVLCPresenter {
     ) {
         if currentURL == url,
            let currentViewController {
+            currentViewController.update(
+                metadata: metadata,
+                url: url,
+                previewURL: previewURL,
+                userAgent: userAgent,
+                contextMenuController: contextMenuController
+            )
             currentViewController.onPrevious = onPrevious
             currentViewController.onNext = onNext
             currentViewController.canGoPrevious = canGoPrevious
@@ -74,6 +83,7 @@ enum NCVideoVLCPresenter {
             currentViewController.update(
                 metadata: metadata,
                 url: url,
+                previewURL: previewURL,
                 userAgent: userAgent,
                 contextMenuController: contextMenuController
             )
@@ -110,6 +120,7 @@ enum NCVideoVLCPresenter {
         let viewController = NCVideoVLCViewController(
             metadata: metadata,
             url: url,
+            previewURL: previewURL,
             userAgent: userAgent,
             contextMenuController: contextMenuController
         )

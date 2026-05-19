@@ -45,6 +45,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     private var metadata: tableMetadata
     private var url: URL
+    private var previewURL: URL?
     private var userAgent: String?
     private weak var contextMenuController: NCMainTabBarController?
 
@@ -58,6 +59,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     // MARK: - Views
 
     internal let playerContainerView = NCVideoAVPlayerLayerView()
+    private let previewImageView = UIImageView()
     internal let controlsView = NCVideoControlsView()
 
     // MARK: - AVPlayer
@@ -92,11 +94,13 @@ final class NCVideoAVPlayerViewController: UIViewController {
     init(
         metadata: tableMetadata,
         url: URL,
+        previewURL: URL?,
         userAgent: String?,
         contextMenuController: NCMainTabBarController?
     ) {
         self.metadata = metadata
         self.url = url
+        self.previewURL = previewURL
         self.userAgent = userAgent
         self.contextMenuController = contextMenuController
 
@@ -134,12 +138,19 @@ final class NCVideoAVPlayerViewController: UIViewController {
         playerContainerView.translatesAutoresizingMaskIntoConstraints = false
         playerContainerView.playerLayer.videoGravity = .resizeAspect
 
+        previewImageView.backgroundColor = .black
+        previewImageView.contentMode = .scaleAspectFit
+        previewImageView.clipsToBounds = true
+        previewImageView.translatesAutoresizingMaskIntoConstraints = false
+        updatePreviewImage()
+
         controlsView.delegate = self
         controlsView.alpha = 0
         controlsView.isHidden = true
         controlsView.translatesAutoresizingMaskIntoConstraints = false
 
         rootView.addSubview(playerContainerView)
+        rootView.addSubview(previewImageView)
         rootView.addSubview(controlsView)
 
         NSLayoutConstraint.activate([
@@ -147,6 +158,11 @@ final class NCVideoAVPlayerViewController: UIViewController {
             playerContainerView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
             playerContainerView.topAnchor.constraint(equalTo: rootView.topAnchor),
             playerContainerView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
+
+            previewImageView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+            previewImageView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+            previewImageView.topAnchor.constraint(equalTo: rootView.topAnchor),
+            previewImageView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
 
             controlsView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
             controlsView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
@@ -215,6 +231,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     func update(
         metadata: tableMetadata,
         url: URL,
+        previewURL: URL?,
         userAgent: String?,
         contextMenuController: NCMainTabBarController?
     ) {
@@ -226,8 +243,10 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
         self.metadata = metadata
         self.url = url
+        self.previewURL = previewURL
         self.userAgent = userAgent
         self.contextMenuController = contextMenuController
+        updatePreviewImage()
 
         updateTitle()
         refreshMoreMenu()
@@ -432,6 +451,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
         player.replaceCurrentItem(with: item)
         playerContainerView.player = player
+        showPreviewImage()
 
         configureObservers()
         configurePictureInPicture()
@@ -454,6 +474,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
         cleanupObservers()
         player.replaceCurrentItem(with: nil)
         playerContainerView.player = nil
+        showPreviewImage()
         pictureInPictureController?.delegate = nil
         pictureInPictureController = nil
         updatePlayPauseButton()
@@ -602,10 +623,54 @@ final class NCVideoAVPlayerViewController: UIViewController {
             return
         }
 
+        hidePreviewImage()
+
         if !controlsVisible,
            !isPictureInPictureActive {
             showControls(animated: false)
             scheduleControlsHide()
+        }
+    }
+    /// Updates the fullscreen preview image shown before the first video frame is ready.
+    private func updatePreviewImage() {
+        guard let previewURL,
+              previewURL.isFileURL else {
+            previewImageView.image = nil
+            previewImageView.isHidden = true
+            return
+        }
+
+        previewImageView.image = UIImage(contentsOfFile: previewURL.path)
+        previewImageView.isHidden = previewImageView.image == nil
+        previewImageView.alpha = 1
+    }
+
+    /// Shows the preview image while the AVPlayer item is preparing.
+    private func showPreviewImage() {
+        guard previewImageView.image != nil else {
+            previewImageView.isHidden = true
+            return
+        }
+
+        previewImageView.layer.removeAllAnimations()
+        previewImageView.alpha = 1
+        previewImageView.isHidden = false
+    }
+
+    /// Hides the preview image after AVFoundation reports the item as ready.
+    private func hidePreviewImage() {
+        guard !previewImageView.isHidden else {
+            return
+        }
+
+        UIView.animate(
+            withDuration: 0.58,
+            delay: 0,
+            options: [.beginFromCurrentState, .curveEaseInOut]
+        ) {
+            self.previewImageView.alpha = 0
+        } completion: { [weak self] _ in
+            self?.previewImageView.isHidden = true
         }
     }
 

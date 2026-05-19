@@ -19,6 +19,7 @@ final class NCVideoVLCViewController: UIViewController {
 
     private var metadata: tableMetadata
     private var url: URL
+    private var previewURL: URL?
     private var userAgent: String?
     private weak var contextMenuController: NCMainTabBarController?
 
@@ -32,6 +33,7 @@ final class NCVideoVLCViewController: UIViewController {
     // MARK: - Views
 
     internal let drawableView = UIView()
+    private let previewImageView = UIImageView()
     internal let controlsView = NCVideoControlsView()
 
     // MARK: - VLC
@@ -56,11 +58,13 @@ final class NCVideoVLCViewController: UIViewController {
     init(
         metadata: tableMetadata,
         url: URL,
+        previewURL: URL?,
         userAgent: String?,
         contextMenuController: NCMainTabBarController?
     ) {
         self.metadata = metadata
         self.url = url
+        self.previewURL = previewURL
         self.userAgent = userAgent
         self.contextMenuController = contextMenuController
 
@@ -95,12 +99,19 @@ final class NCVideoVLCViewController: UIViewController {
         drawableView.clipsToBounds = true
         drawableView.translatesAutoresizingMaskIntoConstraints = false
 
+        previewImageView.backgroundColor = .black
+        previewImageView.contentMode = .scaleAspectFit
+        previewImageView.clipsToBounds = true
+        previewImageView.translatesAutoresizingMaskIntoConstraints = false
+        updatePreviewImage()
+
         controlsView.delegate = self
         controlsView.alpha = 0
         controlsView.isHidden = true
         controlsView.translatesAutoresizingMaskIntoConstraints = false
 
         rootView.addSubview(drawableView)
+        rootView.addSubview(previewImageView)
         rootView.addSubview(controlsView)
 
         NSLayoutConstraint.activate([
@@ -108,6 +119,11 @@ final class NCVideoVLCViewController: UIViewController {
             drawableView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
             drawableView.topAnchor.constraint(equalTo: rootView.topAnchor),
             drawableView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
+
+            previewImageView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+            previewImageView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+            previewImageView.topAnchor.constraint(equalTo: rootView.topAnchor),
+            previewImageView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
 
             controlsView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
             controlsView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
@@ -171,10 +187,12 @@ final class NCVideoVLCViewController: UIViewController {
     /// - Parameters:
     ///   - metadata: Updated video metadata.
     ///   - url: Updated playable URL.
+    ///   - previewURL: Optional local preview image URL shown until VLC starts rendering.
     ///   - userAgent: Optional HTTP User-Agent.
     func update(
         metadata: tableMetadata,
         url: URL,
+        previewURL: URL?,
         userAgent: String?,
         contextMenuController: NCMainTabBarController?
     ) {
@@ -186,8 +204,10 @@ final class NCVideoVLCViewController: UIViewController {
 
         self.metadata = metadata
         self.url = url
+        self.previewURL = previewURL
         self.userAgent = userAgent
         self.contextMenuController = contextMenuController
+        updatePreviewImage()
 
         updateTitle()
         refreshMoreMenu()
@@ -377,6 +397,7 @@ final class NCVideoVLCViewController: UIViewController {
     /// Prepares VLC playback without starting it automatically.
     private func start() {
         attachDrawable()
+        showPreviewImage()
 
         let media = VLCMedia(url: url)
 
@@ -405,6 +426,7 @@ final class NCVideoVLCViewController: UIViewController {
         mediaPlayer.stop()
         mediaPlayer.media = nil
         mediaPlayer.drawable = nil
+        showPreviewImage()
         stopProgressTimer()
         updatePlayPauseButton()
         updateProgressControls()
@@ -418,9 +440,55 @@ final class NCVideoVLCViewController: UIViewController {
         }
 
         mediaPlayer.drawable = drawableView
+        if mediaPlayer.isPlaying {
+            hidePreviewImage()
+        }
     }
 
     // MARK: - Helpers
+
+    /// Updates the fullscreen preview image shown before VLC starts rendering video.
+    private func updatePreviewImage() {
+        guard let previewURL,
+              previewURL.isFileURL else {
+            previewImageView.image = nil
+            previewImageView.isHidden = true
+            return
+        }
+
+        previewImageView.image = UIImage(contentsOfFile: previewURL.path)
+        previewImageView.isHidden = previewImageView.image == nil
+        previewImageView.alpha = 1
+    }
+
+    /// Shows the preview image while VLC prepares the first rendered frame.
+    private func showPreviewImage() {
+        guard previewImageView.image != nil else {
+            previewImageView.isHidden = true
+            return
+        }
+
+        previewImageView.layer.removeAllAnimations()
+        previewImageView.alpha = 1
+        previewImageView.isHidden = false
+    }
+
+    /// Hides the preview image after VLC starts rendering playback.
+    private func hidePreviewImage() {
+        guard !previewImageView.isHidden else {
+            return
+        }
+
+        UIView.animate(
+            withDuration: 0.18,
+            delay: 0,
+            options: [.beginFromCurrentState, .curveEaseInOut]
+        ) {
+            self.previewImageView.alpha = 0
+        } completion: { [weak self] _ in
+            self?.previewImageView.isHidden = true
+        }
+    }
 
     /// Updates the shared controls top actions reference using the real navigation bar.
     private func updateControlsNavigationBar() {
