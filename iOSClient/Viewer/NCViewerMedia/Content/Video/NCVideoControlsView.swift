@@ -427,10 +427,10 @@ private struct NCVideoControlsSwiftUIView: View {
 
     private func timeLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 16, weight: .regular, design: .monospaced))
-            .foregroundStyle(.black.opacity(0.74))
+            .font(.system(size: 15, weight: .medium, design: .rounded).monospacedDigit())
+            .foregroundStyle(.black.opacity(0.72))
             .lineLimit(1)
-            .minimumScaleFactor(0.8)
+            .minimumScaleFactor(0.85)
     }
 }
 
@@ -438,12 +438,18 @@ private struct NCVideoControlsSwiftUIView: View {
 
 #Preview("Video Controls") {
     NCVideoControlsPreviewView()
+        .frame(width: 393, height: 852)
+        .background(Color.black)
         .ignoresSafeArea()
 }
 
 private struct NCVideoControlsPreviewView: UIViewRepresentable {
-    func makeUIView(context: Context) -> NCVideoControlsView {
+    func makeUIView(context: Context) -> UIView {
+        let containerView = UIView()
+        containerView.backgroundColor = .black
+
         let controlsView = NCVideoControlsView()
+        controlsView.translatesAutoresizingMaskIntoConstraints = false
         controlsView.setPictureInPictureVisible(true)
         controlsView.updatePlayPauseButton(isPlaying: true)
         controlsView.updateProgress(
@@ -451,11 +457,21 @@ private struct NCVideoControlsPreviewView: UIViewRepresentable {
             elapsedText: "1:24",
             remainingText: "−2:31"
         )
-        return controlsView
+
+        containerView.addSubview(controlsView)
+
+        NSLayoutConstraint.activate([
+            controlsView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            controlsView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            controlsView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            controlsView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+        ])
+
+        return containerView
     }
 
     func updateUIView(
-        _ uiView: NCVideoControlsView,
+        _ uiView: UIView,
         context: Context
     ) { }
 }
