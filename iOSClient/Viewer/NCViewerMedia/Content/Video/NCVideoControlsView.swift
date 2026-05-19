@@ -48,7 +48,7 @@ final class NCVideoControlsView: UIView {
     fileprivate static let bottomControlsHorizontalInset: CGFloat = 28
     fileprivate static let bottomControlsBottomInset: CGFloat = 18
     fileprivate static let topActionsHeight: CGFloat = 52
-    fileprivate static let topActionsHorizontalInset: CGFloat = 16
+    fileprivate static let topActionsHorizontalInset: CGFloat = 28
     fileprivate static let topActionsButtonSize: CGFloat = 44
 
     // MARK: - State
