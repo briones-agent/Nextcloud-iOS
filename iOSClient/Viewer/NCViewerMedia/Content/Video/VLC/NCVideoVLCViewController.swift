@@ -313,16 +313,15 @@ final class NCVideoVLCViewController: UIViewController {
         swipeRight.direction = .right
         swipeRight.delegate = self
 
-        let swipeDown = UISwipeGestureRecognizer(
+        let closePanGesture = UIPanGestureRecognizer(
             target: self,
-            action: #selector(handleCloseSwipe(_:))
+            action: #selector(handleClosePan(_:))
         )
-        swipeDown.direction = .down
-        swipeDown.delegate = self
+        closePanGesture.delegate = self
 
         view.addGestureRecognizer(swipeLeft)
         view.addGestureRecognizer(swipeRight)
-        view.addGestureRecognizer(swipeDown)
+        view.addGestureRecognizer(closePanGesture)
     }
 
     /// Configures a single tap gesture to toggle VLC playback controls.
@@ -384,12 +383,42 @@ final class NCVideoVLCViewController: UIViewController {
         }
     }
 
-    /// Handles downward swipe gestures by closing the VLC viewer.
+
+    /// Handles downward pan gestures by closing the VLC viewer.
     ///
-    /// - Parameter gesture: Source swipe gesture recognizer.
+    /// This mirrors the common media viewer drag-to-close behavior: a short downward
+    /// drag or a quick downward flick is enough, while horizontal paging still wins
+    /// when the gesture is mostly horizontal.
+    ///
+    /// - Parameter gesture: Source pan gesture recognizer.
     @objc
-    private func handleCloseSwipe(_ gesture: UISwipeGestureRecognizer) {
-        close()
+    private func handleClosePan(_ gesture: UIPanGestureRecognizer) {
+        let translation = gesture.translation(in: view)
+        let velocity = gesture.velocity(in: view)
+
+        guard translation.y > 0 else {
+            return
+        }
+
+        switch gesture.state {
+        case .ended,
+             .cancelled:
+            let verticalDistance = translation.y
+            let horizontalDistance = abs(translation.x)
+            let downwardVelocity = velocity.y
+            let isMostlyVertical = verticalDistance > horizontalDistance * 1.10
+            let shouldClose = verticalDistance > 70 || downwardVelocity > 550
+
+            guard isMostlyVertical,
+                  shouldClose else {
+                return
+            }
+
+            close()
+
+        default:
+            break
+        }
     }
 
     // MARK: - Playback
@@ -559,6 +588,10 @@ extension NCVideoVLCViewController: UIGestureRecognizerDelegate {
         _ gestureRecognizer: UIGestureRecognizer,
         shouldReceive touch: UITouch
     ) -> Bool {
+        if gestureRecognizer is UIPanGestureRecognizer {
+            return true
+        }
+
         guard controlsVisible else {
             return true
         }
@@ -570,5 +603,23 @@ extension NCVideoVLCViewController: UIGestureRecognizerDelegate {
         }
 
         return true
+    }
+
+    /// Allows the close pan to start only when the gesture is mainly downward.
+    ///
+    /// - Parameter gestureRecognizer: Gesture recognizer asking whether it should begin.
+    /// - Returns: True for non-pan gestures or downward-dominant pan gestures.
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer is UIPanGestureRecognizer else {
+            return true
+        }
+
+        let velocity = (gestureRecognizer as? UIPanGestureRecognizer)?.velocity(in: view) ?? .zero
+
+        guard velocity.y > 0 else {
+            return false
+        }
+
+        return abs(velocity.y) > abs(velocity.x) * 1.10
     }
 }

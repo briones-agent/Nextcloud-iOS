@@ -229,8 +229,8 @@ final class NCMediaViewerPresenter: NSObject {
 
     /// Handles swipe-down dismissal from the fullscreen viewer container.
     ///
-    /// The gesture dismisses only when the downward movement clearly dominates
-    /// horizontal movement.
+    /// The gesture dismisses when downward movement clearly wins over horizontal paging,
+    /// using permissive thresholds similar to a photo viewer drag-to-close interaction.
     @objc
     private func handleDismissPanGesture(_ gesture: UIPanGestureRecognizer) {
         guard !isDismissing,
@@ -254,7 +254,7 @@ final class NCMediaViewerPresenter: NSObject {
                 return
             }
 
-            let isMostlyVertical = verticalDistance > horizontalDistance * 1.35
+            let isMostlyVertical = verticalDistance > horizontalDistance * 1.10
 
             guard isMostlyVertical else {
                 return
@@ -271,7 +271,7 @@ final class NCMediaViewerPresenter: NSObject {
                 return
             }
 
-            let shouldDismiss = verticalDistance > 120 || downwardVelocity > 1_000
+            let shouldDismiss = verticalDistance > 70 || downwardVelocity > 550
 
             guard shouldDismiss else {
                 return
@@ -549,7 +549,7 @@ extension NCMediaViewerPresenter: UIGestureRecognizerDelegate {
             return false
         }
 
-        return abs(velocity.y) > abs(velocity.x) * 1.35
+        return abs(velocity.y) > abs(velocity.x) * 1.10
     }
 
     func gestureRecognizer(
