@@ -375,6 +375,10 @@ final class NCVideoAVPlayerViewController: UIViewController {
             return
         }
 
+        guard !isScrubbing else {
+            return
+        }
+
         switch gesture.direction {
         case .left:
             guard canGoNext else {
@@ -926,10 +930,6 @@ extension NCVideoAVPlayerViewController: UIGestureRecognizerDelegate {
             return false
         }
 
-        if gestureRecognizer is UIPanGestureRecognizer {
-            return true
-        }
-
         guard controlsVisible else {
             return true
         }
@@ -953,6 +953,10 @@ extension NCVideoAVPlayerViewController: UIGestureRecognizerDelegate {
         }
 
         guard !isPictureInPictureActive else {
+            return false
+        }
+
+        guard !isScrubbing else {
             return false
         }
 

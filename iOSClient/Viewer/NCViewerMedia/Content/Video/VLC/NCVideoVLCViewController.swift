@@ -365,6 +365,9 @@ final class NCVideoVLCViewController: UIViewController {
     /// - Parameter gesture: Source swipe gesture recognizer.
     @objc
     private func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
+        guard !isScrubbing else {
+            return
+        }
         switch gesture.direction {
         case .left:
             guard canGoNext else {
@@ -588,10 +591,6 @@ extension NCVideoVLCViewController: UIGestureRecognizerDelegate {
         _ gestureRecognizer: UIGestureRecognizer,
         shouldReceive touch: UITouch
     ) -> Bool {
-        if gestureRecognizer is UIPanGestureRecognizer {
-            return true
-        }
-
         guard controlsVisible else {
             return true
         }
@@ -612,6 +611,10 @@ extension NCVideoVLCViewController: UIGestureRecognizerDelegate {
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard gestureRecognizer is UIPanGestureRecognizer else {
             return true
+        }
+
+        guard !isScrubbing else {
+            return false
         }
 
         let velocity = (gestureRecognizer as? UIPanGestureRecognizer)?.velocity(in: view) ?? .zero
