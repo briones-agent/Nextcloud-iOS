@@ -81,6 +81,20 @@ final class NCVideoAVPlayerViewController: UIViewController {
         pictureInPictureController?.isPictureInPictureActive == true
     }
 
+    internal var shouldKeepControlsVisible: Bool {
+        player.timeControlStatus != .playing
+    }
+
+    internal func setNavigationBarVisible(
+        _ isVisible: Bool,
+        animated: Bool
+    ) {
+        navigationController?.setNavigationBarHidden(
+            !isVisible,
+            animated: animated
+        )
+    }
+
     // MARK: - Navigation Items
 
     private lazy var moreNavigationItem = UIBarButtonItem(
@@ -190,6 +204,8 @@ final class NCVideoAVPlayerViewController: UIViewController {
         super.viewDidAppear(animated)
 
         start()
+        showControls(animated: false)
+        stopControlsHideTimer()
     }
 
     override func viewDidLayoutSubviews() {
@@ -454,10 +470,19 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     /// Handles single taps by toggling AVPlayer playback controls.
     ///
+    /// Taps are ignored while playback is not running because controls and the
+    /// navigation bar must remain visible in prepared, paused, and stopped states.
+    ///
     /// - Parameter gesture: Source tap gesture recognizer.
     @objc
     private func handleSingleTap(_ gesture: UITapGestureRecognizer) {
         guard !isPictureInPictureActive else {
+            return
+        }
+
+        guard !shouldKeepControlsVisible else {
+            showControls(animated: false)
+            stopControlsHideTimer()
             return
         }
 
@@ -676,10 +701,16 @@ final class NCVideoAVPlayerViewController: UIViewController {
         updatePlayPauseButton()
 
         guard player.timeControlStatus == .playing else {
+            showControls(animated: false)
+            stopControlsHideTimer()
             return
         }
 
         hidePreviewImage()
+
+        if controlsVisible {
+            scheduleControlsHide()
+        }
     }
 
     /// Updates the fullscreen preview image shown before the first video frame is ready.

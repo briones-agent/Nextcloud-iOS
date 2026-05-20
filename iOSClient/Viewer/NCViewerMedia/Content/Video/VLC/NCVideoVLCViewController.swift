@@ -45,6 +45,20 @@ final class NCVideoVLCViewController: UIViewController {
     internal var controlsVisible = false
     internal var isScrubbing = false
 
+    internal var shouldKeepControlsVisible: Bool {
+        mediaPlayer.state != .playing && !mediaPlayer.isPlaying
+    }
+
+    internal func setNavigationBarVisible(
+        _ isVisible: Bool,
+        animated: Bool
+    ) {
+        navigationController?.setNavigationBarHidden(
+            !isVisible,
+            animated: animated
+        )
+    }
+
     // MARK: - Navigation Items
 
     private lazy var moreNavigationItem = UIBarButtonItem(
@@ -83,6 +97,7 @@ final class NCVideoVLCViewController: UIViewController {
 
     deinit {
         stopControlsHideTimer()
+        mediaPlayer.delegate = nil
         stop()
     }
 
@@ -143,6 +158,7 @@ final class NCVideoVLCViewController: UIViewController {
 
         configureNavigationItem()
         configureAudioSession()
+        mediaPlayer.delegate = self
         configureSwipeGestures()
         configureTapGesture()
     }
@@ -151,6 +167,8 @@ final class NCVideoVLCViewController: UIViewController {
         super.viewDidAppear(animated)
 
         start()
+        showControls(animated: false)
+        stopControlsHideTimer()
     }
 
     override func viewDidLayoutSubviews() {
@@ -338,9 +356,18 @@ final class NCVideoVLCViewController: UIViewController {
 
     /// Handles single taps by toggling the VLC playback controls.
     ///
+    /// Taps are ignored while playback is not running because controls and the
+    /// navigation bar must remain visible in prepared, paused, and stopped states.
+    ///
     /// - Parameter gesture: Source tap gesture recognizer.
     @objc
     private func handleSingleTap(_ gesture: UITapGestureRecognizer) {
+        guard !shouldKeepControlsVisible else {
+            showControls(animated: false)
+            stopControlsHideTimer()
+            return
+        }
+
         let location = gesture.location(in: view)
 
         if controlsVisible {
@@ -385,7 +412,6 @@ final class NCVideoVLCViewController: UIViewController {
             break
         }
     }
-
 
     /// Handles downward pan gestures by closing the VLC viewer.
     ///
@@ -444,6 +470,7 @@ final class NCVideoVLCViewController: UIViewController {
         updateProgressControls()
         startProgressTimer()
         showControls(animated: false)
+        stopControlsHideTimer()
 
         nkLog(
             tag: NCGlobal.shared.logTagViewer,
@@ -475,6 +502,43 @@ final class NCVideoVLCViewController: UIViewController {
         if mediaPlayer.isPlaying {
             hidePreviewImage()
         }
+    }
+
+    /// Handles VLC playback state changes.
+    private func handleMediaPlayerStateChange() {
+        updatePlayPauseButton()
+        updateProgressControls()
+
+        guard mediaPlayer.state == .playing else {
+            showControls(animated: false)
+            stopControlsHideTimer()
+            return
+        }
+
+        scheduleControlsHideIfNeededAfterPlaybackStart()
+    }
+
+
+    /// Arms the controls auto-hide timer when VLC is confirmed to be playing.
+    ///
+    /// VLC state notifications and `isPlaying` may not become true at exactly the same
+    /// time. This helper is safe to call from both state and time callbacks because it
+    /// does not restart an already scheduled timer.
+    private func scheduleControlsHideIfNeededAfterPlaybackStart() {
+        guard !shouldKeepControlsVisible else {
+            return
+        }
+
+        guard controlsVisible else {
+            return
+        }
+
+        guard controlsHideTimer == nil else {
+            return
+        }
+
+        hidePreviewImage()
+        scheduleControlsHide()
     }
 
     // MARK: - Helpers
@@ -561,6 +625,27 @@ final class NCVideoVLCViewController: UIViewController {
                 message: "VIDEO VLC audio session error: \(error.localizedDescription)",
                 consoleOnly: true
             )
+        }
+    }
+}
+
+// MARK: - VLC Delegate
+
+extension NCVideoVLCViewController: VLCMediaPlayerDelegate {
+    func mediaPlayerStateChanged(_ aNotification: Notification) {
+        Task { @MainActor in
+            handleMediaPlayerStateChange()
+        }
+    }
+
+    func mediaPlayerTimeChanged(_ aNotification: Notification) {
+        Task { @MainActor in
+            guard !isScrubbing else {
+                return
+            }
+
+            updateProgressControls()
+            scheduleControlsHideIfNeededAfterPlaybackStart()
         }
     }
 }

@@ -81,9 +81,17 @@ extension NCVideoAVPlayerViewController {
                 false,
                 animated: false
             )
+            setNavigationBarVisible(
+                false,
+                animated: false
+            )
             return
         }
 
+        setNavigationBarVisible(
+            true,
+            animated: animated
+        )
         setControlsVisible(
             true,
             animated: animated
@@ -91,6 +99,16 @@ extension NCVideoAVPlayerViewController {
     }
 
     func hideControls(animated: Bool) {
+        guard !shouldKeepControlsVisible else {
+            showControls(animated: false)
+            stopControlsHideTimer()
+            return
+        }
+
+        setNavigationBarVisible(
+            false,
+            animated: animated
+        )
         setControlsVisible(
             false,
             animated: animated
@@ -136,6 +154,10 @@ extension NCVideoAVPlayerViewController {
         stopControlsHideTimer()
 
         guard !isPictureInPictureActive else {
+            return
+        }
+
+        guard !shouldKeepControlsVisible else {
             return
         }
 

@@ -16,9 +16,11 @@ extension NCVideoVLCViewController {
     @objc
     func playPauseTapped() {
         showControls(animated: true)
-        scheduleControlsHide()
+
         if mediaPlayer.isPlaying {
             mediaPlayer.pause()
+            showControls(animated: false)
+            stopControlsHideTimer()
         } else {
             mediaPlayer.play()
         }
@@ -131,6 +133,10 @@ extension NCVideoVLCViewController {
     ///
     /// - Parameter animated: Whether the visibility change should be animated.
     internal func showControls(animated: Bool) {
+        setNavigationBarVisible(
+            true,
+            animated: animated
+        )
         controlsVisible = true
         setControlsVisible(true, animated: animated)
     }
@@ -139,6 +145,16 @@ extension NCVideoVLCViewController {
     ///
     /// - Parameter animated: Whether the visibility change should be animated.
     internal func hideControls(animated: Bool) {
+        guard !shouldKeepControlsVisible else {
+            showControls(animated: false)
+            stopControlsHideTimer()
+            return
+        }
+
+        setNavigationBarVisible(
+            false,
+            animated: animated
+        )
         controlsVisible = false
         stopControlsHideTimer()
         setControlsVisible(false, animated: animated)
@@ -181,11 +197,26 @@ extension NCVideoVLCViewController {
     internal func scheduleControlsHide() {
         stopControlsHideTimer()
 
+        guard !shouldKeepControlsVisible else {
+            return
+        }
+
+        guard controlsVisible else {
+            return
+        }
+
         controlsHideTimer = Timer.scheduledTimer(
             withTimeInterval: 3.0,
             repeats: false
         ) { [weak self] _ in
-            self?.hideControls(animated: true)
+            Task { @MainActor in
+                guard let self,
+                      !self.isScrubbing else {
+                    return
+                }
+
+                self.hideControls(animated: true)
+            }
         }
     }
 
