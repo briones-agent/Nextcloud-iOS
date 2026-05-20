@@ -4,6 +4,7 @@
 
 import AVFoundation
 import UIKit
+import SwiftUI
 import MobileVLCKit
 import NextcloudKit
 
@@ -75,6 +76,16 @@ final class NCVideoVLCViewController: UIViewController {
         image: NCImageCache.shared.getImageButtonMore(),
         primaryAction: nil,
         menu: makeMoreMenu()
+    )
+
+    private lazy var mediaDetailNavigationItem = UIBarButtonItem(
+        image: NCUtility().loadImage(
+            named: "info.circle",
+            colors: [NCBrandColor.shared.iconImageColor]
+        ),
+        style: .plain,
+        target: self,
+        action: #selector(mediaDetailButtonTapped)
     )
 
     // MARK: - Init
@@ -265,7 +276,10 @@ final class NCVideoVLCViewController: UIViewController {
             action: #selector(closeTapped)
         )
 
-        navigationItem.rightBarButtonItem = moreNavigationItem
+        navigationItem.rightBarButtonItems = [
+            moreNavigationItem,
+            mediaDetailNavigationItem
+        ]
     }
 
     /// Configures the floating title view inside the navigation bar chrome.
@@ -334,6 +348,37 @@ final class NCVideoVLCViewController: UIViewController {
     @objc
     private func closeTapped() {
         close()
+    }
+
+    @objc
+    private func mediaDetailButtonTapped() {
+        presentDetailView(animated: true)
+    }
+
+    /// Presents the media metadata detail panel for the current video.
+    ///
+    /// Video metadata usually has no EXIF payload, so the detail view receives an empty EXIF model.
+    ///
+    /// - Parameter animated: Whether presentation should be animated.
+    private func presentDetailView(animated: Bool) {
+        let detailView = NCMediaViewerDetailView(
+            metadata: metadata,
+            exif: ExifData()
+        )
+
+        let hostingController = UIHostingController(rootView: detailView)
+        hostingController.view.backgroundColor = .clear
+
+        if let sheetPresentationController = hostingController.sheetPresentationController {
+            sheetPresentationController.detents = [.medium(), .large()]
+            sheetPresentationController.prefersGrabberVisible = true
+            sheetPresentationController.preferredCornerRadius = 24
+        }
+
+        present(
+            hostingController,
+            animated: animated
+        )
     }
 
     private func close() {
