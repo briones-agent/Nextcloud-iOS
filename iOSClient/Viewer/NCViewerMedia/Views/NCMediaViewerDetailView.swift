@@ -8,14 +8,12 @@ import NextcloudKit
 
 // MARK: - Media Viewer Detail View
 
-/// SwiftUI detail panel for the media viewer.
+/// SwiftUI detail panel for media viewer metadata.
 ///
-/// It renders EXIF information, file information, optional location data,
-/// and an optional full-resolution download action.
-struct NCImageViewerDetailView: View {
+/// It renders file information, optional EXIF information, and optional location data.
+struct NCMediaViewerDetailView: View {
     let metadata: tableMetadata
     let exif: ExifData
-    let onDownloadFullResolution: () -> Void
 
     private let utilityFileSystem = NCUtilityFileSystem()
 
@@ -28,7 +26,6 @@ struct NCImageViewerDetailView: View {
                 lensSection
                 exposureSection
                 locationSection
-                downloadSection
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
@@ -196,27 +193,6 @@ struct NCImageViewerDetailView: View {
         }
     }
 
-    @ViewBuilder
-    private var downloadSection: some View {
-        if shouldShowDownloadFullResolution {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(NSLocalizedString("_full_resolution_image_info_", comment: ""))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                Button {
-                    onDownloadFullResolution()
-                } label: {
-                    Text(NSLocalizedString("_try_download_full_resolution_", comment: ""))
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(.top, 4)
-        }
-    }
-
     // MARK: - Small Views
 
     private func detailBadge(_ text: String) -> some View {
@@ -275,6 +251,7 @@ struct NCImageViewerDetailView: View {
         }
 
         let megapixels = Double(width * height) / 1_000_000
+
         return megapixels < 1
             ? String(format: "%.1f MP", megapixels)
             : "\(Int(megapixels)) MP"
@@ -310,12 +287,6 @@ struct NCImageViewerDetailView: View {
         }
 
         return values
-    }
-
-    private var shouldShowDownloadFullResolution: Bool {
-        metadata.isImage &&
-        !utilityFileSystem.fileProviderStorageExists(metadata) &&
-        metadata.session.isEmpty
     }
 
     // MARK: - Formatters

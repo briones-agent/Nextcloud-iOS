@@ -20,7 +20,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     private let onCloseToTransitionSource: ((_ viewerTransitionSource: NCViewerTransitionSource) -> Void)?
     private weak var contextMenuController: NCMainTabBarController?
 
-    private var detailHostingController: UIHostingController<NCImageViewerDetailView>?
+    private var detailHostingController: UIHostingController<NCMediaViewerDetailView>?
     private var isShowingDetail = false
     private var cancellables = Set<AnyCancellable>()
     private var transferDelegate: NCMediaViewerTransferDelegate?
@@ -60,14 +60,14 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         ])
     )
 
-    private lazy var imageDetailNavigationItem = UIBarButtonItem(
+    private lazy var mediaDetailNavigationItem = UIBarButtonItem(
         image: NCUtility().loadImage(
             named: "info.circle",
             colors: [NCBrandColor.shared.iconImageColor]
         ),
         style: .plain,
         target: self,
-        action: #selector(imageDetailButtonTapped)
+        action: #selector(mediaDetailButtonTapped)
     )
 
     /// Creates a media viewer hosting controller.
@@ -227,7 +227,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
         navigationItem.rightBarButtonItems = [
             moreNavigationItem,
-            imageDetailNavigationItem
+            mediaDetailNavigationItem
         ]
     }
 
@@ -353,7 +353,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     }
 
     @objc
-    private func imageDetailButtonTapped() {
+    private func mediaDetailButtonTapped() {
         guard !isSelectedPageDeleted else {
             return
         }
@@ -420,12 +420,9 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         exif: ExifData,
         animated: Bool
     ) {
-        let detailView = NCImageViewerDetailView(
+        let detailView = NCMediaViewerDetailView(
             metadata: metadata,
-            exif: exif,
-            onDownloadFullResolution: { [weak self] in
-                self?.downloadFullResolution(metadata: metadata)
-            }
+            exif: exif
         )
 
         let hostingController = UIHostingController(rootView: detailView)
@@ -490,19 +487,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         model.markPageAsDeleted(ocId: ocId)
     }
 
-    /// Downloads the full-resolution media file for the detail panel action.
-    ///
-    /// - Parameter metadata: Current selected media metadata.
-    private func downloadFullResolution(metadata: tableMetadata) {
-        let index = model.selectedIndex
-
-        Task {
-            _ = try? await NCMediaViewerLoader().downloadMedia(
-                for: metadata,
-                index: index
-            )
-        }
-    }
 }
 
 // MARK: - Media Viewer Transfer Delegate
