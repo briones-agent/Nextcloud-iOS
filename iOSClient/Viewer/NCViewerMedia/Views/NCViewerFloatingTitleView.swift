@@ -91,7 +91,6 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
         centerXConstraint?.constant = 0
     }
 
-
     /// Updates the title height using the visible navigation item height.
     func updateNavigationItemHeight() {
         guard let navigationBar else {

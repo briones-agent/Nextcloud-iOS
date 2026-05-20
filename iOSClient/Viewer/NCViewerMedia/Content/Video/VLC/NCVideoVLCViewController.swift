@@ -334,6 +334,7 @@ final class NCVideoVLCViewController: UIViewController {
                 if let menu = NCContextMenuViewer(
                     metadata: self.metadata,
                     controller: self.contextMenuController,
+                    viewController: self,
                     webView: false,
                     sender: self
                 ).viewMenu() {
@@ -381,7 +382,7 @@ final class NCVideoVLCViewController: UIViewController {
         )
     }
 
-    private func close() {
+    func close() {
         stopControlsHideTimer()
         stopProgressTimer()
         stop()

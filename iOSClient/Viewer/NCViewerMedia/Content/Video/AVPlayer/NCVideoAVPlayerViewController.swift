@@ -372,6 +372,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
                 if let menu = NCContextMenuViewer(
                     metadata: self.metadata,
                     controller: self.contextMenuController,
+                    viewController: self,
                     webView: false,
                     sender: self
                 ).viewMenu() {
@@ -419,7 +420,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
         )
     }
 
-    private func close() {
+    func close() {
         stopControlsHideTimer()
         stop()
 

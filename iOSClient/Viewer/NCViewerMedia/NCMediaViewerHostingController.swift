@@ -49,6 +49,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
                 if let menu = NCContextMenuViewer(
                     metadata: metadata,
                     controller: self.contextMenuController,
+                    viewController: self,
                     webView: false,
                     sender: self
                 ).viewMenu() {
