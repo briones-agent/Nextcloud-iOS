@@ -28,6 +28,7 @@ final class NCVideoVLCViewController: UIViewController {
 
     var onPrevious: (() -> Void)?
     var onNext: (() -> Void)?
+    var onClose: (() -> Void)?
     var canGoPrevious = false
     var canGoNext = false
 
@@ -387,15 +388,10 @@ final class NCVideoVLCViewController: UIViewController {
         stopProgressTimer()
         stop()
 
-        Task { @MainActor in
-            NCVideoVLCPresenter.clearCurrent(self)
-        }
+        NCVideoVLCPresenter.clearCurrent(self)
 
-        dismiss(animated: false) {
-            NotificationCenter.default.post(
-                name: .ncMediaVLCViewerClose,
-                object: nil
-            )
+        dismiss(animated: false) { [onClose] in
+            onClose?()
         }
     }
 

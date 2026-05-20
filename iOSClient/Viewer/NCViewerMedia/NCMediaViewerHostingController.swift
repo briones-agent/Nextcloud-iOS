@@ -94,7 +94,8 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
                 model: model,
                 contextMenuController: contextMenuController,
                 navigationBar: nil,
-                onVisibleMetadataChanged: { _, _ in }
+                onVisibleMetadataChanged: { _, _ in },
+                onClose: {}
             )
         )
 
@@ -189,6 +190,9 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
                     metadata: metadata,
                     backgroundColor: backgroundColor
                 )
+            },
+            onClose: { [weak self] in
+                self?.close()
             }
         )
     }
@@ -239,22 +243,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
             .receive(on: RunLoop.main)
             .sink { [weak self] isHidden in
                 self?.setChromeHidden(isHidden, animated: true)
-            }
-            .store(in: &cancellables)
-
-        NotificationCenter.default.publisher(for: .ncMediaVLCViewerClose)
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self else {
-                    return
-                }
-
-                NotificationCenter.default.post(
-                    name: .ncMediaViewerStopPlayback,
-                    object: nil
-                )
-
-                self.close()
             }
             .store(in: &cancellables)
     }

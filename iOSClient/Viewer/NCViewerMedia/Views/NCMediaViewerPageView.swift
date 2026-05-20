@@ -33,6 +33,7 @@ struct NCMediaViewerPageView: View {
     let shouldAutoPlay: Bool
     let onPreviousPage: (_ shouldAutoPlay: Bool) -> Void
     let onNextPage: (_ shouldAutoPlay: Bool) -> Void
+    let onClose: () -> Void
     let onAutoPlayConsumed: () -> Void
 
     let contextMenuController: NCMainTabBarController?
@@ -241,7 +242,8 @@ struct NCMediaViewerPageView: View {
                 canGoPrevious: canGoPrevious,
                 canGoNext: canGoNext,
                 onPreviousPage: goToPreviousPageFromVideo,
-                onNextPage: goToNextPageFromVideo
+                onNextPage: goToNextPageFromVideo,
+                onClose: onClose
             )
             .id("\(page.ocId)-remote")
             .background(Color.ncViewerBackground(backgroundStyle))
@@ -292,7 +294,8 @@ struct NCMediaViewerPageView: View {
                     canGoPrevious: canGoPrevious,
                     canGoNext: canGoNext,
                     onPreviousPage: goToPreviousPageFromVideo,
-                    onNextPage: goToNextPageFromVideo
+                    onNextPage: goToNextPageFromVideo,
+                    onClose: onClose
                 )
                 .id("\(page.ocId)-local-\(localURL.absoluteString)")
                 .background(Color.ncViewerBackground(backgroundStyle))

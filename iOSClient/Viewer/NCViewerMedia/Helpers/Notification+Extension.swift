@@ -6,5 +6,4 @@ import Foundation
 
 extension Notification.Name {
     static let ncMediaViewerStopPlayback = Notification.Name("ncMediaViewerStopPlayback")
-    static let ncMediaVLCViewerClose = Notification.Name("ncMediaVLCViewerClose")
 }

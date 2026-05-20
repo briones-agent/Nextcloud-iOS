@@ -35,6 +35,7 @@ struct NCVideoViewerContentView: View {
     let canGoNext: Bool
     let onPreviousPage: (() -> Void)?
     let onNextPage: (() -> Void)?
+    let onClose: (() -> Void)?
 
     @ObservedObject private var playback = NCVideoPlaybackController.shared
 
@@ -60,7 +61,8 @@ struct NCVideoViewerContentView: View {
         canGoPrevious: Bool = false,
         canGoNext: Bool = false,
         onPreviousPage: (() -> Void)? = nil,
-        onNextPage: (() -> Void)? = nil
+        onNextPage: (() -> Void)? = nil,
+        onClose: (() -> Void)? = nil
     ) {
         self.metadata = metadata
         self.localURL = localURL
@@ -73,6 +75,7 @@ struct NCVideoViewerContentView: View {
         self.canGoNext = canGoNext
         self.onPreviousPage = onPreviousPage
         self.onNextPage = onNextPage
+        self.onClose = onClose
     }
 
     var body: some View {
@@ -554,7 +557,8 @@ struct NCVideoViewerContentView: View {
             canGoPrevious: canGoPrevious,
             canGoNext: canGoNext,
             onPrevious: goToPreviousPageFromAVPlayer,
-            onNext: goToNextPageFromAVPlayer
+            onNext: goToNextPageFromAVPlayer,
+            onClose: closeFromFullscreenVideo
         )
     }
 
@@ -572,6 +576,15 @@ struct NCVideoViewerContentView: View {
         presentedAVPlayerURL = nil
         NCVideoAVPlayerPresenter.dismiss()
         onNextPage?()
+    }
+
+    /// Closes the full media viewer from a fullscreen video controller.
+    @MainActor
+    private func closeFromFullscreenVideo() {
+        presentedAVPlayerURL = nil
+        presentedVLCURL = nil
+        playback.stop()
+        onClose?()
     }
 
     /// Presents the UIKit-only VLC fallback viewer when this page is selected.
@@ -598,7 +611,8 @@ struct NCVideoViewerContentView: View {
             canGoPrevious: canGoPrevious,
             canGoNext: canGoNext,
             onPrevious: goToPreviousPageFromVLC,
-            onNext: goToNextPageFromVLC
+            onNext: goToNextPageFromVLC,
+            onClose: closeFromFullscreenVideo
         )
     }
 

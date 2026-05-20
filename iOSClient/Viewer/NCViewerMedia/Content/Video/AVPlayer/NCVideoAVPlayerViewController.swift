@@ -54,6 +54,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     var onPrevious: (() -> Void)?
     var onNext: (() -> Void)?
+    var onClose: (() -> Void)?
     var canGoPrevious = false
     var canGoNext = false
 
@@ -424,15 +425,10 @@ final class NCVideoAVPlayerViewController: UIViewController {
         stopControlsHideTimer()
         stop()
 
-        Task { @MainActor in
-            NCVideoAVPlayerPresenter.clearCurrent(self)
-        }
+        NCVideoAVPlayerPresenter.clearCurrent(self)
 
-        dismiss(animated: false) {
-            NotificationCenter.default.post(
-                name: .ncMediaVLCViewerClose,
-                object: nil
-            )
+        dismiss(animated: false) { [onClose] in
+            onClose?()
         }
     }
 

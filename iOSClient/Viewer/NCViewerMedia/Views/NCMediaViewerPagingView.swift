@@ -21,6 +21,7 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
     let contextMenuController: NCMainTabBarController?
     let navigationBar: UINavigationBar?
     let onVisibleMetadataChanged: (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
+    let onClose: () -> Void
 
     // MARK: - UIViewRepresentable
 
@@ -73,6 +74,7 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         context.coordinator.model = model
         context.coordinator.navigationBar = navigationBar
         context.coordinator.onVisibleMetadataChanged = onVisibleMetadataChanged
+        context.coordinator.onClose = onClose
         context.coordinator.updateCollectionBackground()
 
         collectionView.isScrollEnabled = model.numberOfPages > 1
@@ -101,7 +103,8 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
             model: model,
             contextMenuController: contextMenuController,
             navigationBar: navigationBar,
-            onVisibleMetadataChanged: onVisibleMetadataChanged
+            onVisibleMetadataChanged: onVisibleMetadataChanged,
+            onClose: onClose
         )
     }
 }
@@ -138,6 +141,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     let contextMenuController: NCMainTabBarController?
     weak var navigationBar: UINavigationBar?
     var onVisibleMetadataChanged: (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
+    var onClose: () -> Void
 
     private var didScrollToInitialIndex = false
     private var lastCollectionViewBoundsSize: CGSize = .zero
@@ -151,12 +155,14 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         model: NCMediaViewerModel,
         contextMenuController: NCMainTabBarController?,
         navigationBar: UINavigationBar?,
-        onVisibleMetadataChanged: @escaping (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
+        onVisibleMetadataChanged: @escaping (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void,
+        onClose: @escaping () -> Void
     ) {
         self.model = model
         self.contextMenuController = contextMenuController
         self.navigationBar = navigationBar
         self.onVisibleMetadataChanged = onVisibleMetadataChanged
+        self.onClose = onClose
 
         super.init()
 
@@ -441,6 +447,9 @@ final class NCMediaViewerPagingCoordinator: NSObject,
                     shouldAutoPlay: shouldAutoPlay
                 )
             },
+            onClose: { [weak self] in
+                self?.onClose()
+            },
             onAutoPlayConsumed: { [weak model] in
                 model?.clearAutoPlayIfNeeded(for: page.index)
             },
@@ -691,6 +700,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
     ///   - onToggleChrome: Callback used by image pages to show or hide chrome.
     ///   - onPreviousPage: Callback used by inline controls to move to previous page.
     ///   - onNextPage: Callback used by inline controls to move to next page.
+    ///   - onClose: Callback used by fullscreen video controllers to close the media viewer.
     ///   - onAutoPlayConsumed: Callback invoked after the hosted page consumes the auto-play request.
     func configure(
         page: NCMediaViewerPageModel,
@@ -703,6 +713,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         onToggleChrome: @escaping () -> Void,
         onPreviousPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
         onNextPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
+        onClose: @escaping () -> Void,
         onAutoPlayConsumed: @escaping () -> Void,
         contextMenuController: NCMainTabBarController?,
         navigationBar: UINavigationBar?
@@ -721,6 +732,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
                 shouldAutoPlay: shouldAutoPlay,
                 onPreviousPage: onPreviousPage,
                 onNextPage: onNextPage,
+                onClose: onClose,
                 onAutoPlayConsumed: onAutoPlayConsumed,
                 contextMenuController: contextMenuController,
                 navigationBar: navigationBar
