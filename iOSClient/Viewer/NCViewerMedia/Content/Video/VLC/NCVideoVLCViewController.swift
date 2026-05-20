@@ -36,6 +36,17 @@ final class NCVideoVLCViewController: UIViewController {
     private let previewImageView = UIImageView()
     internal let controlsView = NCVideoControlsView()
 
+    private let floatingTitleView = NCViewerFloatingTitleView()
+    private var floatingTitleConstraints: [NSLayoutConstraint] = []
+
+    private lazy var floatingTitleDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
     // MARK: - VLC
 
     internal let mediaPlayer = VLCMediaPlayer()
@@ -157,6 +168,7 @@ final class NCVideoVLCViewController: UIViewController {
         view.backgroundColor = .black
 
         configureNavigationItem()
+        updateTitleLabel(metadata: metadata)
         configureAudioSession()
         mediaPlayer.delegate = self
         configureSwipeGestures()
@@ -176,6 +188,7 @@ final class NCVideoVLCViewController: UIViewController {
 
         attachDrawable()
         updateControlsNavigationBar()
+        configureFloatingTitleViewIfNeeded()
     }
 
     override func viewWillTransition(
@@ -192,6 +205,7 @@ final class NCVideoVLCViewController: UIViewController {
         }, completion: { [weak self] _ in
             self?.attachDrawable()
             self?.updateControlsNavigationBar()
+            self?.configureFloatingTitleViewIfNeeded()
         })
     }
 
@@ -226,6 +240,7 @@ final class NCVideoVLCViewController: UIViewController {
         self.userAgent = userAgent
         self.contextMenuController = contextMenuController
         updatePreviewImage()
+        updateTitleLabel(metadata: metadata)
 
         refreshMoreMenu()
 
@@ -252,6 +267,49 @@ final class NCVideoVLCViewController: UIViewController {
         )
 
         navigationItem.rightBarButtonItem = moreNavigationItem
+    }
+
+    /// Configures the floating title view inside the navigation bar chrome.
+    private func configureFloatingTitleViewIfNeeded() {
+        guard let navigationBar = navigationController?.navigationBar,
+              floatingTitleView.superview !== navigationBar else {
+            return
+        }
+
+        floatingTitleConstraints.forEach { $0.isActive = false }
+        floatingTitleConstraints.removeAll()
+        floatingTitleView.removeFromSuperview()
+        navigationBar.addSubview(floatingTitleView)
+
+        floatingTitleView.translatesAutoresizingMaskIntoConstraints = false
+        floatingTitleConstraints = [
+            floatingTitleView.centerXAnchor.constraint(equalTo: navigationBar.centerXAnchor),
+            floatingTitleView.centerYAnchor.constraint(equalTo: navigationBar.centerYAnchor),
+            floatingTitleView.widthAnchor.constraint(lessThanOrEqualTo: navigationBar.widthAnchor, multiplier: 0.42)
+        ]
+        NSLayoutConstraint.activate(floatingTitleConstraints)
+    }
+
+    /// Updates the floating title view using the provided video metadata.
+    ///
+    /// - Parameter metadata: Video metadata used to build the visible title content.
+    private func updateTitleLabel(metadata: tableMetadata) {
+        let primaryTitle = metadata.fileNameView.isEmpty
+            ? metadata.fileName
+            : metadata.fileNameView
+
+        floatingTitleView.update(
+            primaryText: primaryTitle,
+            secondaryText: floatingTitleSecondaryText(for: metadata)
+        )
+    }
+
+    /// Builds the secondary floating title text for the provided metadata.
+    ///
+    /// - Parameter metadata: Video metadata used to derive the secondary title line.
+    /// - Returns: Secondary title text shown below the main title.
+    private func floatingTitleSecondaryText(for metadata: tableMetadata) -> String? {
+        floatingTitleDateFormatter.string(from: metadata.date as Date)
     }
 
     /// Rebuilds the More menu using the current metadata.
