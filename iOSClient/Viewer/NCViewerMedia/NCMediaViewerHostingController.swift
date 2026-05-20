@@ -93,9 +93,12 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
             rootView: NCMediaViewerView(
                 model: model,
                 contextMenuController: contextMenuController,
-                navigationBar: nil
+                navigationBar: nil,
+                onVisibleMetadataChanged: { _ in }
             )
         )
+
+        rootView = makeRootView(navigationBar: nil)
 
         self.transferDelegate = NCMediaViewerTransferDelegate { [weak self] deletedOcId in
             guard let self else {
@@ -166,10 +169,21 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
         currentNavigationBar = navigationBar
 
-        rootView = NCMediaViewerView(
+        rootView = makeRootView(navigationBar: navigationBar)
+    }
+
+    /// Builds the SwiftUI media viewer root view.
+    ///
+    /// - Parameter navigationBar: Current navigation bar used by hosted media pages.
+    /// - Returns: Configured media viewer root view.
+    private func makeRootView(navigationBar: UINavigationBar?) -> NCMediaViewerView {
+        NCMediaViewerView(
             model: model,
             contextMenuController: contextMenuController,
-            navigationBar: navigationBar
+            navigationBar: navigationBar,
+            onVisibleMetadataChanged: { [weak self] metadata in
+                self?.updateTitleLabel(metadata: metadata)
+            }
         )
     }
 

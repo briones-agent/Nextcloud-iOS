@@ -20,6 +20,7 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
     @ObservedObject var model: NCMediaViewerModel
     let contextMenuController: NCMainTabBarController?
     let navigationBar: UINavigationBar?
+    let onVisibleMetadataChanged: (_ metadata: tableMetadata?) -> Void
 
     // MARK: - UIViewRepresentable
 
@@ -59,6 +60,7 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         DispatchQueue.main.async {
             context.coordinator.scrollToInitialIndexIfNeeded(animated: false)
             context.coordinator.updateCollectionBackground()
+            context.coordinator.updateVisibleMetadataTitleForCurrentPage()
         }
 
         return collectionView
@@ -70,6 +72,7 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
     ) {
         context.coordinator.model = model
         context.coordinator.navigationBar = navigationBar
+        context.coordinator.onVisibleMetadataChanged = onVisibleMetadataChanged
         context.coordinator.updateCollectionBackground()
 
         collectionView.isScrollEnabled = model.numberOfPages > 1
@@ -97,7 +100,8 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
         NCMediaViewerPagingCoordinator(
             model: model,
             contextMenuController: contextMenuController,
-            navigationBar: navigationBar
+            navigationBar: navigationBar,
+            onVisibleMetadataChanged: onVisibleMetadataChanged
         )
     }
 }
@@ -133,6 +137,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     weak var collectionView: UICollectionView?
     let contextMenuController: NCMainTabBarController?
     weak var navigationBar: UINavigationBar?
+    var onVisibleMetadataChanged: (_ metadata: tableMetadata?) -> Void
 
     private var didScrollToInitialIndex = false
     private var lastCollectionViewBoundsSize: CGSize = .zero
@@ -145,11 +150,13 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     init(
         model: NCMediaViewerModel,
         contextMenuController: NCMainTabBarController?,
-        navigationBar: UINavigationBar?
+        navigationBar: UINavigationBar?,
+        onVisibleMetadataChanged: @escaping (_ metadata: tableMetadata?) -> Void
     ) {
         self.model = model
         self.contextMenuController = contextMenuController
         self.navigationBar = navigationBar
+        self.onVisibleMetadataChanged = onVisibleMetadataChanged
 
         super.init()
 
@@ -158,6 +165,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             .sink { [weak self] _ in
                 self?.refreshVisibleCells()
                 self?.updateCollectionBackground()
+                self?.updateVisibleMetadataTitleForCurrentPage()
             }
     }
 
@@ -231,6 +239,22 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         collectionView?.backgroundColor = color
     }
 
+    /// Sends the metadata of the currently selected page to the hosting controller title view.
+    func updateVisibleMetadataTitleForCurrentPage() {
+        updateVisibleMetadataTitle(for: model.selectedIndex)
+    }
+
+    /// Sends the metadata of the currently visible page to the hosting controller title view.
+    ///
+    /// - Parameter index: Page index currently closest to the collection view center.
+    private func updateVisibleMetadataTitle(for index: Int) {
+        guard index >= 0,
+              index < model.numberOfPages else {
+            return
+        }
+
+        onVisibleMetadataChanged(model.pageModel(at: index)?.metadata)
+    }
 
     // MARK: - Initial Scroll
 
@@ -268,6 +292,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         didScrollToInitialIndex = true
         lastVisibleIndex = index
         updateCollectionBackground(for: index)
+        updateVisibleMetadataTitle(for: index)
         refreshVisibleCells()
     }
 
@@ -303,6 +328,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         lastVisibleIndex = index
         updateCollectionBackground(for: index)
+        updateVisibleMetadataTitle(for: index)
         refreshVisibleCells()
     }
 
@@ -366,6 +392,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         lastVisibleIndex = targetIndex
 
         updateCollectionBackground(for: targetIndex)
+        updateVisibleMetadataTitle(for: targetIndex)
         refreshVisibleCells()
 
         collectionView.scrollToItem(
@@ -476,18 +503,57 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         refreshVisibleCells()
     }
 
+    func scrollViewWillEndDragging(
+        _ scrollView: UIScrollView,
+        withVelocity velocity: CGPoint,
+        targetContentOffset: UnsafeMutablePointer<CGPoint>
+    ) {
+        guard let index = pageIndex(
+            forContentOffsetX: targetContentOffset.pointee.x,
+            width: scrollView.bounds.width
+        ) else {
+            return
+        }
+
+        guard lastVisibleIndex != index else {
+            return
+        }
+
+        lastVisibleIndex = index
+        model.setSelectedIndex(index)
+        updateCollectionBackground(for: index)
+        updateVisibleMetadataTitle(for: index)
+        refreshVisibleCells()
+    }
+
     /// Returns the nearest page index for the current horizontal scroll position.
     ///
     /// - Parameter scrollView: Source scroll view.
     /// - Returns: Rounded page index if it is inside the media range.
     private func pageIndex(for scrollView: UIScrollView) -> Int? {
-        let width = scrollView.bounds.width
+        pageIndex(
+            forContentOffsetX: scrollView.contentOffset.x,
+            width: scrollView.bounds.width
+        )
+    }
 
+    /// Returns the nearest page index for the provided horizontal content offset.
+    ///
+    /// This is used to predict the final page before deceleration finishes.
+    ///
+    /// - Parameters:
+    ///   - contentOffsetX: Horizontal content offset to evaluate.
+    ///   - width: Current page width.
+    /// - Returns: Rounded page index if it is inside the media range.
+    private func pageIndex(
+        forContentOffsetX contentOffsetX: CGFloat,
+        width: CGFloat
+    ) -> Int? {
         guard width > 0 else {
             return nil
         }
 
-        let rawIndex = scrollView.contentOffset.x / width
+        let rawIndex = contentOffsetX / width
         let index = Int(round(rawIndex))
 
         guard index >= 0,
@@ -508,7 +574,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         }
 
         lastVisibleIndex = index
+        model.setSelectedIndex(index)
         updateCollectionBackground(for: index)
+        updateVisibleMetadataTitle(for: index)
+        refreshVisibleCells()
 
         Task {
             await model.prefetchVisiblePageIfNeeded(index: index)
@@ -548,6 +617,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         model.setSelectedIndex(index)
         updateCollectionBackground(for: index)
+        updateVisibleMetadataTitle(for: index)
         refreshVisibleCells()
 
         Task {

@@ -254,7 +254,6 @@ final class NCVideoVLCViewController: UIViewController {
         navigationItem.rightBarButtonItem = moreNavigationItem
     }
 
-
     /// Rebuilds the More menu using the current metadata.
     private func refreshMoreMenu() {
         moreNavigationItem.menu = makeMoreMenu()
@@ -512,7 +511,6 @@ final class NCVideoVLCViewController: UIViewController {
 
         scheduleControlsHideIfNeededAfterPlaybackStart()
     }
-
 
     /// Arms the controls auto-hide timer when VLC is confirmed to be playing.
     ///

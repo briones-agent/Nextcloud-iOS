@@ -292,7 +292,6 @@ final class NCVideoAVPlayerViewController: UIViewController {
         navigationItem.rightBarButtonItem = moreNavigationItem
     }
 
-
     /// Rebuilds the More menu using the current metadata.
     private func refreshMoreMenu() {
         moreNavigationItem.menu = makeMoreMenu()
