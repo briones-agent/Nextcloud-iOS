@@ -21,7 +21,7 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
         let effect: UIVisualEffect
 
         if #available(iOS 26.0, *) {
-            let glassEffect = UIGlassEffect()
+            let glassEffect = UIGlassEffect(style: .clear)
             glassEffect.isInteractive = false
             effect = glassEffect
         } else {
@@ -184,26 +184,22 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
         layer.cornerRadius = 22
         layer.cornerCurve = .continuous
         backgroundColor = .clear
-        if #available(iOS 26.0, *) {
-            contentView.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.32)
-        } else {
-            contentView.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.78)
-        }
-        contentView.layoutMargins = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
+        contentView.backgroundColor = .clear
+        contentView.layoutMargins = UIEdgeInsets(top: 3, left: 16, bottom: 3, right: 16)
         isAccessibilityElement = true
     }
 
     /// Configures the primary and secondary labels.
     private func configureLabels() {
         primaryLabel.font = .preferredFont(forTextStyle: .subheadline)
-        primaryLabel.textColor = NCBrandColor.shared.textColor
+        primaryLabel.textColor = .label
         primaryLabel.textAlignment = .center
         primaryLabel.adjustsFontForContentSizeCategory = true
         primaryLabel.lineBreakMode = .byTruncatingMiddle
         primaryLabel.numberOfLines = 1
 
         secondaryLabel.font = .preferredFont(forTextStyle: .caption2)
-        secondaryLabel.textColor = NCBrandColor.shared.textColor.withAlphaComponent(0.85)
+        secondaryLabel.textColor = .label
         secondaryLabel.textAlignment = .center
         secondaryLabel.adjustsFontForContentSizeCategory = true
         secondaryLabel.lineBreakMode = .byTruncatingTail
@@ -215,18 +211,19 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
         stackView.translatesAutoresizingMaskIntoConstraints = false
         stackView.axis = .vertical
         stackView.alignment = .center
-        stackView.distribution = .equalCentering
-        stackView.spacing = 0
+        stackView.distribution = .fill
+        stackView.spacing = 2
 
         stackView.addArrangedSubview(primaryLabel)
         stackView.addArrangedSubview(secondaryLabel)
         contentView.addSubview(stackView)
 
         NSLayoutConstraint.activate([
-            stackView.topAnchor.constraint(equalTo: contentView.layoutMarginsGuide.topAnchor),
             stackView.leadingAnchor.constraint(equalTo: contentView.layoutMarginsGuide.leadingAnchor),
             stackView.trailingAnchor.constraint(equalTo: contentView.layoutMarginsGuide.trailingAnchor),
-            stackView.bottomAnchor.constraint(equalTo: contentView.layoutMarginsGuide.bottomAnchor)
+            stackView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            stackView.topAnchor.constraint(greaterThanOrEqualTo: contentView.layoutMarginsGuide.topAnchor),
+            stackView.bottomAnchor.constraint(lessThanOrEqualTo: contentView.layoutMarginsGuide.bottomAnchor)
         ])
     }
 }
