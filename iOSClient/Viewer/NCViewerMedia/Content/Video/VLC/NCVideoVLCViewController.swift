@@ -287,7 +287,8 @@ final class NCVideoVLCViewController: UIViewController {
 
         floatingTitleView.update(
             primaryText: primaryTitle,
-            secondaryText: floatingTitleSecondaryText(for: metadata)
+            secondaryText: floatingTitleSecondaryText(for: metadata),
+            textColor: .white
         )
     }
 

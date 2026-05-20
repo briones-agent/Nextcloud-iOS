@@ -91,6 +91,7 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
         centerXConstraint?.constant = 0
     }
 
+
     /// Updates the title height using the visible navigation item height.
     func updateNavigationItemHeight() {
         guard let navigationBar else {
@@ -160,12 +161,19 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
     /// - Parameters:
     ///   - primaryText: Main title text displayed on the first line.
     ///   - secondaryText: Optional subtitle text displayed on the second line.
-    func update(primaryText: String?, secondaryText: String?) {
+    ///   - textColor: Text color selected by the caller according to the current viewer background.
+    func update(
+        primaryText: String?,
+        secondaryText: String?,
+        textColor: UIColor
+    ) {
         let normalizedPrimaryText = primaryText?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedSecondaryText = secondaryText?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         primaryLabel.text = normalizedPrimaryText
+        primaryLabel.textColor = textColor
         secondaryLabel.text = normalizedSecondaryText
+        secondaryLabel.textColor = textColor.withAlphaComponent(0.82)
         secondaryLabel.isHidden = normalizedSecondaryText?.isEmpty ?? true
         isHidden = normalizedPrimaryText?.isEmpty ?? true
 
@@ -175,6 +183,15 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
                 return text
             }
             .joined(separator: ", ")
+    }
+
+    /// Clears the visible title content.
+    func clear() {
+        update(
+            primaryText: nil,
+            secondaryText: nil,
+            textColor: .white
+        )
     }
 
     /// Configures the visual container.
@@ -192,14 +209,14 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
     /// Configures the primary and secondary labels.
     private func configureLabels() {
         primaryLabel.font = .preferredFont(forTextStyle: .subheadline)
-        primaryLabel.textColor = .label
+        primaryLabel.textColor = .white
         primaryLabel.textAlignment = .center
         primaryLabel.adjustsFontForContentSizeCategory = true
         primaryLabel.lineBreakMode = .byTruncatingMiddle
         primaryLabel.numberOfLines = 1
 
         secondaryLabel.font = .preferredFont(forTextStyle: .caption2)
-        secondaryLabel.textColor = .label
+        secondaryLabel.textColor = .white.withAlphaComponent(0.82)
         secondaryLabel.textAlignment = .center
         secondaryLabel.adjustsFontForContentSizeCategory = true
         secondaryLabel.lineBreakMode = .byTruncatingTail

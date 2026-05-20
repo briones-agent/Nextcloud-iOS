@@ -20,7 +20,7 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
     @ObservedObject var model: NCMediaViewerModel
     let contextMenuController: NCMainTabBarController?
     let navigationBar: UINavigationBar?
-    let onVisibleMetadataChanged: (_ metadata: tableMetadata?) -> Void
+    let onVisibleMetadataChanged: (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
 
     // MARK: - UIViewRepresentable
 
@@ -137,7 +137,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     weak var collectionView: UICollectionView?
     let contextMenuController: NCMainTabBarController?
     weak var navigationBar: UINavigationBar?
-    var onVisibleMetadataChanged: (_ metadata: tableMetadata?) -> Void
+    var onVisibleMetadataChanged: (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
 
     private var didScrollToInitialIndex = false
     private var lastCollectionViewBoundsSize: CGSize = .zero
@@ -151,7 +151,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         model: NCMediaViewerModel,
         contextMenuController: NCMainTabBarController?,
         navigationBar: UINavigationBar?,
-        onVisibleMetadataChanged: @escaping (_ metadata: tableMetadata?) -> Void
+        onVisibleMetadataChanged: @escaping (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
     ) {
         self.model = model
         self.contextMenuController = contextMenuController
@@ -253,7 +253,12 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             return
         }
 
-        onVisibleMetadataChanged(model.pageModel(at: index)?.metadata)
+        let page = model.pageModel(at: index)
+
+        onVisibleMetadataChanged(
+            page?.metadata,
+            backgroundColor(for: page)
+        )
     }
 
     // MARK: - Initial Scroll

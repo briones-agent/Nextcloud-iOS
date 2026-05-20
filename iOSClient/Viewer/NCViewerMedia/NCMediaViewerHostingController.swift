@@ -93,7 +93,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
                 model: model,
                 contextMenuController: contextMenuController,
                 navigationBar: nil,
-                onVisibleMetadataChanged: { _ in }
+                onVisibleMetadataChanged: { _, _ in }
             )
         )
 
@@ -125,7 +125,10 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        updateTitleLabel(metadata: model.selectedMetadata)
+        updateTitleLabel(
+            metadata: model.selectedMetadata,
+            backgroundColor: .ncViewerBackground(.system)
+        )
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -180,8 +183,11 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
             model: model,
             contextMenuController: contextMenuController,
             navigationBar: navigationBar,
-            onVisibleMetadataChanged: { [weak self] metadata in
-                self?.updateTitleLabel(metadata: metadata)
+            onVisibleMetadataChanged: { [weak self] metadata, backgroundColor in
+                self?.updateTitleLabel(
+                    metadata: metadata,
+                    backgroundColor: backgroundColor
+                )
             }
         )
     }
@@ -227,21 +233,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
     /// Observes model changes and refreshes navigation UI.
     private func observeModel() {
-        model.$selectedIndex
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.updateTitleLabel(metadata: self.model.selectedMetadata)
-            }
-            .store(in: &cancellables)
-
-        model.$revision
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.updateTitleLabel(metadata: self.model.selectedMetadata)
-            }
-            .store(in: &cancellables)
 
         model.$isChromeHidden
             .receive(on: RunLoop.main)
@@ -276,12 +267,17 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         floatingTitleView.attach(to: navigationBar)
     }
 
-    /// Updates the floating title view using the provided media metadata.
+    /// Updates the floating title view using the provided media metadata and background color.
     ///
-    /// - Parameter metadata: Media metadata used to build the visible title content.
-    private func updateTitleLabel(metadata: tableMetadata?) {
+    /// - Parameters:
+    ///   - metadata: Media metadata used to build the visible title content.
+    ///   - backgroundColor: Current visible page background color used to choose a readable title color.
+    private func updateTitleLabel(
+        metadata: tableMetadata?,
+        backgroundColor: UIColor
+    ) {
         guard let metadata else {
-            floatingTitleView.update(primaryText: nil, secondaryText: nil)
+            floatingTitleView.clear()
             return
         }
 
@@ -291,8 +287,33 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
         floatingTitleView.update(
             primaryText: primaryTitle,
-            secondaryText: floatingTitleSecondaryText(for: metadata)
+            secondaryText: floatingTitleSecondaryText(for: metadata),
+            textColor: floatingTitleTextColor(for: backgroundColor)
         )
+    }
+
+    /// Returns a readable title text color for the provided background color.
+    ///
+    /// - Parameter backgroundColor: Current visible page background color.
+    /// - Returns: White text on dark backgrounds, black text on light backgrounds.
+    private func floatingTitleTextColor(for backgroundColor: UIColor) -> UIColor {
+        let resolvedColor = backgroundColor.resolvedColor(with: traitCollection)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        guard resolvedColor.getRed(
+            &red,
+            green: &green,
+            blue: &blue,
+            alpha: &alpha
+        ) else {
+            return .white
+        }
+
+        let luminance = (0.299 * red) + (0.587 * green) + (0.114 * blue)
+        return luminance < 0.5 ? .white : .black
     }
 
     /// Builds the secondary floating title text for the provided metadata.
