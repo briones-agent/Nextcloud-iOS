@@ -237,7 +237,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     /// Updates the current AVPlayer input.
     ///
     /// If the URL changes, the current item is stopped and the new item is prepared.
-    /// The navigation title and context menu are refreshed for the new metadata.
+    /// The context menu is refreshed for the new metadata.
     ///
     /// - Parameters:
     ///   - metadata: Updated video metadata.
@@ -264,7 +264,6 @@ final class NCVideoAVPlayerViewController: UIViewController {
         self.contextMenuController = contextMenuController
         updatePreviewImage()
 
-        updateTitle()
         refreshMoreMenu()
 
         if urlChanged {
@@ -279,7 +278,9 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     /// Configures the navigation bar items.
     private func configureNavigationItem() {
-        updateTitle()
+        title = nil
+        navigationItem.title = nil
+        navigationItem.titleView = nil
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             image: UIImage(systemName: "chevron.backward"),
@@ -291,12 +292,6 @@ final class NCVideoAVPlayerViewController: UIViewController {
         navigationItem.rightBarButtonItem = moreNavigationItem
     }
 
-    /// Updates the navigation title from the current metadata.
-    private func updateTitle() {
-        title = metadata.fileNameView.isEmpty
-            ? metadata.fileName
-            : metadata.fileNameView
-    }
 
     /// Rebuilds the More menu using the current metadata.
     private func refreshMoreMenu() {

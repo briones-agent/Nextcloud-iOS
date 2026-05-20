@@ -102,7 +102,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
         configureNavigationItem()
         observeModel()
-        updateTitle()
     }
 
     @MainActor
@@ -180,6 +179,8 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     /// Configures the navigation item used by the viewer.
     private func configureNavigationItem() {
         navigationItem.largeTitleDisplayMode = .never
+        navigationItem.title = nil
+        navigationItem.titleView = nil
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             image: UIImage(systemName: "chevron.left"),
@@ -199,16 +200,12 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     private func observeModel() {
         model.$selectedIndex
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.updateTitle()
-            }
+            .sink { _ in }
             .store(in: &cancellables)
 
         model.$revision
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.updateTitle()
-            }
+            .sink { _ in }
             .store(in: &cancellables)
 
         model.$isChromeHidden
@@ -235,17 +232,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
             .store(in: &cancellables)
     }
 
-    /// Updates the navigation title using the currently selected page metadata.
-    private func updateTitle() {
-        guard let metadata = model.selectedMetadata else {
-            navigationItem.title = nil
-            return
-        }
-
-        navigationItem.title = !metadata.fileNameView.isEmpty
-            ? metadata.fileNameView
-            : metadata.fileName
-    }
 
     /// Shows or hides the viewer chrome.
     ///

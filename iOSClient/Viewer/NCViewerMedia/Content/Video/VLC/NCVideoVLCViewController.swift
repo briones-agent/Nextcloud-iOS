@@ -200,7 +200,7 @@ final class NCVideoVLCViewController: UIViewController {
     /// Updates the current VLC input.
     ///
     /// If the URL changes, the current media is stopped and the new media is prepared.
-    /// The navigation title and context menu are refreshed for the new metadata.
+    /// The context menu is refreshed for the new metadata.
     ///
     /// - Parameters:
     ///   - metadata: Updated video metadata.
@@ -227,7 +227,6 @@ final class NCVideoVLCViewController: UIViewController {
         self.contextMenuController = contextMenuController
         updatePreviewImage()
 
-        updateTitle()
         refreshMoreMenu()
 
         if urlChanged {
@@ -241,7 +240,9 @@ final class NCVideoVLCViewController: UIViewController {
 
     /// Configures the navigation bar items.
     private func configureNavigationItem() {
-        updateTitle()
+        title = nil
+        navigationItem.title = nil
+        navigationItem.titleView = nil
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             image: UIImage(systemName: "chevron.backward"),
@@ -253,12 +254,6 @@ final class NCVideoVLCViewController: UIViewController {
         navigationItem.rightBarButtonItem = moreNavigationItem
     }
 
-    /// Updates the navigation title from the current metadata.
-    private func updateTitle() {
-        title = metadata.fileNameView.isEmpty
-            ? metadata.fileName
-            : metadata.fileNameView
-    }
 
     /// Rebuilds the More menu using the current metadata.
     private func refreshMoreMenu() {

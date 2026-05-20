@@ -231,22 +231,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         collectionView?.backgroundColor = color
     }
 
-    /// Updates the visible navigation title for the given page index.
-    ///
-    /// This is intentionally driven by the visually centered page, not only by
-    /// `selectedIndex`, so fast swipes do not leave the navigation bar showing an
-    /// older media title while the collection view is already displaying another page.
-    ///
-    /// - Parameter index: Page index currently closest to the collection view center.
-    private func updateNavigationTitle(for index: Int) {
-        guard let metadata = model.pageModel(at: index)?.metadata else {
-            return
-        }
-
-        navigationBar?.topItem?.title = metadata.fileNameView.isEmpty
-            ? metadata.fileName
-            : metadata.fileNameView
-    }
 
     // MARK: - Initial Scroll
 
@@ -284,7 +268,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         didScrollToInitialIndex = true
         lastVisibleIndex = index
         updateCollectionBackground(for: index)
-        updateNavigationTitle(for: index)
         refreshVisibleCells()
     }
 
@@ -320,7 +303,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
 
         lastVisibleIndex = index
         updateCollectionBackground(for: index)
-        updateNavigationTitle(for: index)
         refreshVisibleCells()
     }
 
@@ -384,7 +366,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         lastVisibleIndex = targetIndex
 
         updateCollectionBackground(for: targetIndex)
-        updateNavigationTitle(for: targetIndex)
         refreshVisibleCells()
 
         collectionView.scrollToItem(
