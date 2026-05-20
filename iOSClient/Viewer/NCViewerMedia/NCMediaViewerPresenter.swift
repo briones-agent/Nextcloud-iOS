@@ -27,6 +27,7 @@ final class NCMediaViewerPresenter: NSObject {
     private weak var currentModel: NCMediaViewerModel?
 
     private var closingTransitionSourceProvider: ((_ ocId: String) -> NCViewerTransitionSource?)?
+    private var forcedClosingTransitionSource: NCViewerTransitionSource?
 
     private let openingAnimationDuration: TimeInterval = 0.28
     private let closingAnimationDuration: TimeInterval = 0.24
@@ -66,12 +67,14 @@ final class NCMediaViewerPresenter: NSObject {
         currentViewerTransitionSource = viewerTransitionSource
         currentModel = model
         self.closingTransitionSourceProvider = closingTransitionSourceProvider
+        forcedClosingTransitionSource = nil
         isDismissing = false
 
         let hostingController = NCMediaViewerHostingController(
             model: model,
             contextMenuController: contextMenuController,
-            onClose: { [weak self] in
+            onClose: { [weak self] viewerTransitionSource in
+                self?.forcedClosingTransitionSource = viewerTransitionSource
                 self?.dismiss(animated: true)
             }
         )
@@ -401,6 +404,10 @@ final class NCMediaViewerPresenter: NSObject {
     ///
     /// - Returns: Current transition source if available.
     private func currentClosingTransitionSource() -> NCViewerTransitionSource? {
+        if let forcedClosingTransitionSource {
+            return forcedClosingTransitionSource
+        }
+
         guard let ocId = currentModel?.selectedOcId else {
             return nil
         }
@@ -483,6 +490,7 @@ final class NCMediaViewerPresenter: NSObject {
         currentViewerTransitionSource = nil
         currentModel = nil
         closingTransitionSourceProvider = nil
+        forcedClosingTransitionSource = nil
     }
 
     // MARK: - Helpers

@@ -390,9 +390,8 @@ final class NCVideoVLCViewController: UIViewController {
 
         NCVideoVLCPresenter.clearCurrent(self)
 
-        dismiss(animated: false) { [onClose] in
-            onClose?()
-        }
+        dismiss(animated: false)
+        onClose?()
     }
 
     // MARK: - Swipe Navigation

@@ -16,8 +16,7 @@ import NextcloudKit
 @MainActor
 final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerView>, UIAdaptivePresentationControllerDelegate {
     private let model: NCMediaViewerModel
-    private let onClose: () -> Void
-    private let onCloseToTransitionSource: ((_ viewerTransitionSource: NCViewerTransitionSource) -> Void)?
+    private let onClose: (_ viewerTransitionSource: NCViewerTransitionSource?) -> Void
     private weak var contextMenuController: NCMainTabBarController?
 
     private var detailHostingController: UIHostingController<NCMediaViewerDetailView>?
@@ -76,18 +75,15 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     /// - Parameters:
     ///   - model: Media viewer model used to render and page through media items.
     ///   - contextMenuController: Main tab bar controller used to build viewer context menus.
-    ///   - onClose: Closure called when the viewer should close normally.
-    ///   - onCloseToTransitionSource: Closure called when the viewer should close toward a specific transition destination.
+    ///   - onClose: Closure called when the viewer should close, optionally toward a transition destination.
     init(
         model: NCMediaViewerModel,
         contextMenuController: NCMainTabBarController?,
-        onClose: @escaping () -> Void,
-        onCloseToTransitionSource: ((_ viewerTransitionSource: NCViewerTransitionSource) -> Void)? = nil
+        onClose: @escaping (_ viewerTransitionSource: NCViewerTransitionSource?) -> Void
     ) {
         self.model = model
         self.contextMenuController = contextMenuController
         self.onClose = onClose
-        self.onCloseToTransitionSource = onCloseToTransitionSource
 
         super.init(
             rootView: NCMediaViewerView(
@@ -199,20 +195,20 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
     // MARK: - Closing
 
-    /// Closes the viewer normally.
-    func close() {
-        onClose()
+    /// Stops media playback before the viewer is closed.
+    private func stop() {
+        NotificationCenter.default.post(
+            name: .ncMediaViewerStopPlayback,
+            object: nil
+        )
     }
 
-    /// Closes the viewer toward a specific transition destination.
+    /// Closes the viewer.
     ///
-    /// - Parameter viewerTransitionSource: Current destination frame used by the closing animation.
-    func close(to viewerTransitionSource: NCViewerTransitionSource) {
-        if let onCloseToTransitionSource {
-            onCloseToTransitionSource(viewerTransitionSource)
-        } else {
-            onClose()
-        }
+    /// - Parameter viewerTransitionSource: Optional destination frame used by the closing animation.
+    func close(viewerTransitionSource: NCViewerTransitionSource? = nil) {
+        stop()
+        onClose(viewerTransitionSource)
     }
 
     // MARK: - Navigation

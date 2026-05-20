@@ -117,11 +117,7 @@ class NCContextMenuViewer: NSObject {
                     files.collectionView.layoutIfNeeded()
 
                     if let mediaViewer = viewController as? NCMediaViewerHostingController {
-                        if let viewerTransitionSource = files.viewerTransitionSource(for: metadata.ocId) {
-                            mediaViewer.close(to: viewerTransitionSource)
-                        } else {
-                            mediaViewer.close()
-                        }
+                        mediaViewer.close()
                     } else if let mediaViewer = viewController as? NCVideoVLCViewController {
                         mediaViewer.close()
                     } else if let mediaViewer = viewController as? NCVideoAVPlayerViewController {
