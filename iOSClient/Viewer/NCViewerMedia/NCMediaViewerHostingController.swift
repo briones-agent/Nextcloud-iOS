@@ -26,7 +26,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     private var transferDelegate: NCMediaViewerTransferDelegate?
     private weak var currentNavigationBar: UINavigationBar?
     private let floatingTitleView = NCViewerFloatingTitleView()
-    private var floatingTitleConstraints: [NSLayoutConstraint] = []
 
     private lazy var floatingTitleDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -270,22 +269,11 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
     /// Configures the floating title view inside the navigation bar chrome.
     private func configureFloatingTitleViewIfNeeded() {
-        guard let navigationBar = navigationController?.navigationBar,
-              floatingTitleView.superview !== navigationBar else {
+        guard let navigationBar = navigationController?.navigationBar else {
             return
         }
 
-        floatingTitleConstraints.forEach { $0.isActive = false }
-        floatingTitleConstraints.removeAll()
-        floatingTitleView.removeFromSuperview()
-        navigationBar.addSubview(floatingTitleView)
-
-        floatingTitleConstraints = [
-            floatingTitleView.centerXAnchor.constraint(equalTo: navigationBar.centerXAnchor),
-            floatingTitleView.centerYAnchor.constraint(equalTo: navigationBar.centerYAnchor),
-            floatingTitleView.widthAnchor.constraint(lessThanOrEqualTo: navigationBar.widthAnchor, multiplier: 0.42)
-        ]
-        NSLayoutConstraint.activate(floatingTitleConstraints)
+        floatingTitleView.attach(to: navigationBar)
     }
 
     /// Updates the floating title view using the provided media metadata.
