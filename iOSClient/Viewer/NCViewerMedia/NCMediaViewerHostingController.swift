@@ -25,6 +25,16 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     private var cancellables = Set<AnyCancellable>()
     private var transferDelegate: NCMediaViewerTransferDelegate?
     private weak var currentNavigationBar: UINavigationBar?
+    private let floatingTitleView = NCViewerFloatingTitleView()
+    private var floatingTitleConstraints: [NSLayoutConstraint] = []
+
+    private lazy var floatingTitleDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
 
     private lazy var moreNavigationItem = UIBarButtonItem(
         image: NCImageCache.shared.getImageButtonMore(),
@@ -110,6 +120,12 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         fatalError("init(coder:) has not been implemented")
     }
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        updateTitleLabel(metadata: model.selectedMetadata)
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
@@ -138,6 +154,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         super.viewDidLayoutSubviews()
 
         updateRootViewNavigationBarIfNeeded()
+        configureFloatingTitleViewIfNeeded()
     }
 
     private func updateRootViewNavigationBarIfNeeded() {
@@ -196,16 +213,21 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     }
 
     /// Observes model changes and refreshes navigation UI.
-    /// Observes model changes and refreshes navigation UI.
     private func observeModel() {
         model.$selectedIndex
             .receive(on: RunLoop.main)
-            .sink { _ in }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.updateTitleLabel(metadata: self.model.selectedMetadata)
+            }
             .store(in: &cancellables)
 
         model.$revision
             .receive(on: RunLoop.main)
-            .sink { _ in }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.updateTitleLabel(metadata: self.model.selectedMetadata)
+            }
             .store(in: &cancellables)
 
         model.$isChromeHidden
@@ -232,6 +254,52 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
             .store(in: &cancellables)
     }
 
+    /// Configures the floating title view inside the navigation bar chrome.
+    private func configureFloatingTitleViewIfNeeded() {
+        guard let navigationBar = navigationController?.navigationBar,
+              floatingTitleView.superview !== navigationBar else {
+            return
+        }
+
+        floatingTitleConstraints.forEach { $0.isActive = false }
+        floatingTitleConstraints.removeAll()
+        floatingTitleView.removeFromSuperview()
+        navigationBar.addSubview(floatingTitleView)
+
+        floatingTitleConstraints = [
+            floatingTitleView.centerXAnchor.constraint(equalTo: navigationBar.centerXAnchor),
+            floatingTitleView.centerYAnchor.constraint(equalTo: navigationBar.centerYAnchor),
+            floatingTitleView.widthAnchor.constraint(lessThanOrEqualTo: navigationBar.widthAnchor, multiplier: 0.42)
+        ]
+        NSLayoutConstraint.activate(floatingTitleConstraints)
+    }
+
+    /// Updates the floating title view using the provided media metadata.
+    ///
+    /// - Parameter metadata: Media metadata used to build the visible title content.
+    private func updateTitleLabel(metadata: tableMetadata?) {
+        guard let metadata else {
+            floatingTitleView.update(primaryText: nil, secondaryText: nil)
+            return
+        }
+
+        let primaryTitle = metadata.fileNameView.isEmpty
+            ? metadata.fileName
+            : metadata.fileNameView
+
+        floatingTitleView.update(
+            primaryText: primaryTitle,
+            secondaryText: floatingTitleSecondaryText(for: metadata)
+        )
+    }
+
+    /// Builds the secondary floating title text for the provided metadata.
+    ///
+    /// - Parameter metadata: Media metadata used to derive the secondary title line.
+    /// - Returns: Secondary title text shown below the main title.
+    private func floatingTitleSecondaryText(for metadata: tableMetadata) -> String? {
+        floatingTitleDateFormatter.string(from: metadata.date as Date)
+    }
 
     /// Shows or hides the viewer chrome.
     ///
@@ -252,6 +320,7 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
             self.view.backgroundColor = hidden
                 ? .black
                 : .ncViewerBackground(.system)
+            self.floatingTitleView.alpha = hidden ? 0 : 1
         }
     }
 
