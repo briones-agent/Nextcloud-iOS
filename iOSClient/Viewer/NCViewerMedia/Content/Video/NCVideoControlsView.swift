@@ -412,17 +412,25 @@ private struct NCVideoControlsSwiftUIView: View {
         isEnabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button {
+            guard isEnabled else {
+                return
+            }
+
+            action()
+        } label: {
             Image(systemName: systemName)
                 .font(.system(size: pointSize, weight: .regular))
-                .foregroundStyle(.black.opacity(isEnabled ? 1 : 0.45))
+                .foregroundStyle(.black)
                 .frame(width: size, height: size)
                 .background(.white.opacity(0.92))
                 .clipShape(Circle())
                 .shadow(color: .black.opacity(0.16), radius: 14, x: 0, y: 4)
         }
         .buttonStyle(.plain)
-        .disabled(!isEnabled)
+        .transaction { transaction in
+            transaction.animation = nil
+        }
     }
 
     private func timeLabel(_ text: String) -> some View {
