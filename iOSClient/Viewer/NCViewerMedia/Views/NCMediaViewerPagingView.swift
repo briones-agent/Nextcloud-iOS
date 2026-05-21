@@ -86,12 +86,7 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
             if itemSize.width > 0,
                itemSize.height > 0,
                layout.itemSize != itemSize {
-                layout.itemSize = itemSize
-                layout.invalidateLayout()
-
-                DispatchQueue.main.async {
-                    context.coordinator.scrollToCurrentIndex(animated: false)
-                }
+                context.coordinator.relayoutAndKeepCurrentIndex(size: itemSize)
             }
         }
 
@@ -148,6 +143,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     private var cancellable: AnyCancellable?
     private var lastVisibleIndex: Int?
     private var isUserPaging = false
+    private var isAdjustingLayout = false
 
     // MARK: - Init
 
@@ -197,15 +193,49 @@ final class NCMediaViewerPagingCoordinator: NSObject,
             return
         }
 
-        lastCollectionViewBoundsSize = boundsSize
+        relayoutAndKeepCurrentIndex(size: boundsSize)
+    }
+
+    /// Invalidates the paging layout while preserving the current selected page.
+    ///
+    /// During bounds changes, the collection view content offset can temporarily be
+    /// expressed using the old page width. This method prevents those intermediate
+    /// offsets from being interpreted as real page changes.
+    ///
+    /// - Parameter size: New page size to apply to the flow layout.
+    func relayoutAndKeepCurrentIndex(size: CGSize) {
+        guard let collectionView else {
+            return
+        }
+
+        guard size.width > 0,
+              size.height > 0 else {
+            return
+        }
+
+        lastCollectionViewBoundsSize = size
+        isAdjustingLayout = true
+
+        let index = model.selectedIndex
 
         if let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
-            layout.itemSize = boundsSize
+            layout.itemSize = size
             layout.invalidateLayout()
         }
 
         collectionView.performBatchUpdates(nil) { [weak self] _ in
-            self?.scrollToCurrentIndex(animated: false)
+            guard let self else {
+                return
+            }
+
+            self.scrollToIndex(
+                index,
+                animated: false
+            )
+
+            DispatchQueue.main.async { [weak self] in
+                self?.isAdjustingLayout = false
+            }
         }
     }
 
@@ -314,6 +344,21 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     ///
     /// - Parameter animated: Whether the scroll should be animated.
     func scrollToCurrentIndex(animated: Bool) {
+        scrollToIndex(
+            model.selectedIndex,
+            animated: animated
+        )
+    }
+
+    /// Scrolls to a specific page index without changing the selected model index.
+    ///
+    /// - Parameters:
+    ///   - index: Page index to center.
+    ///   - animated: Whether the scroll should be animated.
+    private func scrollToIndex(
+        _ index: Int,
+        animated: Bool
+    ) {
         guard model.numberOfPages > 0 else {
             return
         }
@@ -323,8 +368,6 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         }
 
         collectionView.layoutIfNeeded()
-
-        let index = model.selectedIndex
 
         guard index >= 0,
               index < model.numberOfPages else {
@@ -522,6 +565,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         withVelocity velocity: CGPoint,
         targetContentOffset: UnsafeMutablePointer<CGPoint>
     ) {
+        guard !isAdjustingLayout else {
+            return
+        }
+
         guard let index = pageIndex(
             forContentOffsetX: targetContentOffset.pointee.x,
             width: scrollView.bounds.width
@@ -579,6 +626,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard !isAdjustingLayout else {
+            return
+        }
+
         guard let index = pageIndex(for: scrollView) else {
             return
         }
@@ -622,6 +673,10 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     ///
     /// - Parameter scrollView: Source scroll view.
     private func updateSelectedIndexFromScrollView(_ scrollView: UIScrollView) {
+        guard !isAdjustingLayout else {
+            return
+        }
+
         guard let index = pageIndex(for: scrollView) else {
             return
         }
