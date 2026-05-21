@@ -16,10 +16,10 @@ extension NCCollectionViewCommon {
     /// - Parameter ocId: Nextcloud file identifier of the media item.
     /// - Returns: Transition source if the item can be resolved.
     func viewerTransitionSource(for ocId: String) -> NCViewerTransitionSource? {
-        guard let indexPath = dataSource.getIndexPathMetadata(ocId: ocId),
-              let window = collectionView.window else {
+        guard let indexPath = dataSource.getIndexPathMetadata(ocId: ocId) else {
             return nil
         }
+        let window = collectionView.window ?? view.window ?? UIApplication.shared.activeWindow()
 
         collectionView.layoutIfNeeded()
 

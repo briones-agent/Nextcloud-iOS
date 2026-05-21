@@ -16,7 +16,7 @@ import NextcloudKit
 @MainActor
 final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerView>, UIAdaptivePresentationControllerDelegate {
     private let model: NCMediaViewerModel
-    private let onClose: (_ viewerTransitionSource: NCViewerTransitionSource?) -> Void
+    private let onClose: (_ ocId: String?) -> Void
     private weak var contextMenuController: NCMainTabBarController?
 
     private var detailHostingController: UIHostingController<NCMediaViewerDetailView>?
@@ -75,11 +75,11 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     /// - Parameters:
     ///   - model: Media viewer model used to render and page through media items.
     ///   - contextMenuController: Main tab bar controller used to build viewer context menus.
-    ///   - onClose: Closure called when the viewer should close, optionally toward a transition destination.
+    ///   - onClose: Closure called when the viewer should close, optionally with the media ocId that initiated the close.
     init(
         model: NCMediaViewerModel,
         contextMenuController: NCMainTabBarController?,
-        onClose: @escaping (_ viewerTransitionSource: NCViewerTransitionSource?) -> Void
+        onClose: @escaping (_ ocId: String?) -> Void
     ) {
         self.model = model
         self.contextMenuController = contextMenuController
@@ -91,13 +91,13 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
                 contextMenuController: contextMenuController,
                 navigationBar: nil,
                 onVisibleMetadataChanged: { _, _ in },
-                onClose: {}
+                onClose: { _ in }
             )
         )
 
         rootView = makeRootView(navigationBar: nil)
 
-        self.transferDelegate = NCMediaViewerTransferDelegate { [weak self] deletedOcId in
+        transferDelegate = NCMediaViewerTransferDelegate { [weak self] deletedOcId in
             guard let self else {
                 return
             }
@@ -168,7 +168,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         }
 
         currentNavigationBar = navigationBar
-
         rootView = makeRootView(navigationBar: navigationBar)
     }
 
@@ -187,8 +186,8 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
                     backgroundColor: backgroundColor
                 )
             },
-            onClose: { [weak self] in
-                self?.close()
+            onClose: { [weak self] ocId in
+                self?.close(ocId: ocId)
             }
         )
     }
@@ -205,10 +204,10 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
     /// Closes the viewer.
     ///
-    /// - Parameter viewerTransitionSource: Optional destination frame used by the closing animation.
-    func close(viewerTransitionSource: NCViewerTransitionSource? = nil) {
+    /// - Parameter ocId: Optional Nextcloud file identifier that initiated the close.
+    func close(ocId: String? = nil) {
         stop()
-        onClose(viewerTransitionSource)
+        onClose(ocId)
     }
 
     // MARK: - Navigation
@@ -234,7 +233,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
 
     /// Observes model changes and refreshes navigation UI.
     private func observeModel() {
-
         model.$isChromeHidden
             .receive(on: RunLoop.main)
             .sink { [weak self] isHidden in
@@ -471,7 +469,6 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
     func markItemAsDeleted(ocId: String) {
         model.markPageAsDeleted(ocId: ocId)
     }
-
 }
 
 // MARK: - Media Viewer Transfer Delegate
@@ -490,9 +487,19 @@ final class NCMediaViewerTransferDelegate: NSObject, NCTransferDelegate {
 
     func transferReloadData(serverUrl: String?) { }
 
-    func transferReloadDataSource(serverUrl: String?, requestData: Bool, status: Int?) { }
+    func transferReloadDataSource(
+        serverUrl: String?,
+        requestData: Bool,
+        status: Int?
+    ) { }
 
-    func transferProgressDidUpdate(progress: Float, totalBytes: Int64, totalBytesExpected: Int64, fileName: String, serverUrl: String) { }
+    func transferProgressDidUpdate(
+        progress: Float,
+        totalBytes: Int64,
+        totalBytesExpected: Int64,
+        fileName: String,
+        serverUrl: String
+    ) { }
 
     func transferChange(
         status: String,

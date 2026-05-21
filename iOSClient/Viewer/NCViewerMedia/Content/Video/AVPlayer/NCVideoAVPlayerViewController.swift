@@ -54,7 +54,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     var onPrevious: (() -> Void)?
     var onNext: (() -> Void)?
-    var onClose: (() -> Void)?
+    var onClose: ((_ ocId: String) -> Void)?
     var canGoPrevious = false
     var canGoNext = false
 
@@ -428,7 +428,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
         NCVideoAVPlayerPresenter.clearCurrent(self)
 
         dismiss(animated: false)
-        onClose?()
+        onClose?(metadata.ocId)
     }
 
     // MARK: - Swipe Navigation

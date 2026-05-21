@@ -18,7 +18,7 @@ struct NCMediaViewerView: View {
     let contextMenuController: NCMainTabBarController?
     let navigationBar: UINavigationBar?
     let onVisibleMetadataChanged: (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
-    let onClose: () -> Void
+    let onClose: (_ ocId: String) -> Void
 
     /// Creates the media viewer view.
     ///
@@ -27,13 +27,13 @@ struct NCMediaViewerView: View {
     ///   - contextMenuController: Optional controller used to present context menu actions.
     ///   - navigationBar: Optional navigation bar reference used by video controls for top action positioning.
     ///   - onVisibleMetadataChanged: Callback invoked when the visually visible page metadata and background color change.
-    ///   - onClose: Callback invoked when the media viewer should close.
+    ///   - onClose: Callback invoked with the current media ocId when the media viewer should close.
     init(
         model: NCMediaViewerModel,
         contextMenuController: NCMainTabBarController? = nil,
         navigationBar: UINavigationBar? = nil,
         onVisibleMetadataChanged: @escaping (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void = { _, _ in },
-        onClose: @escaping () -> Void = {}
+        onClose: @escaping (_ ocId: String) -> Void = { _ in }
     ) {
         _model = StateObject(wrappedValue: model)
         self.contextMenuController = contextMenuController

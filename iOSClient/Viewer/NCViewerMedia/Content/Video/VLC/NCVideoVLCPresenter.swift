@@ -36,7 +36,7 @@ enum NCVideoVLCPresenter {
     ///   - canGoNext: Whether VLC can navigate to the next media item.
     ///   - onPrevious: Callback invoked when VLC receives a right swipe.
     ///   - onNext: Callback invoked when VLC receives a left swipe.
-    ///   - onClose: Callback invoked when VLC closes the fullscreen media viewer.
+    ///   - onClose: Callback invoked with the current media ocId when VLC closes the fullscreen media viewer.
     static func present(
         metadata: tableMetadata,
         url: URL,
@@ -47,7 +47,7 @@ enum NCVideoVLCPresenter {
         canGoNext: Bool = false,
         onPrevious: (() -> Void)? = nil,
         onNext: (() -> Void)? = nil,
-        onClose: (() -> Void)? = nil
+        onClose: ((_ ocId: String) -> Void)? = nil
     ) {
         if currentURL == url,
            let currentViewController {

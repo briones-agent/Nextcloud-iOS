@@ -3227,8 +3227,8 @@
 		F7CDB5C12FA33CA300F72306 /* NCViewerMedia */ = {
 			isa = PBXGroup;
 			children = (
-				F7EDBB512FA8CACA00098C42 /* NCMediaViewerHostingController.swift */,
 				F7EDBB5B2FA8DBE600098C42 /* NCMediaViewerPresenter.swift */,
+				F7EDBB512FA8CACA00098C42 /* NCMediaViewerHostingController.swift */,
 				F749ED342FAF0EE200CE8DFA /* Model - View */,
 				F7CDB5CE2FA33DED00F72306 /* Loading */,
 				F7CDB5D02FA33E3500F72306 /* Views */,
@@ -3250,10 +3250,10 @@
 			isa = PBXGroup;
 			children = (
 				F716DA662FA5F019006A6703 /* NCMediaViewerPagingView.swift */,
-				F79377042FBD86AE00DE56DE /* NCViewerFloatingTitleView.swift */,
 				F7CDB5B92FA33CA300F72306 /* NCMediaViewerPageView.swift */,
-				F749ED302FADD62400CE8DFA /* NCMediaViewerDetailView.swift */,
 				F716DA642FA4E878006A6703 /* NCImageZoomView.swift */,
+				F79377042FBD86AE00DE56DE /* NCViewerFloatingTitleView.swift */,
+				F749ED302FADD62400CE8DFA /* NCMediaViewerDetailView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";

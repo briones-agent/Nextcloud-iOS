@@ -33,7 +33,7 @@ struct NCMediaViewerPageView: View {
     let shouldAutoPlay: Bool
     let onPreviousPage: (_ shouldAutoPlay: Bool) -> Void
     let onNextPage: (_ shouldAutoPlay: Bool) -> Void
-    let onClose: () -> Void
+    let onClose: (_ ocId: String) -> Void
     let onAutoPlayConsumed: () -> Void
 
     let contextMenuController: NCMainTabBarController?

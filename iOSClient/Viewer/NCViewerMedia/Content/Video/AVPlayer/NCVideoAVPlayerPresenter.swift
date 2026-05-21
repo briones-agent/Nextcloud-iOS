@@ -36,7 +36,7 @@ enum NCVideoAVPlayerPresenter {
     ///   - canGoNext: Whether the next-page gesture/action is currently available.
     ///   - onPrevious: Callback invoked when AVPlayer receives a previous-page action.
     ///   - onNext: Callback invoked when AVPlayer receives a next-page action.
-    ///   - onClose: Callback invoked when AVPlayer closes the fullscreen media viewer.
+    ///   - onClose: Callback invoked with the current media ocId when AVPlayer closes the fullscreen media viewer.
     static func present(
         metadata: tableMetadata,
         url: URL,
@@ -47,7 +47,7 @@ enum NCVideoAVPlayerPresenter {
         canGoNext: Bool = false,
         onPrevious: (() -> Void)? = nil,
         onNext: (() -> Void)? = nil,
-        onClose: (() -> Void)? = nil
+        onClose: ((_ ocId: String) -> Void)? = nil
     ) {
         if currentURL == url,
            let currentViewController {
