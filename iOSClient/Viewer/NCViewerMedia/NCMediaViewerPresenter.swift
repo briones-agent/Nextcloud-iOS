@@ -74,8 +74,18 @@ final class NCMediaViewerPresenter: NSObject {
             model: model,
             contextMenuController: contextMenuController,
             onClose: { [weak self] ocId in
-                self?.forcedClosingOcId = ocId
-                self?.dismiss(animated: true)
+                guard let self else {
+                    return
+                }
+
+                guard let ocId else {
+                    forcedClosingOcId = nil
+                    dismiss(animated: false)
+                    return
+                }
+
+                forcedClosingOcId = ocId
+                dismiss(animated: true)
             }
         )
 
@@ -396,8 +406,8 @@ final class NCMediaViewerPresenter: NSObject {
     /// Returns the transition source for the currently selected media item.
     ///
     /// The source controller knows how to map the current `ocId` to the visible
-    /// thumbnail frame. If no current source can be resolved, the presenter does
-    /// not reuse the opening source because it may belong to a different media item.
+    /// thumbnail frame. If no current source can be resolved, the presenter closes
+    /// without a thumbnail transition.
     ///
     /// - Returns: Current transition source if available.
     private func currentClosingTransitionSource() -> NCViewerTransitionSource? {

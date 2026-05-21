@@ -35,7 +35,7 @@ struct NCVideoViewerContentView: View {
     let canGoNext: Bool
     let onPreviousPage: (() -> Void)?
     let onNextPage: (() -> Void)?
-    let onClose: ((_ ocId: String) -> Void)?
+    let onClose: ((_ ocId: String?) -> Void)?
 
     @ObservedObject private var playback = NCVideoPlaybackController.shared
 
@@ -62,7 +62,7 @@ struct NCVideoViewerContentView: View {
         canGoNext: Bool = false,
         onPreviousPage: (() -> Void)? = nil,
         onNextPage: (() -> Void)? = nil,
-        onClose: ((_ ocId: String) -> Void)? = nil
+        onClose: ((_ ocId: String?) -> Void)? = nil
     ) {
         self.metadata = metadata
         self.localURL = localURL
@@ -580,9 +580,9 @@ struct NCVideoViewerContentView: View {
 
     /// Closes the full media viewer from a fullscreen video controller.
     ///
-    /// - Parameter ocId: Nextcloud file identifier of the fullscreen video being closed.
+    /// - Parameter ocId: Optional Nextcloud file identifier of the fullscreen video being closed.
     @MainActor
-    private func closeFromFullscreenVideo(ocId: String) {
+    private func closeFromFullscreenVideo(ocId: String?) {
         presentedAVPlayerURL = nil
         presentedVLCURL = nil
         playback.stop()

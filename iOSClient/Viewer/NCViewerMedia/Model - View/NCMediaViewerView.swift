@@ -18,7 +18,7 @@ struct NCMediaViewerView: View {
     let contextMenuController: NCMainTabBarController?
     let navigationBar: UINavigationBar?
     let onVisibleMetadataChanged: (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
-    let onClose: (_ ocId: String) -> Void
+    let onClose: (_ ocId: String?) -> Void
 
     /// Creates the media viewer view.
     ///
@@ -33,7 +33,7 @@ struct NCMediaViewerView: View {
         contextMenuController: NCMainTabBarController? = nil,
         navigationBar: UINavigationBar? = nil,
         onVisibleMetadataChanged: @escaping (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void = { _, _ in },
-        onClose: @escaping (_ ocId: String) -> Void = { _ in }
+        onClose: @escaping (_ ocId: String?) -> Void = { _ in }
     ) {
         _model = StateObject(wrappedValue: model)
         self.contextMenuController = contextMenuController

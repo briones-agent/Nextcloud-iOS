@@ -21,7 +21,7 @@ struct NCMediaViewerPagingView: UIViewRepresentable {
     let contextMenuController: NCMainTabBarController?
     let navigationBar: UINavigationBar?
     let onVisibleMetadataChanged: (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
-    let onClose: (_ ocId: String) -> Void
+    let onClose: (_ ocId: String?) -> Void
 
     // MARK: - UIViewRepresentable
 
@@ -141,7 +141,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
     let contextMenuController: NCMainTabBarController?
     weak var navigationBar: UINavigationBar?
     var onVisibleMetadataChanged: (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void
-    var onClose: (_ ocId: String) -> Void
+    var onClose: (_ ocId: String?) -> Void
 
     private var didScrollToInitialIndex = false
     private var lastCollectionViewBoundsSize: CGSize = .zero
@@ -156,7 +156,7 @@ final class NCMediaViewerPagingCoordinator: NSObject,
         contextMenuController: NCMainTabBarController?,
         navigationBar: UINavigationBar?,
         onVisibleMetadataChanged: @escaping (_ metadata: tableMetadata?, _ backgroundColor: UIColor) -> Void,
-        onClose: @escaping (_ ocId: String) -> Void
+        onClose: @escaping (_ ocId: String?) -> Void
     ) {
         self.model = model
         self.contextMenuController = contextMenuController
@@ -713,7 +713,7 @@ final class NCMediaViewerPagingCell: UICollectionViewCell {
         onToggleChrome: @escaping () -> Void,
         onPreviousPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
         onNextPage: @escaping (_ shouldAutoPlay: Bool) -> Void,
-        onClose: @escaping (_ ocId: String) -> Void,
+        onClose: @escaping (_ ocId: String?) -> Void,
         onAutoPlayConsumed: @escaping () -> Void,
         contextMenuController: NCMainTabBarController?,
         navigationBar: UINavigationBar?

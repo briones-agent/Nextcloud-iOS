@@ -54,7 +54,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
     var onPrevious: (() -> Void)?
     var onNext: (() -> Void)?
-    var onClose: ((_ ocId: String) -> Void)?
+    var onClose: ((_ ocId: String?) -> Void)?
     var canGoPrevious = false
     var canGoNext = false
 
@@ -431,6 +431,17 @@ final class NCVideoAVPlayerViewController: UIViewController {
             DispatchQueue.main.async {
                 onClose?(metadata.ocId)
             }
+        }
+    }
+
+    func closeImmediately() {
+        stopControlsHideTimer()
+        stop()
+
+        NCVideoAVPlayerPresenter.clearCurrent(self)
+
+        dismiss(animated: false) { [onClose] in
+            onClose?(nil)
         }
     }
 

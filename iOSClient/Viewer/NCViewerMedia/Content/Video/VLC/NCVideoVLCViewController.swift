@@ -28,7 +28,7 @@ final class NCVideoVLCViewController: UIViewController {
 
     var onPrevious: (() -> Void)?
     var onNext: (() -> Void)?
-    var onClose: ((_ ocId: String) -> Void)?
+    var onClose: ((_ ocId: String?) -> Void)?
     var canGoPrevious = false
     var canGoNext = false
 
@@ -394,6 +394,18 @@ final class NCVideoVLCViewController: UIViewController {
             DispatchQueue.main.async {
                 onClose?(metadata.ocId)
             }
+        }
+    }
+
+    func closeImmediately() {
+        stopControlsHideTimer()
+        stopProgressTimer()
+        stop()
+
+        NCVideoVLCPresenter.clearCurrent(self)
+
+        dismiss(animated: false) { [onClose] in
+            onClose?(nil)
         }
     }
 

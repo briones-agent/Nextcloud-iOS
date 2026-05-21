@@ -47,7 +47,7 @@ enum NCVideoVLCPresenter {
         canGoNext: Bool = false,
         onPrevious: (() -> Void)? = nil,
         onNext: (() -> Void)? = nil,
-        onClose: ((_ ocId: String) -> Void)? = nil
+        onClose: ((_ ocId: String?) -> Void)? = nil
     ) {
         if currentURL == url,
            let currentViewController {

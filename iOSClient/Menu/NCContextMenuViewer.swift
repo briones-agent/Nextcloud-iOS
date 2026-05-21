@@ -119,9 +119,9 @@ class NCContextMenuViewer: NSObject {
                     if let mediaViewer = viewController as? NCMediaViewerHostingController {
                         mediaViewer.close()
                     } else if let mediaViewer = viewController as? NCVideoVLCViewController {
-                        mediaViewer.close()
+                        mediaViewer.closeImmediately()
                     } else if let mediaViewer = viewController as? NCVideoAVPlayerViewController {
-                        mediaViewer.close()
+                        mediaViewer.closeImmediately()
                     }
 
                     try? await Task.sleep(for: .seconds(0.6))
