@@ -427,8 +427,11 @@ final class NCVideoAVPlayerViewController: UIViewController {
 
         NCVideoAVPlayerPresenter.clearCurrent(self)
 
-        dismiss(animated: false)
-        onClose?(metadata.ocId)
+        dismiss(animated: false) { [onClose, metadata] in
+            DispatchQueue.main.async {
+                onClose?(metadata.ocId)
+            }
+        }
     }
 
     // MARK: - Swipe Navigation

@@ -390,8 +390,11 @@ final class NCVideoVLCViewController: UIViewController {
 
         NCVideoVLCPresenter.clearCurrent(self)
 
-        dismiss(animated: false)
-        onClose?(metadata.ocId)
+        dismiss(animated: false) { [onClose, metadata] in
+            DispatchQueue.main.async {
+                onClose?(metadata.ocId)
+            }
+        }
     }
 
     // MARK: - Swipe Navigation
