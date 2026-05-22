@@ -273,7 +273,7 @@ extension NCVideoVLCViewController: NCVideoControlsViewDelegate {
     func videoControlsDidTapSubtitle(_ controlsView: NCVideoControlsView) {
         showControls(animated: true)
         stopControlsHideTimer()
-        // VLC subtitle track menu presentation will be attached here.
+        refreshVLCTrackMenuItemsWhenPlayerIsActive()
     }
 
     /// Handles the VLC audio track action from the shared controls view.
@@ -282,7 +282,38 @@ extension NCVideoVLCViewController: NCVideoControlsViewDelegate {
     func videoControlsDidTapAudio(_ controlsView: NCVideoControlsView) {
         showControls(animated: true)
         stopControlsHideTimer()
-        // VLC audio track menu presentation will be attached here.
+        refreshVLCTrackMenuItemsWhenPlayerIsActive()
+    }
+
+    /// Handles the external subtitle import action from the shared controls view.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapAddExternalSubtitle(_ controlsView: NCVideoControlsView) {
+        showControls(animated: true)
+        stopControlsHideTimer()
+        presentExternalSubtitlePicker()
+    }
+
+    /// Handles VLC subtitle track selection from the SwiftUI controls menu.
+    ///
+    /// - Parameters:
+    ///   - controlsView: Shared controls view that emitted the action.
+    ///   - index: VLC subtitle track index selected by the user.
+    func videoControls(_ controlsView: NCVideoControlsView, didSelectSubtitleTrackIndex index: Int32) {
+        showControls(animated: true)
+        stopControlsHideTimer()
+        selectSubtitleTrack(index: index)
+    }
+
+    /// Handles VLC audio track selection from the SwiftUI controls menu.
+    ///
+    /// - Parameters:
+    ///   - controlsView: Shared controls view that emitted the action.
+    ///   - index: VLC audio track index selected by the user.
+    func videoControls(_ controlsView: NCVideoControlsView, didSelectAudioTrackIndex index: Int32) {
+        showControls(animated: true)
+        stopControlsHideTimer()
+        selectAudioTrack(index: index)
     }
 
     /// Updates VLC time labels while scrubbing from the shared controls view.

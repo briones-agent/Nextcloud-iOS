@@ -7,6 +7,7 @@ import UIKit
 import SwiftUI
 import MobileVLCKit
 import NextcloudKit
+import UniformTypeIdentifiers
 
 // MARK: - VLC View Controller
 
@@ -51,6 +52,7 @@ final class NCVideoVLCViewController: UIViewController {
     // MARK: - VLC
 
     internal let mediaPlayer = VLCMediaPlayer()
+    private var externalSubtitleURL: URL?
 
     internal var progressTimer: Timer?
     internal var controlsHideTimer: Timer?
@@ -584,6 +586,7 @@ final class NCVideoVLCViewController: UIViewController {
         mediaPlayer.stop()
         mediaPlayer.media = nil
         mediaPlayer.drawable = nil
+        externalSubtitleURL = nil
         showPreviewImage()
         stopProgressTimer()
         updatePlayPauseButton()
@@ -687,6 +690,121 @@ final class NCVideoVLCViewController: UIViewController {
             currentAudioTrackIndex: Int(index)
         )
         refreshVLCTrackMenuItems()
+    }
+
+    /// Presents a document picker that lets the user select an external subtitle file for VLC playback.
+    func presentExternalSubtitlePicker() {
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [.item],
+            asCopy: true
+        )
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
+    }
+
+    /// Returns whether the selected file extension is supported as an external subtitle.
+    ///
+    /// - Parameter url: File URL selected by the user.
+    /// - Returns: True when VLC should try to load the file as an external subtitle.
+    private func isSupportedExternalSubtitleURL(_ url: URL) -> Bool {
+        let supportedExtensions: Set<String> = [
+            "srt",
+            "vtt",
+            "ass",
+            "ssa",
+            "sub"
+        ]
+
+        return supportedExtensions.contains(url.pathExtension.lowercased())
+    }
+
+    /// Loads an external subtitle file into the current VLC media player.
+    ///
+    /// - Parameter url: Local subtitle file URL selected by the user.
+    private func loadExternalSubtitle(url: URL) {
+        guard isSupportedExternalSubtitleURL(url) else {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .error,
+                message: "VIDEO VLC unsupported external subtitle extension: \(url.lastPathComponent)",
+                consoleOnly: true
+            )
+            return
+        }
+
+        do {
+            let localURL = try copyExternalSubtitleToTemporaryDirectory(from: url)
+
+            externalSubtitleURL = localURL
+
+            let subtitleMRL = localURL.standardizedFileURL.absoluteString
+            mediaPlayer.openVideoSubTitles(fromFile: subtitleMRL)
+
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .debug,
+                message: "VIDEO VLC loaded external subtitle MRL: \(subtitleMRL)",
+                consoleOnly: true
+            )
+
+            refreshExternalSubtitleTracksAfterLoad()
+        } catch {
+            nkLog(
+                tag: NCGlobal.shared.logTagViewer,
+                emoji: .error,
+                message: "VIDEO VLC external subtitle load error: \(error.localizedDescription)",
+                consoleOnly: true
+            )
+        }
+    }
+
+    /// Copies the selected subtitle to a stable temporary file that VLC can read.
+    ///
+    /// - Parameter url: Security-scoped or temporary document picker URL.
+    /// - Returns: Local temporary file URL used by VLC.
+    private func copyExternalSubtitleToTemporaryDirectory(from url: URL) throws -> URL {
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let fileName = url.lastPathComponent.isEmpty
+            ? "external-subtitle.\(url.pathExtension.lowercased())"
+            : url.lastPathComponent
+
+        let destinationURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vlc-external-subtitles", isDirectory: true)
+            .appendingPathComponent(fileName)
+
+        let destinationDirectory = destinationURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(
+            at: destinationDirectory,
+            withIntermediateDirectories: true
+        )
+
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+
+        try FileManager.default.copyItem(
+            at: url,
+            to: destinationURL
+        )
+
+        return destinationURL
+    }
+
+    /// Refreshes VLC subtitle tracks after VLC has had time to register the external subtitle file.
+    private func refreshExternalSubtitleTracksAfterLoad() {
+        refreshVLCTrackMenuItems()
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            self?.refreshVLCTrackMenuItems()
+        }
     }
 
     /// Builds subtitle menu items from VLC subtitle tracks.
@@ -956,6 +1074,31 @@ extension NCVideoVLCViewController: UIGestureRecognizerDelegate {
         }
 
         return abs(velocity.y) > abs(velocity.x) * 1.10
+    }
+}
+
+// MARK: - Document Picker Delegate
+
+extension NCVideoVLCViewController: UIDocumentPickerDelegate {
+    /// Handles the selected external subtitle file and attaches it to the VLC player.
+    ///
+    /// - Parameters:
+    ///   - controller: Document picker controller.
+    ///   - urls: Selected file URLs.
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else {
+            return
+        }
+
+        loadExternalSubtitle(url: url)
+        showControls(animated: true)
+    }
+
+    /// Handles document picker cancellation.
+    ///
+    /// - Parameter controller: Document picker controller.
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        showControls(animated: true)
     }
 }
 

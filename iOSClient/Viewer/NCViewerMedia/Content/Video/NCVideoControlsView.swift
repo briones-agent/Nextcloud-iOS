@@ -18,6 +18,7 @@ protocol NCVideoControlsViewDelegate: AnyObject {
     func videoControlsDidTapPictureInPicture(_ controlsView: NCVideoControlsView)
     func videoControlsDidTapSubtitle(_ controlsView: NCVideoControlsView)
     func videoControlsDidTapAudio(_ controlsView: NCVideoControlsView)
+    func videoControlsDidTapAddExternalSubtitle(_ controlsView: NCVideoControlsView)
     func videoControls(_ controlsView: NCVideoControlsView, didSelectSubtitleTrackIndex index: Int32)
     func videoControls(_ controlsView: NCVideoControlsView, didSelectAudioTrackIndex index: Int32)
     func videoControlsDidBeginScrubbing(_ controlsView: NCVideoControlsView)
@@ -40,6 +41,11 @@ extension NCVideoControlsViewDelegate {
     ///
     /// - Parameter controlsView: Shared controls view that emitted the action.
     func videoControlsDidTapAudio(_ controlsView: NCVideoControlsView) { }
+
+    /// Handles the external subtitle import action when implemented by a playback controller.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapAddExternalSubtitle(_ controlsView: NCVideoControlsView) { }
 
     /// Handles subtitle track selection when implemented by a playback controller.
     ///
@@ -105,9 +111,10 @@ final class NCVideoControlsView: UIView {
     fileprivate static let bottomControlsHeight: CGFloat = 64
     fileprivate static let bottomControlsHorizontalInset: CGFloat = 28
     fileprivate static let bottomControlsBottomInset: CGFloat = 18
-    fileprivate static let topActionsHeight: CGFloat = 52
+    fileprivate static let topActionsHeight: CGFloat = 46
     fileprivate static let topActionsHorizontalInset: CGFloat = 28
-    fileprivate static let topActionsButtonSize: CGFloat = 44
+    fileprivate static let topActionsButtonSize: CGFloat = 38
+    fileprivate static let topActionsSpacing: CGFloat = 8
 
     // MARK: - State
 
@@ -386,6 +393,12 @@ final class NCVideoControlsView: UIView {
                 }
                 delegate?.videoControls(self, didSelectSubtitleTrackIndex: index)
             },
+            onAddExternalSubtitle: { [weak self] in
+                guard let self else {
+                    return
+                }
+                delegate?.videoControlsDidTapAddExternalSubtitle(self)
+            },
             onAudioTrackSelected: { [weak self] index in
                 guard let self else {
                     return
@@ -424,6 +437,7 @@ private struct NCVideoControlsSwiftUIView: View {
     let onSubtitle: () -> Void
     let onAudio: () -> Void
     let onSubtitleTrackSelected: (_ index: Int32) -> Void
+    let onAddExternalSubtitle: () -> Void
     let onAudioTrackSelected: (_ index: Int32) -> Void
 
     var body: some View {
@@ -469,7 +483,7 @@ private struct NCVideoControlsSwiftUIView: View {
             visibleButtonsCount = 2
         }
 
-        let totalWidth = (visibleButtonsCount * NCVideoControlsView.topActionsButtonSize) + (max(0, visibleButtonsCount - 1) * 10)
+        let totalWidth = (visibleButtonsCount * NCVideoControlsView.topActionsButtonSize) + (max(0, visibleButtonsCount - 1) * NCVideoControlsView.topActionsSpacing)
         return NCVideoControlsView.topActionsHorizontalInset + (totalWidth / 2)
     }
 
@@ -506,7 +520,7 @@ private struct NCVideoControlsSwiftUIView: View {
     }
 
     private var bottomControls: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: NCVideoControlsView.topActionsSpacing) {
             timeLabel(state.elapsedText)
                 .frame(width: 54)
 
@@ -547,23 +561,24 @@ private struct NCVideoControlsSwiftUIView: View {
             case .pictureInPicture:
                 topActionButton(
                     systemName: "pip.enter",
-                    pointSize: 21,
+                    pointSize: 18,
                     action: onPictureInPicture
                 )
 
             case .vlcTracks:
-                topActionMenu(
+                subtitleActionMenu(
                     systemName: "captions.bubble",
-                    pointSize: 20,
+                    pointSize: 17,
                     items: state.subtitleTrackItems,
                     emptyTitle: "_no_subtitles_available_",
                     onOpen: onSubtitle,
-                    onSelect: onSubtitleTrackSelected
+                    onSelect: onSubtitleTrackSelected,
+                    onAddExternalSubtitle: onAddExternalSubtitle
                 )
 
                 topActionMenu(
                     systemName: "speaker.wave.2",
-                    pointSize: 20,
+                    pointSize: 17,
                     items: state.audioTrackItems,
                     emptyTitle: "_no_audio_tracks_available_",
                     onOpen: onAudio,
@@ -571,6 +586,53 @@ private struct NCVideoControlsSwiftUIView: View {
                 )
             }
         }
+    }
+
+    private func subtitleActionMenu(
+        systemName: String,
+        pointSize: CGFloat,
+        items: [NCVideoTrackMenuItem],
+        emptyTitle: String,
+        onOpen: @escaping () -> Void,
+        onSelect: @escaping (_ index: Int32) -> Void,
+        onAddExternalSubtitle: @escaping () -> Void
+    ) -> some View {
+        return Menu {
+            if items.isEmpty {
+                Text(NSLocalizedString(emptyTitle, comment: ""))
+            } else {
+                ForEach(items) { item in
+                    Button {
+                        onSelect(item.index)
+                    } label: {
+                        HStack {
+                            Text(item.title)
+
+                            if item.isSelected {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            Button {
+                onAddExternalSubtitle()
+            } label: {
+                Label(
+                    NSLocalizedString("_add_external_subtitle_", comment: ""),
+                    systemImage: "plus"
+                )
+            }
+        } label: {
+            topActionIcon(
+                systemName: systemName,
+                pointSize: pointSize
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func topActionButton(
