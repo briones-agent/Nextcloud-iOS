@@ -143,6 +143,7 @@ final class NCVideoVLCViewController: UIViewController {
         updatePreviewImage()
 
         controlsView.delegate = self
+        controlsView.setTopActionsMode(.vlcTracks)
         controlsView.alpha = 0
         controlsView.isHidden = true
         controlsView.translatesAutoresizingMaskIntoConstraints = false

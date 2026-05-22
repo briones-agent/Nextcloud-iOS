@@ -669,8 +669,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     /// Configures Picture in Picture from the visible AVPlayerLayer.
     private func configurePictureInPicture() {
         guard AVPictureInPictureController.isPictureInPictureSupported() else {
-            controlsView.onPictureInPictureTap = nil
-            controlsView.setPictureInPictureVisible(false)
+            controlsView.setTopActionsMode(.none)
             return
         }
 
@@ -685,11 +684,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
             pictureInPictureController?.delegate = self
         }
 
-        controlsView.onPictureInPictureTap = { [weak self] in
-            self?.togglePictureInPicture()
-        }
-
-        controlsView.setPictureInPictureVisible(true)
+        controlsView.setTopActionsMode(.pictureInPicture)
     }
 
     /// Updates Picture in Picture layout without changing playback state.
@@ -698,7 +693,7 @@ final class NCVideoAVPlayerViewController: UIViewController {
     }
 
     /// Toggles Picture in Picture if available.
-    private func togglePictureInPicture() {
+    func togglePictureInPicture() {
         guard let pictureInPictureController else {
             return
         }

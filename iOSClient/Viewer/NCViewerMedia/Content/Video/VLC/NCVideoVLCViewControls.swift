@@ -251,6 +251,13 @@ extension NCVideoVLCViewController: NCVideoControlsViewDelegate {
         seekForwardTapped()
     }
 
+    /// Handles the Picture in Picture action from the shared controls view.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapPictureInPicture(_ controlsView: NCVideoControlsView) {
+        // VLC does not expose Picture in Picture controls.
+    }
+
     /// Handles the beginning of slider scrubbing from the shared controls view.
     ///
     /// - Parameter controlsView: Shared controls view that emitted the action.
@@ -258,6 +265,24 @@ extension NCVideoVLCViewController: NCVideoControlsViewDelegate {
         showControls(animated: true)
         stopControlsHideTimer()
         isScrubbing = true
+    }
+
+    /// Handles the VLC subtitle track action from the shared controls view.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapSubtitle(_ controlsView: NCVideoControlsView) {
+        showControls(animated: true)
+        stopControlsHideTimer()
+        // VLC subtitle track menu presentation will be attached here.
+    }
+
+    /// Handles the VLC audio track action from the shared controls view.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapAudio(_ controlsView: NCVideoControlsView) {
+        showControls(animated: true)
+        stopControlsHideTimer()
+        // VLC audio track menu presentation will be attached here.
     }
 
     /// Updates VLC time labels while scrubbing from the shared controls view.

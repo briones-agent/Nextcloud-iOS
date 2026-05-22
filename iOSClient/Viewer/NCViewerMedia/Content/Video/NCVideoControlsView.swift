@@ -15,9 +15,38 @@ protocol NCVideoControlsViewDelegate: AnyObject {
     func videoControlsDidTapSeekBackward(_ controlsView: NCVideoControlsView)
     func videoControlsDidTapPlayPause(_ controlsView: NCVideoControlsView)
     func videoControlsDidTapSeekForward(_ controlsView: NCVideoControlsView)
+    func videoControlsDidTapPictureInPicture(_ controlsView: NCVideoControlsView)
+    func videoControlsDidTapSubtitle(_ controlsView: NCVideoControlsView)
+    func videoControlsDidTapAudio(_ controlsView: NCVideoControlsView)
     func videoControlsDidBeginScrubbing(_ controlsView: NCVideoControlsView)
     func videoControls(_ controlsView: NCVideoControlsView, didScrubTo progress: Float)
     func videoControlsDidEndScrubbing(_ controlsView: NCVideoControlsView, progress: Float)
+}
+
+extension NCVideoControlsViewDelegate {
+    /// Handles the Picture in Picture action when implemented by a playback controller.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapPictureInPicture(_ controlsView: NCVideoControlsView) { }
+
+    /// Handles the subtitle track action when implemented by a playback controller.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapSubtitle(_ controlsView: NCVideoControlsView) { }
+
+    /// Handles the audio track action when implemented by a playback controller.
+    ///
+    /// - Parameter controlsView: Shared controls view that emitted the action.
+    func videoControlsDidTapAudio(_ controlsView: NCVideoControlsView) { }
+}
+
+// MARK: - Video Controls Top Actions Mode
+
+/// Describes the engine-specific actions rendered in the top controls area.
+enum NCVideoControlsTopActionsMode: Equatable {
+    case none
+    case pictureInPicture
+    case vlcTracks
 }
 
 // MARK: - Video Controls View
@@ -32,7 +61,6 @@ final class NCVideoControlsView: UIView {
     // MARK: - Public
 
     weak var delegate: NCVideoControlsViewDelegate?
-    var onPictureInPictureTap: (() -> Void)?
 
     // MARK: - Hit Test Proxies
 
@@ -114,7 +142,25 @@ final class NCVideoControlsView: UIView {
     ///
     /// - Parameter isVisible: True when the current playback engine supports Picture in Picture.
     func setPictureInPictureVisible(_ isVisible: Bool) {
-        state.isPictureInPictureVisible = isVisible
+        setTopActionsMode(isVisible ? .pictureInPicture : .none)
+    }
+
+    /// Shows or hides the VLC subtitle and audio track actions.
+    ///
+    /// - Parameter isVisible: True when the VLC playback engine should expose track controls.
+    func setVLCTrackControlsVisible(_ isVisible: Bool) {
+        setTopActionsMode(isVisible ? .vlcTracks : .none)
+    }
+
+    /// Updates the engine-specific actions rendered in the top controls area.
+    ///
+    /// - Parameter mode: Top actions mode requested by the current playback engine.
+    func setTopActionsMode(_ mode: NCVideoControlsTopActionsMode) {
+        guard state.topActionsMode != mode else {
+            return
+        }
+
+        state.topActionsMode = mode
         updateHostedView()
     }
 
@@ -263,7 +309,22 @@ final class NCVideoControlsView: UIView {
                 delegate?.videoControlsDidEndScrubbing(self, progress: progress)
             },
             onPictureInPicture: { [weak self] in
-                self?.onPictureInPictureTap?()
+                guard let self else {
+                    return
+                }
+                delegate?.videoControlsDidTapPictureInPicture(self)
+            },
+            onSubtitle: { [weak self] in
+                guard let self else {
+                    return
+                }
+                delegate?.videoControlsDidTapSubtitle(self)
+            },
+            onAudio: { [weak self] in
+                guard let self else {
+                    return
+                }
+                delegate?.videoControlsDidTapAudio(self)
             }
         )
     }
@@ -277,7 +338,7 @@ private struct NCVideoControlsState: Equatable {
     var elapsedText = "0:00"
     var remainingText = "−0:00"
     var isSeekingEnabled = true
-    var isPictureInPictureVisible = false
+    var topActionsMode: NCVideoControlsTopActionsMode = .none
     var topActionsTopOffset: CGFloat = 0
 }
 
@@ -292,6 +353,8 @@ private struct NCVideoControlsSwiftUIView: View {
     let onScrubChanged: (Float) -> Void
     let onScrubEnded: (Float) -> Void
     let onPictureInPicture: () -> Void
+    let onSubtitle: () -> Void
+    let onAudio: () -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -310,11 +373,11 @@ private struct NCVideoControlsSwiftUIView: View {
                         y: proxy.size.height - proxy.safeAreaInsets.bottom - NCVideoControlsView.bottomControlsBottomInset - (NCVideoControlsView.bottomControlsHeight / 2)
                     )
 
-                if state.isPictureInPictureVisible {
+                if state.topActionsMode != .none {
                     topActions
                         .frame(height: NCVideoControlsView.topActionsHeight)
                         .position(
-                            x: NCVideoControlsView.topActionsHorizontalInset + (NCVideoControlsView.topActionsButtonSize / 2),
+                            x: topActionsCenterX,
                             y: state.topActionsTopOffset + (NCVideoControlsView.topActionsHeight / 2)
                         )
                 }
@@ -322,6 +385,22 @@ private struct NCVideoControlsSwiftUIView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.clear)
+    }
+
+    private var topActionsCenterX: CGFloat {
+        let visibleButtonsCount: CGFloat
+
+        switch state.topActionsMode {
+        case .none:
+            visibleButtonsCount = 0
+        case .pictureInPicture:
+            visibleButtonsCount = 1
+        case .vlcTracks:
+            visibleButtonsCount = 2
+        }
+
+        let totalWidth = (visibleButtonsCount * NCVideoControlsView.topActionsButtonSize) + (max(0, visibleButtonsCount - 1) * 10)
+        return NCVideoControlsView.topActionsHorizontalInset + (totalWidth / 2)
     }
 
     private var centerControls: some View {
@@ -390,9 +469,42 @@ private struct NCVideoControlsSwiftUIView: View {
     }
 
     private var topActions: some View {
-        Button(action: onPictureInPicture) {
-            Image(systemName: "pip.enter")
-                .font(.system(size: 21, weight: .regular))
+        HStack(spacing: 10) {
+            switch state.topActionsMode {
+            case .none:
+                EmptyView()
+
+            case .pictureInPicture:
+                topActionButton(
+                    systemName: "pip.enter",
+                    pointSize: 21,
+                    action: onPictureInPicture
+                )
+
+            case .vlcTracks:
+                topActionButton(
+                    systemName: "captions.bubble",
+                    pointSize: 20,
+                    action: onSubtitle
+                )
+
+                topActionButton(
+                    systemName: "speaker.wave.2",
+                    pointSize: 20,
+                    action: onAudio
+                )
+            }
+        }
+    }
+
+    private func topActionButton(
+        systemName: String,
+        pointSize: CGFloat,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: pointSize, weight: .regular))
                 .foregroundStyle(.black)
                 .frame(
                     width: NCVideoControlsView.topActionsButtonSize,
@@ -458,7 +570,8 @@ private struct NCVideoControlsPreviewView: UIViewRepresentable {
 
         let controlsView = NCVideoControlsView()
         controlsView.translatesAutoresizingMaskIntoConstraints = false
-        controlsView.setPictureInPictureVisible(true)
+        controlsView.setTopActionsMode(.pictureInPicture)
+        // controlsView.setTopActionsMode(.vlcTracks)
         controlsView.updatePlayPauseButton(isPlaying: true)
         controlsView.updateProgress(
             progress: 0.42,
