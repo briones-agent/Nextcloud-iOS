@@ -253,6 +253,7 @@ final class NCVideoVLCViewController: UIViewController {
         self.contextMenuController = contextMenuController
         updatePreviewImage()
         updateTitleLabel(metadata: metadata)
+        refreshVLCTrackMenuItems()
 
         refreshMoreMenu()
 
@@ -565,6 +566,7 @@ final class NCVideoVLCViewController: UIViewController {
         mediaPlayer.media = media
         updatePlayPauseButton()
         updateProgressControls()
+        refreshVLCTrackMenuItems()
         startProgressTimer()
         showControls(animated: false)
         stopControlsHideTimer()
@@ -586,6 +588,7 @@ final class NCVideoVLCViewController: UIViewController {
         stopProgressTimer()
         updatePlayPauseButton()
         updateProgressControls()
+        refreshVLCTrackMenuItems()
     }
 
     /// Attaches the drawable view to VLC.
@@ -605,6 +608,7 @@ final class NCVideoVLCViewController: UIViewController {
     private func handleMediaPlayerStateChange() {
         updatePlayPauseButton()
         updateProgressControls()
+        refreshVLCTrackMenuItems()
 
         guard mediaPlayer.state == .playing else {
             showControls(animated: false)
@@ -635,6 +639,136 @@ final class NCVideoVLCViewController: UIViewController {
 
         hidePreviewImage()
         scheduleControlsHide()
+    }
+
+    // MARK: - VLC Track Menus
+
+    /// Refreshes the SwiftUI track menus using the current VLC player state.
+    func refreshVLCTrackMenuItems() {
+        controlsView.setSubtitleTrackMenuItems(makeSubtitleTrackMenuItems())
+        controlsView.setAudioTrackMenuItems(makeAudioTrackMenuItems())
+    }
+
+    /// Selects a VLC subtitle track and persists the selection for the current metadata.
+    ///
+    /// - Parameter index: VLC subtitle track index selected by the user.
+    func selectSubtitleTrack(index: Int32) {
+        mediaPlayer.currentVideoSubTitleIndex = index
+        NCManageDatabase.shared.addVideo(
+            metadata: metadata,
+            currentVideoSubTitleIndex: Int(index)
+        )
+        refreshVLCTrackMenuItems()
+    }
+
+    /// Selects a VLC audio track and persists the selection for the current metadata.
+    ///
+    /// - Parameter index: VLC audio track index selected by the user.
+    func selectAudioTrack(index: Int32) {
+        mediaPlayer.currentAudioTrackIndex = index
+        NCManageDatabase.shared.addVideo(
+            metadata: metadata,
+            currentAudioTrackIndex: Int(index)
+        )
+        refreshVLCTrackMenuItems()
+    }
+
+    /// Builds subtitle menu items from VLC subtitle tracks.
+    ///
+    /// - Returns: Subtitle menu items rendered by the shared SwiftUI controls.
+    private func makeSubtitleTrackMenuItems() -> [NCVideoTrackMenuItem] {
+        makeTrackMenuItems(
+            titles: mediaPlayer.videoSubTitlesNames,
+            indexes: mediaPlayer.videoSubTitlesIndexes,
+            currentIndex: currentSubtitleTrackIndex()
+        )
+    }
+
+    /// Builds audio menu items from VLC audio tracks.
+    ///
+    /// - Returns: Audio menu items rendered by the shared SwiftUI controls.
+    private func makeAudioTrackMenuItems() -> [NCVideoTrackMenuItem] {
+        makeTrackMenuItems(
+            titles: mediaPlayer.audioTrackNames,
+            indexes: mediaPlayer.audioTrackIndexes,
+            currentIndex: currentAudioTrackIndex()
+        )
+    }
+
+    /// Returns the persisted subtitle track index, falling back to VLC's current subtitle track index.
+    ///
+    /// - Returns: Current subtitle track index used to mark the selected menu item.
+    private func currentSubtitleTrackIndex() -> Int? {
+        if let data = NCManageDatabase.shared.getVideo(metadata: metadata),
+           let currentVideoSubTitleIndex = data.currentVideoSubTitleIndex {
+            return currentVideoSubTitleIndex
+        }
+
+        return Int(mediaPlayer.currentVideoSubTitleIndex)
+    }
+
+    /// Returns the persisted audio track index, falling back to VLC's current audio track index.
+    ///
+    /// - Returns: Current audio track index used to mark the selected menu item.
+    private func currentAudioTrackIndex() -> Int? {
+        if let data = NCManageDatabase.shared.getVideo(metadata: metadata),
+           let currentAudioTrackIndex = data.currentAudioTrackIndex {
+            return currentAudioTrackIndex
+        }
+
+        return Int(mediaPlayer.currentAudioTrackIndex)
+    }
+
+    /// Builds SwiftUI menu items from VLC track names and indexes.
+    ///
+    /// - Parameters:
+    ///   - titles: VLC track titles.
+    ///   - indexes: VLC track indexes.
+    ///   - currentIndex: Currently selected VLC track index.
+    /// - Returns: Track menu items with selection state.
+    private func makeTrackMenuItems(
+        titles: [Any],
+        indexes: [Any],
+        currentIndex: Int?
+    ) -> [NCVideoTrackMenuItem] {
+        titles.indices.compactMap { index in
+            guard let title = titles[index] as? String,
+                  let trackIndex = normalizedTrackIndex(indexes, at: index) else {
+                return nil
+            }
+
+            return NCVideoTrackMenuItem(
+                index: trackIndex,
+                title: title,
+                isSelected: currentIndex == Int(trackIndex)
+            )
+        }
+    }
+
+    /// Normalizes a VLC track index to Int32.
+    ///
+    /// - Parameters:
+    ///   - indexes: VLC track indexes returned by MobileVLCKit.
+    ///   - index: Position to read.
+    /// - Returns: Normalized VLC track index, if available.
+    private func normalizedTrackIndex(
+        _ indexes: [Any],
+        at index: Int
+    ) -> Int32? {
+        guard indexes.indices.contains(index) else {
+            return nil
+        }
+
+        switch indexes[index] {
+        case let value as Int32:
+            return value
+        case let value as Int:
+            return Int32(value)
+        case let value as NSNumber:
+            return value.int32Value
+        default:
+            return nil
+        }
     }
 
     // MARK: - Helpers
@@ -807,3 +941,4 @@ extension NCVideoVLCViewController: UIGestureRecognizerDelegate {
         return abs(velocity.y) > abs(velocity.x) * 1.10
     }
 }
+

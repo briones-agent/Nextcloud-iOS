@@ -18,6 +18,8 @@ protocol NCVideoControlsViewDelegate: AnyObject {
     func videoControlsDidTapPictureInPicture(_ controlsView: NCVideoControlsView)
     func videoControlsDidTapSubtitle(_ controlsView: NCVideoControlsView)
     func videoControlsDidTapAudio(_ controlsView: NCVideoControlsView)
+    func videoControls(_ controlsView: NCVideoControlsView, didSelectSubtitleTrackIndex index: Int32)
+    func videoControls(_ controlsView: NCVideoControlsView, didSelectAudioTrackIndex index: Int32)
     func videoControlsDidBeginScrubbing(_ controlsView: NCVideoControlsView)
     func videoControls(_ controlsView: NCVideoControlsView, didScrubTo progress: Float)
     func videoControlsDidEndScrubbing(_ controlsView: NCVideoControlsView, progress: Float)
@@ -38,15 +40,43 @@ extension NCVideoControlsViewDelegate {
     ///
     /// - Parameter controlsView: Shared controls view that emitted the action.
     func videoControlsDidTapAudio(_ controlsView: NCVideoControlsView) { }
+
+    /// Handles subtitle track selection when implemented by a playback controller.
+    ///
+    /// - Parameters:
+    ///   - controlsView: Shared controls view that emitted the action.
+    ///   - index: VLC subtitle track index selected by the user.
+    func videoControls(_ controlsView: NCVideoControlsView, didSelectSubtitleTrackIndex index: Int32) { }
+
+    /// Handles audio track selection when implemented by a playback controller.
+    ///
+    /// - Parameters:
+    ///   - controlsView: Shared controls view that emitted the action.
+    ///   - index: VLC audio track index selected by the user.
+    func videoControls(_ controlsView: NCVideoControlsView, didSelectAudioTrackIndex index: Int32) { }
 }
 
 // MARK: - Video Controls Top Actions Mode
 
 /// Describes the engine-specific actions rendered in the top controls area.
+
 enum NCVideoControlsTopActionsMode: Equatable {
     case none
     case pictureInPicture
     case vlcTracks
+}
+
+// MARK: - Video Track Menu Item
+
+/// Represents a selectable VLC track rendered by the shared SwiftUI controls menu.
+struct NCVideoTrackMenuItem: Identifiable, Equatable {
+    let index: Int32
+    let title: String
+    let isSelected: Bool
+
+    var id: Int32 {
+        index
+    }
 }
 
 // MARK: - Video Controls View
@@ -161,6 +191,30 @@ final class NCVideoControlsView: UIView {
         }
 
         state.topActionsMode = mode
+        updateHostedView()
+    }
+
+    /// Updates the subtitle track menu items rendered by the VLC controls.
+    ///
+    /// - Parameter items: Available subtitle tracks with selection state.
+    func setSubtitleTrackMenuItems(_ items: [NCVideoTrackMenuItem]) {
+        guard state.subtitleTrackItems != items else {
+            return
+        }
+
+        state.subtitleTrackItems = items
+        updateHostedView()
+    }
+
+    /// Updates the audio track menu items rendered by the VLC controls.
+    ///
+    /// - Parameter items: Available audio tracks with selection state.
+    func setAudioTrackMenuItems(_ items: [NCVideoTrackMenuItem]) {
+        guard state.audioTrackItems != items else {
+            return
+        }
+
+        state.audioTrackItems = items
         updateHostedView()
     }
 
@@ -325,6 +379,18 @@ final class NCVideoControlsView: UIView {
                     return
                 }
                 delegate?.videoControlsDidTapAudio(self)
+            },
+            onSubtitleTrackSelected: { [weak self] index in
+                guard let self else {
+                    return
+                }
+                delegate?.videoControls(self, didSelectSubtitleTrackIndex: index)
+            },
+            onAudioTrackSelected: { [weak self] index in
+                guard let self else {
+                    return
+                }
+                delegate?.videoControls(self, didSelectAudioTrackIndex: index)
             }
         )
     }
@@ -339,6 +405,8 @@ private struct NCVideoControlsState: Equatable {
     var remainingText = "−0:00"
     var isSeekingEnabled = true
     var topActionsMode: NCVideoControlsTopActionsMode = .none
+    var subtitleTrackItems: [NCVideoTrackMenuItem] = []
+    var audioTrackItems: [NCVideoTrackMenuItem] = []
     var topActionsTopOffset: CGFloat = 0
 }
 
@@ -355,6 +423,8 @@ private struct NCVideoControlsSwiftUIView: View {
     let onPictureInPicture: () -> Void
     let onSubtitle: () -> Void
     let onAudio: () -> Void
+    let onSubtitleTrackSelected: (_ index: Int32) -> Void
+    let onAudioTrackSelected: (_ index: Int32) -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -482,16 +552,22 @@ private struct NCVideoControlsSwiftUIView: View {
                 )
 
             case .vlcTracks:
-                topActionButton(
+                topActionMenu(
                     systemName: "captions.bubble",
                     pointSize: 20,
-                    action: onSubtitle
+                    items: state.subtitleTrackItems,
+                    emptyTitle: "_no_subtitles_available_",
+                    onOpen: onSubtitle,
+                    onSelect: onSubtitleTrackSelected
                 )
 
-                topActionButton(
+                topActionMenu(
                     systemName: "speaker.wave.2",
                     pointSize: 20,
-                    action: onAudio
+                    items: state.audioTrackItems,
+                    emptyTitle: "_no_audio_tracks_available_",
+                    onOpen: onAudio,
+                    onSelect: onAudioTrackSelected
                 )
             }
         }
@@ -503,18 +579,68 @@ private struct NCVideoControlsSwiftUIView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: pointSize, weight: .regular))
-                .foregroundStyle(.black)
-                .frame(
-                    width: NCVideoControlsView.topActionsButtonSize,
-                    height: NCVideoControlsView.topActionsButtonSize
-                )
-                .background(.white.opacity(0.92))
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.16), radius: 14, x: 0, y: 4)
+            topActionIcon(
+                systemName: systemName,
+                pointSize: pointSize
+            )
         }
         .buttonStyle(.plain)
+    }
+
+    private func topActionMenu(
+        systemName: String,
+        pointSize: CGFloat,
+        items: [NCVideoTrackMenuItem],
+        emptyTitle: String,
+        onOpen: @escaping () -> Void,
+        onSelect: @escaping (_ index: Int32) -> Void
+    ) -> some View {
+        Menu {
+            if items.isEmpty {
+                Text(NSLocalizedString(emptyTitle, comment: ""))
+            } else {
+                ForEach(items) { item in
+                    Button {
+                        onSelect(item.index)
+                    } label: {
+                        HStack {
+                            Text(item.title)
+
+                            if item.isSelected {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            topActionIcon(
+                systemName: systemName,
+                pointSize: pointSize
+            )
+        }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                onOpen()
+            }
+        )
+        .buttonStyle(.plain)
+    }
+
+    private func topActionIcon(
+        systemName: String,
+        pointSize: CGFloat
+    ) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: pointSize, weight: .regular))
+            .foregroundStyle(.black)
+            .frame(
+                width: NCVideoControlsView.topActionsButtonSize,
+                height: NCVideoControlsView.topActionsButtonSize
+            )
+            .background(.white.opacity(0.92))
+            .clipShape(Circle())
+            .shadow(color: .black.opacity(0.16), radius: 14, x: 0, y: 4)
     }
 
     private func circleButton(
@@ -578,6 +704,14 @@ private struct NCVideoControlsPreviewView: UIViewRepresentable {
             elapsedText: "1:24",
             remainingText: "−2:31"
         )
+        controlsView.setSubtitleTrackMenuItems([
+            NCVideoTrackMenuItem(index: -1, title: "Disable", isSelected: true),
+            NCVideoTrackMenuItem(index: 0, title: "English", isSelected: false)
+        ])
+        controlsView.setAudioTrackMenuItems([
+            NCVideoTrackMenuItem(index: 1, title: "Italian", isSelected: true),
+            NCVideoTrackMenuItem(index: 2, title: "English", isSelected: false)
+        ])
 
         containerView.addSubview(controlsView)
 
