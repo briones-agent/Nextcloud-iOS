@@ -6,9 +6,9 @@ import UIKit
 
 /// Floating title view used by media viewer controllers.
 ///
-/// The view is independent from `UINavigationItem.titleView`, so it can be reused
-/// by the main media viewer, AVPlayer fullscreen controller, and VLC fullscreen controller.
-final class NCViewerFloatingTitleView: UIVisualEffectView {
+/// The view renders only primary and secondary text without any visual material,
+/// background, glass, blur, or border decoration.
+final class NCViewerFloatingTitleView: UIView {
     private let primaryLabel = UILabel()
     private let secondaryLabel = UILabel()
     private let stackView = UIStackView()
@@ -18,17 +18,7 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
     private var heightConstraint: NSLayoutConstraint?
 
     init() {
-        let effect: UIVisualEffect
-
-        if #available(iOS 26.0, *) {
-            let glassEffect = UIGlassEffect(style: .clear)
-            glassEffect.isInteractive = false
-            effect = glassEffect
-        } else {
-            effect = UIBlurEffect(style: .systemChromeMaterial)
-        }
-
-        super.init(effect: effect)
+        super.init(frame: .zero)
 
         configureView()
         configureLabels()
@@ -38,12 +28,6 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-
-        layer.cornerRadius = bounds.height / 2
     }
 
     /// Attaches the floating title view to the provided navigation bar.
@@ -196,12 +180,8 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
     /// Configures the visual container.
     private func configureView() {
         translatesAutoresizingMaskIntoConstraints = false
-        clipsToBounds = true
-        layer.cornerRadius = 22
-        layer.cornerCurve = .continuous
         backgroundColor = .clear
-        contentView.backgroundColor = .clear
-        contentView.layoutMargins = UIEdgeInsets(top: 3, left: 16, bottom: 3, right: 16)
+        layoutMargins = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
         isAccessibilityElement = true
     }
 
@@ -232,14 +212,14 @@ final class NCViewerFloatingTitleView: UIVisualEffectView {
 
         stackView.addArrangedSubview(primaryLabel)
         stackView.addArrangedSubview(secondaryLabel)
-        contentView.addSubview(stackView)
+        addSubview(stackView)
 
         NSLayoutConstraint.activate([
-            stackView.leadingAnchor.constraint(equalTo: contentView.layoutMarginsGuide.leadingAnchor),
-            stackView.trailingAnchor.constraint(equalTo: contentView.layoutMarginsGuide.trailingAnchor),
-            stackView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            stackView.topAnchor.constraint(greaterThanOrEqualTo: contentView.layoutMarginsGuide.topAnchor),
-            stackView.bottomAnchor.constraint(lessThanOrEqualTo: contentView.layoutMarginsGuide.bottomAnchor)
+            stackView.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor),
+            stackView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            stackView.topAnchor.constraint(greaterThanOrEqualTo: layoutMarginsGuide.topAnchor),
+            stackView.bottomAnchor.constraint(lessThanOrEqualTo: layoutMarginsGuide.bottomAnchor)
         ])
     }
 }
