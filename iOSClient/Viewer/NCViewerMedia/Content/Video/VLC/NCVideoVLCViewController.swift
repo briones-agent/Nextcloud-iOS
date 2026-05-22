@@ -566,7 +566,7 @@ final class NCVideoVLCViewController: UIViewController {
         mediaPlayer.media = media
         updatePlayPauseButton()
         updateProgressControls()
-        refreshVLCTrackMenuItems()
+        clearVLCTrackMenuItems()
         startProgressTimer()
         showControls(animated: false)
         stopControlsHideTimer()
@@ -588,7 +588,7 @@ final class NCVideoVLCViewController: UIViewController {
         stopProgressTimer()
         updatePlayPauseButton()
         updateProgressControls()
-        refreshVLCTrackMenuItems()
+        clearVLCTrackMenuItems()
     }
 
     /// Attaches the drawable view to VLC.
@@ -608,7 +608,7 @@ final class NCVideoVLCViewController: UIViewController {
     private func handleMediaPlayerStateChange() {
         updatePlayPauseButton()
         updateProgressControls()
-        refreshVLCTrackMenuItems()
+        refreshVLCTrackMenuItemsWhenPlayerIsActive()
 
         guard mediaPlayer.state == .playing else {
             showControls(animated: false)
@@ -647,6 +647,22 @@ final class NCVideoVLCViewController: UIViewController {
     func refreshVLCTrackMenuItems() {
         controlsView.setSubtitleTrackMenuItems(makeSubtitleTrackMenuItems())
         controlsView.setAudioTrackMenuItems(makeAudioTrackMenuItems())
+    }
+
+    /// Clears the SwiftUI track menus while VLC has not exposed media tracks yet.
+    func clearVLCTrackMenuItems() {
+        controlsView.setSubtitleTrackMenuItems([])
+        controlsView.setAudioTrackMenuItems([])
+    }
+
+    /// Refreshes the SwiftUI track menus only when VLC is active enough to expose tracks.
+    func refreshVLCTrackMenuItemsWhenPlayerIsActive() {
+        switch mediaPlayer.state {
+        case .opening, .buffering, .playing, .paused:
+            refreshVLCTrackMenuItems()
+        default:
+            clearVLCTrackMenuItems()
+        }
     }
 
     /// Selects a VLC subtitle track and persists the selection for the current metadata.
@@ -875,6 +891,7 @@ extension NCVideoVLCViewController: VLCMediaPlayerDelegate {
             }
 
             updateProgressControls()
+            refreshVLCTrackMenuItemsWhenPlayerIsActive()
             scheduleControlsHideIfNeededAfterPlaybackStart()
         }
     }

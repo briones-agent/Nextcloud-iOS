@@ -595,7 +595,7 @@ private struct NCVideoControlsSwiftUIView: View {
         onOpen: @escaping () -> Void,
         onSelect: @escaping (_ index: Int32) -> Void
     ) -> some View {
-        Menu {
+        return Menu {
             if items.isEmpty {
                 Text(NSLocalizedString(emptyTitle, comment: ""))
             } else {
@@ -619,11 +619,6 @@ private struct NCVideoControlsSwiftUIView: View {
                 pointSize: pointSize
             )
         }
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                onOpen()
-            }
-        )
         .buttonStyle(.plain)
     }
 
