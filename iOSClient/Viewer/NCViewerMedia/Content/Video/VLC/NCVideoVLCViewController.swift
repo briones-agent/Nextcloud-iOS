@@ -373,12 +373,14 @@ final class NCVideoVLCViewController: UIViewController {
         )
 
         let hostingController = UIHostingController(rootView: detailView)
-        hostingController.view.backgroundColor = .clear
+        hostingController.modalPresentationStyle = .pageSheet
 
         if let sheetPresentationController = hostingController.sheetPresentationController {
             sheetPresentationController.detents = [.medium(), .large()]
             sheetPresentationController.prefersGrabberVisible = true
             sheetPresentationController.preferredCornerRadius = 24
+            sheetPresentationController.prefersEdgeAttachedInCompactHeight = true
+            sheetPresentationController.widthFollowsPreferredContentSizeWhenEdgeAttached = false
         }
 
         present(

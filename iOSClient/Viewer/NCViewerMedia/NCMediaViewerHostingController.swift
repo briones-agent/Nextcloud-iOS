@@ -409,17 +409,14 @@ final class NCMediaViewerHostingController: UIHostingController<NCMediaViewerVie
         )
 
         let hostingController = UIHostingController(rootView: detailView)
-        hostingController.view.backgroundColor = .ncViewerBackground(.system)
         hostingController.modalPresentationStyle = .pageSheet
 
-        if let sheet = hostingController.sheetPresentationController {
-            sheet.detents = [
-                .medium(),
-                .large()
-            ]
-            sheet.prefersGrabberVisible = true
-            sheet.prefersScrollingExpandsWhenScrolledToEdge = true
-            sheet.preferredCornerRadius = 20
+        if let sheetPresentationController = hostingController.sheetPresentationController {
+            sheetPresentationController.detents = [.medium(), .large()]
+            sheetPresentationController.prefersGrabberVisible = true
+            sheetPresentationController.preferredCornerRadius = 24
+            sheetPresentationController.prefersEdgeAttachedInCompactHeight = true
+            sheetPresentationController.widthFollowsPreferredContentSizeWhenEdgeAttached = false
         }
 
         detailHostingController = hostingController

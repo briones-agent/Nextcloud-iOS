@@ -27,10 +27,13 @@ struct NCMediaViewerDetailView: View {
                 exposureSection
                 locationSection
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
         }
+        .scrollContentBackground(.hidden)
         .background(Color.ncViewerBackground(.system))
+        .presentationBackground(Color.ncViewerBackground(.system))
     }
 
     // MARK: - Sections
