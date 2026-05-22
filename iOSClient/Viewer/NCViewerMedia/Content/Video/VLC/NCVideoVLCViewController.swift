@@ -738,14 +738,10 @@ final class NCVideoVLCViewController: UIViewController {
 
             externalSubtitleURL = localURL
 
-            let subtitleMRL = localURL.standardizedFileURL.absoluteString
-            mediaPlayer.openVideoSubTitles(fromFile: subtitleMRL)
-
-            nkLog(
-                tag: NCGlobal.shared.logTagViewer,
-                emoji: .debug,
-                message: "VIDEO VLC loaded external subtitle MRL: \(subtitleMRL)",
-                consoleOnly: true
+            _ = mediaPlayer.addPlaybackSlave(
+                localURL.standardizedFileURL,
+                type: .subtitle,
+                enforce: true
             )
 
             refreshExternalSubtitleTracksAfterLoad()
@@ -1101,4 +1097,3 @@ extension NCVideoVLCViewController: UIDocumentPickerDelegate {
         showControls(animated: true)
     }
 }
-
