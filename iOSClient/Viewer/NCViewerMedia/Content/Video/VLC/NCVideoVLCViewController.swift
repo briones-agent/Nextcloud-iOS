@@ -1005,7 +1005,6 @@ extension NCVideoVLCViewController: VLCMediaPlayerDelegate {
             }
 
             updateProgressControls()
-            refreshVLCTrackMenuItemsWhenPlayerIsActive()
             scheduleControlsHideIfNeededAfterPlaybackStart()
         }
     }
