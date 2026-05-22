@@ -193,11 +193,22 @@ final class NCVideoControlsView: UIView {
     ///
     /// - Parameter mode: Top actions mode requested by the current playback engine.
     func setTopActionsMode(_ mode: NCVideoControlsTopActionsMode) {
-        guard state.topActionsMode != mode else {
+        let didChangeMode = state.topActionsMode != mode
+        var didResetTrackItems = false
+
+        state.topActionsMode = mode
+
+        if mode != .vlcTracks,
+           (!state.subtitleTrackItems.isEmpty || !state.audioTrackItems.isEmpty) {
+            state.subtitleTrackItems = []
+            state.audioTrackItems = []
+            didResetTrackItems = true
+        }
+
+        guard didChangeMode || didResetTrackItems else {
             return
         }
 
-        state.topActionsMode = mode
         updateHostedView()
     }
 
@@ -553,7 +564,7 @@ private struct NCVideoControlsSwiftUIView: View {
     }
 
     private var topActions: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: NCVideoControlsView.topActionsSpacing) {
             switch state.topActionsMode {
             case .none:
                 EmptyView()

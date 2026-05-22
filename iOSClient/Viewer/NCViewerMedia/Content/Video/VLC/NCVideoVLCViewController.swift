@@ -255,7 +255,7 @@ final class NCVideoVLCViewController: UIViewController {
         self.contextMenuController = contextMenuController
         updatePreviewImage()
         updateTitleLabel(metadata: metadata)
-        refreshVLCTrackMenuItems()
+        refreshVLCTrackMenuItemsWhenPlayerIsActive()
 
         refreshMoreMenu()
 
