@@ -959,6 +959,7 @@ extension NCVideoAVPlayerViewController: AVPictureInPictureControllerDelegate {
 
         stopControlsHideTimer()
         hideControls(animated: false)
+        hidePreviewImage()
     }
 
     func pictureInPictureControllerDidStartPictureInPicture(
@@ -973,6 +974,7 @@ extension NCVideoAVPlayerViewController: AVPictureInPictureControllerDelegate {
 
         stopControlsHideTimer()
         hideControls(animated: false)
+        hidePreviewImage()
     }
 
     func pictureInPictureControllerWillStopPictureInPicture(
