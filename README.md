@@ -1,3 +1,20 @@
+# Nextcloud iOS + React Native
+
+This is an experimental fork of the official [Nextcloud iOS](https://github.com/nextcloud/ios) with the sole purpose of testing brownfield support for Expo and React Native in large native-first codebases. Its commits serve as a reference for anyone interested in integrating React Native into an existing iOS app, especially those that don't want to refactor the whole project structure to accommodate React Native.
+
+This project uses Expo's brownfield isolated approach, plus the [expo-brownfield Navigation API](https://docs.expo.dev/brownfield/overview/) — the RN screen dismisses itself by calling `popToNative()` from JavaScript instead of relying on a native Done button.
+
+## Integration steps
+
+Check commits for detailed steps, full instructions can be found in the [expo-brownfield documentation](https://docs.expo.dev/brownfield/overview/).
+
+1. **Create the Expo app**: Run `npx create-expo-app expo-app --template default@canary-sdk-56` to set up a new Expo app.
+2. **Install expo-brownfield**: Add expo-brownfield to your project `npx expo install expo-brownfield` and generate a Swift Package.
+3. **Add React Native view**: Integrate the Expo app Swift Package into the existing iOS app.
+
+<details>
+<summary>Nextcloud iOS</summary>
+
 # [Nextcloud](https://nextcloud.com) iOS app 
 [![Releases](https://img.shields.io/github/release/nextcloud/ios.svg)](https://github.com/nextcloud/ios/releases/latest) [![Build](https://github.com/nextcloud/ios/actions/workflows/xcode.yml/badge.svg)](https://github.com/nextcloud/ios/actions/workflows/xcode.yml) [![SwiftLint](https://github.com/nextcloud/ios/actions/workflows/lint.yml/badge.svg)](https://github.com/nextcloud/ios/actions/workflows/lint.yml)
 [![irc](https://img.shields.io/badge/IRC-%23nextcloud--mobile%20on%20freenode-blue.svg)](https://webchat.freenode.net/?channels=nextcloud-mobile)
@@ -100,3 +117,5 @@ Note that plain HTTP is used in this case to circumvent certificate issues and s
 UI tests also require a Nextcloud server to test against just like integration tests.
 **Important**: Additionally, UI tests assume your test device (regardless whether physical or Simulator) is set to **US English**.
 This is required because in some parts of the user interface the automation has no other choice than to rely on localized texts for control.
+
+</details>
