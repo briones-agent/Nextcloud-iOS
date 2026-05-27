@@ -13,6 +13,7 @@
 		2C33C48623E2C475005F963B /* Notification Service Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2C33C47F23E2C475005F963B /* Notification Service Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2F96A1BAFB10ACFEAC68EF1C /* NCContextMenuPlayerTracks.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4C7A5B36D1ED178FB6B76CB /* NCContextMenuPlayerTracks.swift */; };
 		370D26AF248A3D7A00121797 /* NCCellMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370D26AE248A3D7A00121797 /* NCCellMain.swift */; };
+		7408D8CF45A71DAE9B9F84AA /* NextcloudExpoArtifacts-release in Frameworks */ = {isa = PBXBuildFile; productRef = E437D3F7560C2CE1E5DAC967 /* NextcloudExpoArtifacts-release */; };
 		A5A87F9E4B0E4441A6A4BC20 /* NCContextMenuProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB7697C94BA14450A0867940 /* NCContextMenuProfile.swift */; };
 		AA3C85E82D36B08C00F74F12 /* UITestBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3C85E72D36B08C00F74F12 /* UITestBackend.swift */; };
 		AA3C85EB2D36BBFB00F74F12 /* OCSResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3C85EA2D36BBF400F74F12 /* OCSResponse.swift */; };
@@ -181,6 +182,7 @@
 		F3F442F02DDE2A7700FD701F /* NCMetadataPermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F442ED2DDE292600FD701F /* NCMetadataPermissions.swift */; };
 		F3F442F12DDE2A7700FD701F /* NCMetadataPermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F442ED2DDE292600FD701F /* NCMetadataPermissions.swift */; };
 		F3F442F42DDE2A7700FD701F /* NCMetadataPermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F442ED2DDE292600FD701F /* NCMetadataPermissions.swift */; };
+		F518685CD00E9428C84BBFEF /* ExpoIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808A823077AE13830947E26 /* ExpoIntegration.swift */; };
 		F700222C1EC479840080073F /* Custom.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F700222B1EC479840080073F /* Custom.xcassets */; };
 		F700222D1EC479840080073F /* Custom.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F700222B1EC479840080073F /* Custom.xcassets */; };
 		F700510122DF63AC003A3356 /* NCShare.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F700510022DF63AC003A3356 /* NCShare.storyboard */; };
@@ -1862,10 +1864,21 @@
 		F7FF2CB02842159500EBB7A1 /* NCSectionHeader.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = NCSectionHeader.xib; sourceTree = "<group>"; };
 		F7FFFC9D2FB300440015441E /* NCAssistantSharedTextStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NCAssistantSharedTextStore.swift; sourceTree = "<group>"; };
 		F7FFFCA32FB3088D0015441E /* NCShareExtension+Assistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NCShareExtension+Assistant.swift"; sourceTree = "<group>"; };
+		F808A823077AE13830947E26 /* ExpoIntegration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExpoIntegration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		AA517BB42D66149900F8D37C /* .tx */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = .tx; sourceTree = "<group>"; };
+		AA517BB42D66149900F8D37C /* .tx */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = .tx;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2007,6 +2020,7 @@
 				F7F623B52A5EF4D30022D3D4 /* Gzip in Frameworks */,
 				F72DA9B425F53E4E00B87DB1 /* SwiftRichString in Frameworks */,
 				F76B649E2ADFFDEC00014640 /* LRUCache in Frameworks */,
+				7408D8CF45A71DAE9B9F84AA /* NextcloudExpoArtifacts-release in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3370,6 +3384,7 @@
 				F78F74322163753B00C2ADAD /* Trash */,
 				F7BFFA991A24D7BB0044ED85 /* Utility */,
 				F79630EC215526B60015EEA5 /* Viewer */,
+				F808A823077AE13830947E26 /* ExpoIntegration.swift */,
 			);
 			path = iOSClient;
 			sourceTree = "<group>";
@@ -3705,6 +3720,7 @@
 				F3374AF52D78B01B002A38F9 /* HashTreeCollections */,
 				F3374AF72D78B01B002A38F9 /* HeapModule */,
 				F70557B62ED44E2700135623 /* LucidBanner */,
+				E437D3F7560C2CE1E5DAC967 /* NextcloudExpoArtifacts-release */,
 			);
 			productName = "Crypto Cloud";
 			productReference = F7CE8AFA1DC1F8D8009CAE48 /* Nextcloud.app */;
@@ -3882,7 +3898,7 @@
 			);
 			mainGroup = F7F67B9F1A24D27800EE80DA;
 			packageReferences = (
-				F7ED547A25EEA65400956C55 /* XCRemoteSwiftPackageReference "QRCodeReader" */,
+				F7ED547A25EEA65400956C55 /* XCRemoteSwiftPackageReference "QRCodeReader.swift" */,
 				F72DA9B225F53E4E00B87DB1 /* XCRemoteSwiftPackageReference "SwiftRichString" */,
 				F788ECC5263AAAF900ADC67F /* XCRemoteSwiftPackageReference "MarkdownKit" */,
 				F70B86732642CE3B00ED5349 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
@@ -3906,6 +3922,7 @@
 				F7D4BF4E2CA2ECCB00A5E746 /* XCRemoteSwiftPackageReference "vlckit-spm" */,
 				F3374AEE2D78B01B002A38F9 /* XCRemoteSwiftPackageReference "swift-collections" */,
 				F70557B52ED44E2700135623 /* XCRemoteSwiftPackageReference "LucidBanner" */,
+				7F805B4E23377BB838A629D5 /* XCLocalSwiftPackageReference "NextcloudExpoArtifacts-release" */,
 			);
 			productRefGroup = F7F67B9F1A24D27800EE80DA;
 			projectDirPath = "";
@@ -4898,6 +4915,7 @@
 				F7CAFE182F164B9500DB35A5 /* NCCollectionViewCommon+CellDelegate.swift in Sources */,
 				F711A4DC2AF92CAE00095DD8 /* NCUtility+Date.swift in Sources */,
 				AF4BF61E27562B3F0081CEEF /* NCManageDatabase+Activity.swift in Sources */,
+				F518685CD00E9428C84BBFEF /* ExpoIntegration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -5775,6 +5793,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/Brand/iOSClient.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "it.twsweb.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -5797,6 +5816,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/Brand/iOSClient.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "it.twsweb.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -6213,6 +6233,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		7F805B4E23377BB838A629D5 /* XCLocalSwiftPackageReference "NextcloudExpoArtifacts-release" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "iOSClient/expo-app/artifacts/NextcloudExpoArtifacts-release";
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		F3374AEE2D78B01B002A38F9 /* XCRemoteSwiftPackageReference "swift-collections" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -6390,7 +6417,7 @@
 				version = 1.0.0;
 			};
 		};
-		F7ED547A25EEA65400956C55 /* XCRemoteSwiftPackageReference "QRCodeReader" */ = {
+		F7ED547A25EEA65400956C55 /* XCRemoteSwiftPackageReference "QRCodeReader.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/yannickl/QRCodeReader.swift";
 			requirement = {
@@ -6409,6 +6436,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		E437D3F7560C2CE1E5DAC967 /* NextcloudExpoArtifacts-release */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7F805B4E23377BB838A629D5 /* XCLocalSwiftPackageReference "NextcloudExpoArtifacts-release" */;
+			productName = "NextcloudExpoArtifacts-release";
+		};
 		F3374AEF2D78B01B002A38F9 /* BitCollections */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = F3374AEE2D78B01B002A38F9 /* XCRemoteSwiftPackageReference "swift-collections" */;
@@ -6476,7 +6508,7 @@
 		};
 		F37208A32BAB63EE006B5430 /* QRCodeReader */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = F7ED547A25EEA65400956C55 /* XCRemoteSwiftPackageReference "QRCodeReader" */;
+			package = F7ED547A25EEA65400956C55 /* XCRemoteSwiftPackageReference "QRCodeReader.swift" */;
 			productName = QRCodeReader;
 		};
 		F37208A52BAB63EE006B5430 /* SwiftRichString */ = {
@@ -6806,7 +6838,7 @@
 		};
 		F7ED547B25EEA65400956C55 /* QRCodeReader */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = F7ED547A25EEA65400956C55 /* XCRemoteSwiftPackageReference "QRCodeReader" */;
+			package = F7ED547A25EEA65400956C55 /* XCRemoteSwiftPackageReference "QRCodeReader.swift" */;
 			productName = QRCodeReader;
 		};
 		F7F1FBA72E27D13700C79E20 /* Queuer */ = {

@@ -44,3 +44,6 @@ Package.resolved
 
 *.generated.swift
 /.env-vars
+
+# expo-brownfield wiring helper — internal automation, not for users
+/integrate_expo.rb

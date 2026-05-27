@@ -8,7 +8,8 @@
     "scheme": "expoapp",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.anonymous.expo-app"
     },
     "android": {
       "adaptiveIcon": {
@@ -32,6 +33,23 @@
           "android": {
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 76
+          }
+        }
+      ],
+      [
+        "expo-brownfield",
+        {
+          "ios": {
+            "targetName": "NextcloudExpo",
+            "bundleIdentifier": "com.nextcloud.NextcloudExpo"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "usePrecompiledModules": true
           }
         }
       ]

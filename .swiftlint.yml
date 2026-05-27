@@ -47,5 +47,9 @@ excluded:
   - iOSClient/NCGlobal.swift
   - iOSClient/Utility/NCLivePhoto.swift
   - DerivedData
-  
+  - build
+  - "**/SourcePackages/**"
+  - "**/node_modules/**"
+  - iOSClient/expo-app
+
 reporter: "xcode"

@@ -1,15 +1,20 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { setNativeBackEnabled } from 'expo-brownfield';
+import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
+import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
-
-export default function TabLayout() {
+export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    setNativeBackEnabled(true);
+  }, []);
+
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+      </Stack>
     </ThemeProvider>
   );
 }

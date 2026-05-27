@@ -37,6 +37,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
                 await NCAccount().deleteAllAccounts()
             }
         }
+
+        // Bootstraps the embedded Expo/React Native runtime and registers
+        // the Files Quick Look screen so it can be presented from anywhere
+        // in the app. The RN screen dismisses itself via the brownfield
+        // Navigation API (`popToNative()` from JavaScript).
+        ExpoIntegration.bootstrap()
+        ExpoIntegration.scheduleAutoPresentIfRequested()
         let utilityFileSystem = NCUtilityFileSystem()
         let utility = NCUtility()
 
@@ -83,9 +90,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             self.notificationSettings = settings
         }
-        application.registerForRemoteNotifications()
         UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in }
+        // Skip the push permission prompt when running the brownfield auto-demo
+        // so the system alert doesn't overlap the recorded modal.
+        if !UserDefaults.standard.bool(forKey: "NextcloudExpoAutoPresent") {
+            application.registerForRemoteNotifications()
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in }
+        }
 
 #if !targetEnvironment(simulator)
         let review = NCStoreReview()

@@ -5,11 +5,11 @@
   "dependencies": {
     "@expo/ui": "56.0.15-canary-20260526-6cd5e37",
     "expo": "56.0.6-canary-20260526-6cd5e37",
+    "expo-brownfield": "^56.0.16-canary-20260526-6cd5e37",
+    "expo-build-properties": "^56.0.16-canary-20260526-6cd5e37",
     "expo-constants": "56.0.17-canary-20260526-6cd5e37",
     "expo-device": "56.0.5-canary-20260526-6cd5e37",
     "expo-font": "56.0.6-canary-20260526-6cd5e37",
-    "expo-glass-effect": "56.0.5-canary-20260526-6cd5e37",
-    "expo-image": "56.0.10-canary-20260526-6cd5e37",
     "expo-linking": "56.0.13-canary-20260526-6cd5e37",
     "expo-router": "56.2.8-canary-20260526-6cd5e37",
     "expo-splash-screen": "56.0.11-canary-20260526-6cd5e37",
@@ -34,8 +34,8 @@
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"
   },
