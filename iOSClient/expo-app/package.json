@@ -1,0 +1,43 @@
+{
+  "name": "expo-app",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "dependencies": {
+    "@expo/ui": "56.0.15-canary-20260526-6cd5e37",
+    "expo": "56.0.6-canary-20260526-6cd5e37",
+    "expo-constants": "56.0.17-canary-20260526-6cd5e37",
+    "expo-device": "56.0.5-canary-20260526-6cd5e37",
+    "expo-font": "56.0.6-canary-20260526-6cd5e37",
+    "expo-glass-effect": "56.0.5-canary-20260526-6cd5e37",
+    "expo-image": "56.0.10-canary-20260526-6cd5e37",
+    "expo-linking": "56.0.13-canary-20260526-6cd5e37",
+    "expo-router": "56.2.8-canary-20260526-6cd5e37",
+    "expo-splash-screen": "56.0.11-canary-20260526-6cd5e37",
+    "expo-status-bar": "56.0.5-canary-20260526-6cd5e37",
+    "expo-symbols": "56.0.6-canary-20260526-6cd5e37",
+    "expo-system-ui": "56.0.6-canary-20260526-6cd5e37",
+    "expo-web-browser": "56.0.6-canary-20260526-6cd5e37",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.0-rc.2",
+    "react-native-gesture-handler": "~2.31.2",
+    "react-native-reanimated": "4.3.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.8.3"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "private": true
+}
